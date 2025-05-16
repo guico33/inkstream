@@ -5,3 +5,4 @@ export type MyType = {
   createdAt: Date;
   updatedAt: Date;
 };
+

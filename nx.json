@@ -28,7 +28,8 @@
           "buildDepsName": "build-deps",
           "watchDepsName": "watch-deps"
         }
-      }
+      },
+      "exclude": ["libs/aws-cdk-infra/*"]
     },
     {
       "plugin": "@nx/next/plugin",
@@ -62,6 +63,15 @@
         "watchDepsTargetName": "watch-deps",
         "buildDepsTargetName": "build-deps",
         "typecheckTargetName": "typecheck"
+      }
+    },
+    {
+      "plugin": "@nx/js/typescript",
+      "include": ["libs/aws-cdk-infra/*"],
+      "options": {
+        "typecheck": {
+          "targetName": "typecheck"
+        }
       }
     }
   ],
