@@ -1,82 +1,75 @@
 # Inkstream
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+![AWS](https://img.shields.io/badge/AWS-CDK%20%7C%20Lambda%20%7C%20Step%20Functions%20%7C%20S3%20%7C%20DynamoDB%20%7C%20Cognito-orange)
+![React](https://img.shields.io/badge/Frontend-React-blue)
+![Nx](https://img.shields.io/badge/Monorepo-Nx-informational)
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is almost ready ✨.
+---
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/next?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+**Inkstream** is a modern, full-stack serverless web application built on AWS, designed for seamless document processing and language transformation. Users can upload images or PDFs, which are then automatically processed through a robust, AI-powered workflow.
 
-## Finish your CI setup
+## ✨ What Does Inkstream Do?
 
-[Click here to finish setting up your workspace!](https://cloud.nx.app/connect/lJJZYQRRyj)
+1. **Upload**: Users upload images or PDFs via a React-based single-page app (SPA).
+2. **Text Extraction**: Documents are processed using **Amazon Textract** to extract text.
+3. **AI Reformat & Translation**: The extracted text is sent to an LLM (**Anthropic Claude 3 Haiku** on **Amazon Bedrock**) for reformatting and/or translation.
+4. **Text-to-Speech (Optional)**: The processed text can be converted to speech using **Amazon Polly**.
+5. **Storage & Tracking**: All files and metadata are securely stored in **Amazon S3** and **DynamoDB**.
+6. **Authentication**: Secure sign-in with **Amazon Cognito** (federated with Google).
+7. **Workflow Orchestration**: All backend processing is orchestrated using **AWS Step Functions** and **AWS Lambda**.
 
+---
 
-## Run tasks
+## 🛠️ Technologies Used
 
-To run the dev server for your app, use:
+- **Frontend**: [Next.js](https://nextjs.org/) Next.js React application (TypeScript, Tailwind)
+- **Monorepo**: [Nx](https://nx.dev/) for code sharing, CI, and scalable development
+- **Backend**:
+  - **API Gateway**: Serverless HTTP endpoints
+  - **AWS Lambda**: Stateless compute for all backend logic
+  - **AWS Step Functions**: Workflow orchestration
+  - **Amazon Textract**: OCR for text extraction
+  - **Amazon Bedrock**: LLM-powered text reformatting/translation (Claude 3 Haiku)
+  - **Amazon Polly**: Text-to-speech
+  - **Amazon S3**: File storage
+  - **Amazon DynamoDB**: User and file metadata
+  - **Amazon Cognito**: Authentication (with Google federation)
+  - **AWS CDK**: Infrastructure as code (TypeScript)
 
-```sh
-npx nx dev inkstream
-```
+---
 
-To create a production bundle:
+## 📦 Monorepo Structure
 
-```sh
-npx nx build inkstream
-```
+- `apps/inkstream/` – React frontend
+- `libs/aws-cdk-infra/` – AWS CDK infrastructure (Step Functions, Lambdas, API Gateway, S3, DynamoDB, Cognito, etc.)
+- `libs/shared-types/` – Shared TypeScript types
 
-To see all available targets to run for a project, run:
+---
 
-```sh
-npx nx show project inkstream
-```
+## 🚀 Quick Start
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+1. **Install dependencies:**
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+   ```sh
+   npm install
+   ```
 
-## Add new projects
+2. **Deploy AWS infrastructure:**
 
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
+   ```sh
+   npx nx run aws-cdk-infra:cdk:deploy:dev
+   ```
 
-Use the plugin's generator to create new projects.
+3. **Run the frontend locally:**
 
-To generate a new application, use:
+   ```sh
+   npx nx dev inkstream
+   ```
 
-```sh
-npx nx g @nx/next:app demo
-```
+---
 
-To generate a new library, use:
+## 🌍 Why Inkstream?
 
-```sh
-npx nx g @nx/react:lib mylib
-```
-
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
-
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/nx-api/next?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- **End-to-end serverless**: No servers to manage, infinite scalability
+- **AI-powered**: Uses state-of-the-art LLMs and AWS AI services
+- **Modern developer experience**: Monorepo, Nx, TypeScript, CDK
