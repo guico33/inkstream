@@ -1,9 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
-import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
-import * as integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { Construct } from 'constructs';
+import { ApiGatewayConstruct } from './constructs/api-gateway-construct';
 import { StorageConstruct } from './constructs/storage-construct';
 import { WorkflowControlLambdas } from './constructs/workflow-control-lambdas';
 import { WorkflowStepLambdas } from './constructs/workflow-step-lambdas';
@@ -101,32 +100,14 @@ export class InkstreamStack extends cdk.Stack {
     stateMachine.grantStartExecution(controlLambdas.startWorkflowFn);
     stateMachine.grantRead(controlLambdas.workflowStatusFn);
 
-    const httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
-      apiName: `dev-inkstream-api-${cdk.Stack.of(this).account}`,
-    });
-
-    // Add route for start-workflow Lambda
-    httpApi.addRoutes({
-      path: '/workflow/start',
-      methods: [apigwv2.HttpMethod.POST],
-      integration: new integrations.HttpLambdaIntegration(
-        'StartWorkflowIntegration',
-        controlLambdas.startWorkflowFn
-      ),
-    });
-
-    // Add route for workflow status
-    httpApi.addRoutes({
-      path: '/workflow/status',
-      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
-      integration: new integrations.HttpLambdaIntegration(
-        'WorkflowStatusIntegration',
-        controlLambdas.workflowStatusFn
-      ),
+    // API Gateway
+    const api = new ApiGatewayConstruct(this, 'ApiGateway', {
+      startWorkflowFn: controlLambdas.startWorkflowFn,
+      workflowStatusFn: controlLambdas.workflowStatusFn,
     });
 
     new cdk.CfnOutput(this, 'HttpApiUrl', {
-      value: httpApi.url ?? 'undefined',
+      value: api.httpApi.url ?? 'undefined',
     });
 
     new cdk.CfnOutput(this, 'StateMachineArn', {
