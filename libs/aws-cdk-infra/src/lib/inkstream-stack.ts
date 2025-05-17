@@ -1,11 +1,10 @@
 import * as cdk from 'aws-cdk-lib';
 import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
-import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { Construct } from 'constructs';
+import { StorageConstruct } from './constructs/storage-construct';
 import { WorkflowControlLambdas } from './constructs/workflow-control-lambdas';
 import { WorkflowStepLambdas } from './constructs/workflow-step-lambdas';
 
@@ -16,21 +15,9 @@ export class InkstreamStack extends cdk.Stack {
     // S3 and DynamoDB setup
     const bucketName = `dev-inkstream-uploads-${cdk.Stack.of(this).account}`;
     const tableName = `dev-inkstream-user-files-${cdk.Stack.of(this).account}`;
-
-    new s3.Bucket(this, 'DevUploadsBucket', {
-      bucketName, // Ensure globally unique for S3
-      removalPolicy: cdk.RemovalPolicy.DESTROY, // Destroys bucket on stack delete (DEV ONLY)
-      autoDeleteObjects: true, // Only for dev/test, not prod!
-      versioned: false, // Enable for production if needed
-    });
-
-    // --- DynamoDB Table ---
-    new dynamodb.Table(this, 'UserFilesTable', {
+    const storage = new StorageConstruct(this, 'Storage', {
+      bucketName,
       tableName,
-      partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'timestamp', type: dynamodb.AttributeType.NUMBER },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
     });
 
     // Lambdas for workflow steps
