@@ -157,6 +157,37 @@ export class InkstreamStack extends cdk.Stack {
       ),
     });
 
+    // Lambda function to check workflow status/results
+    const workflowStatusFn = new NodejsFunction(
+      this,
+      'WorkflowStatusFunction',
+      {
+        entry: path.join(
+          __dirname,
+          '..',
+          'lambda',
+          'workflow-status',
+          'index.ts'
+        ),
+        handler: 'handler',
+        runtime: lambda.Runtime.NODEJS_18_X,
+        timeout: cdk.Duration.seconds(10),
+      }
+    );
+
+    // Grant permission to describe executions
+    stateMachine.grantRead(workflowStatusFn);
+
+    // Add route for workflow status
+    httpApi.addRoutes({
+      path: '/workflow/status',
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration(
+        'WorkflowStatusIntegration',
+        workflowStatusFn
+      ),
+    });
+
     // Example S3 bucket
     new s3.Bucket(this, 'DevUploadsBucket', {
       bucketName: `dev-inkstream-uploads-${cdk.Stack.of(this).account}`, // Ensure globally unique for S3
