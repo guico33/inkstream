@@ -49,3 +49,5 @@ test-output
 
 .cursor/rules/nx-rules.mdc
 .github/instructions/*
+
+cdk.out/
