@@ -7,15 +7,17 @@ import {
 } from '@aws-sdk/client-s3';
 import { SFNClient, DescribeExecutionCommand } from '@aws-sdk/client-sfn';
 import { fromIni } from '@aws-sdk/credential-provider-ini';
+import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
 
 // Configuration
-const BUCKET_NAME = 'dev-inkstream-uploads-560756474135';
+const BUCKET_NAME = 'dev-inkstream-storage-560756474135';
 const API_GATEWAY_URL = process.env.API_GATEWAY_URL; // Get from CDK output or AWS console
 const TEST_FILE_PATH = path.resolve(__dirname, '../test-files/sample.pdf'); // Path to a test PDF file
-const TEST_FILE_KEY = `uploads/test-${Date.now()}.pdf`;
+const TEST_FILE_UUID = uuidv4();
+const TEST_FILE_KEY = `uploads/test-${TEST_FILE_UUID}-${Date.now()}.pdf`;
 
 // Initialize clients
 const s3Client = new S3Client({
@@ -94,6 +96,7 @@ async function startWorkflow(fileKey: string): Promise<string> {
     doTranslate: true,
     doSpeech: true,
     targetLanguage: 'japanese',
+    workflowId: TEST_FILE_UUID, // Add the UUID to test workflow
   };
   console.log(JSON.stringify(workflowParams, null, 2));
 

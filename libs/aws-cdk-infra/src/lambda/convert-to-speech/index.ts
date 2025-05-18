@@ -32,6 +32,7 @@ interface ConvertToSpeechRequest {
   formattedText?: string;
   translatedText?: string;
   targetLanguage?: string;
+  workflowId?: string;
 }
 
 /**
@@ -82,7 +83,8 @@ const voiceMap: Record<
 async function textToSpeech(
   text: string,
   language: string,
-  fileKey: string
+  fileKey: string,
+  workflowId?: string
 ): Promise<string> {
   if (!text || text.trim() === '') {
     throw new Error('No text content to convert to speech');
@@ -97,10 +99,10 @@ async function textToSpeech(
   // Log selected voice
   console.log(`Using voice ${voiceSettings.voiceId} for language ${language}`);
 
-  // Generate a unique S3 key for the audio file
+  // Generate a unique S3 key for the audio file using workflowId if available
   const audioFileKey = `speech/${
-    fileKey.split('/').pop()?.split('.')[0] || 'audio'
-  }-${Date.now()}.mp3`;
+    workflowId ? workflowId : Date.now().toString()
+  }-${language}-${fileKey.split('/').pop()?.split('.')[0] || 'audio'}.mp3`;
 
   try {
     // Preprocess text to handle Markdown and formatting characters
@@ -182,7 +184,8 @@ export const handler: Handler = async (event: ConvertToSpeechRequest) => {
   const audioFileKey = await textToSpeech(
     textToConvert,
     language,
-    event.fileKey
+    event.fileKey,
+    event.workflowId
   );
 
   // Keep all original properties and add our result

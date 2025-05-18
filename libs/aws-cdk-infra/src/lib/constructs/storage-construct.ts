@@ -15,7 +15,7 @@ export class StorageConstruct extends Construct {
   constructor(scope: Construct, id: string, props: StorageConstructProps) {
     super(scope, id);
 
-    this.bucket = new s3.Bucket(this, 'DevUploadsBucket', {
+    this.bucket = new s3.Bucket(this, 'DevStorageBucket', {
       bucketName: props.bucketName,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,

@@ -11,7 +11,7 @@ export class InkstreamStack extends cdk.Stack {
     super(scope, id, props);
 
     // S3 and DynamoDB setup
-    const bucketName = `dev-inkstream-uploads-${cdk.Stack.of(this).account}`;
+    const bucketName = `dev-inkstream-storage-${cdk.Stack.of(this).account}`;
     const tableName = `dev-inkstream-user-files-${cdk.Stack.of(this).account}`;
     const storage = new StorageConstruct(this, 'Storage', {
       bucketName,

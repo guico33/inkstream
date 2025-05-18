@@ -1,5 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn';
+import { v4 as uuidv4 } from 'uuid';
 
 const sfnClient = new SFNClient({});
 
@@ -10,6 +11,7 @@ interface WorkflowInput {
   fileKey?: string;
   userId?: string;
   timestamp?: number;
+  workflowId?: string;
   [key: string]: unknown;
 }
 
@@ -47,6 +49,7 @@ export const handler = async (
 
     // Prepare the input for the state machine
     // Default values can be overridden by the request body
+    const workflowId = uuidv4();
     const executionInput: WorkflowInput = {
       ...requestBody,
       doTranslate: requestBody.doTranslate ?? false,
@@ -55,13 +58,14 @@ export const handler = async (
       fileKey: requestBody.fileKey,
       userId: requestBody.userId || 'anonymous',
       timestamp: Date.now(),
+      workflowId: workflowId, // Add the UUID to the input
     };
 
     // Start the Step Functions execution
     const startExecutionCommand = new StartExecutionCommand({
       stateMachineArn,
       input: JSON.stringify(executionInput),
-      name: `Execution-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      name: `Execution-${workflowId.substring(0, 8)}-${Date.now()}`,
     });
 
     const response = await sfnClient.send(startExecutionCommand);
