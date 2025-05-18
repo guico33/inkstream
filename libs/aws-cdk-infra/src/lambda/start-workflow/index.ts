@@ -6,9 +6,8 @@ const sfnClient = new SFNClient({});
 interface WorkflowInput {
   doTranslate?: boolean;
   doSpeech?: boolean;
-  sourceLanguage?: string;
   targetLanguage?: string;
-  fileId?: string;
+  fileKey?: string;
   userId?: string;
   timestamp?: number;
   [key: string]: unknown;
@@ -52,9 +51,8 @@ export const handler = async (
       ...requestBody,
       doTranslate: requestBody.doTranslate ?? false,
       doSpeech: requestBody.doSpeech ?? false,
-      sourceLanguage: requestBody.sourceLanguage ?? 'en',
-      targetLanguage: requestBody.targetLanguage ?? 'fr',
-      fileId: requestBody.fileId,
+      targetLanguage: requestBody.targetLanguage ?? 'french',
+      fileKey: requestBody.fileKey,
       userId: requestBody.userId || 'anonymous',
       timestamp: Date.now(),
     };

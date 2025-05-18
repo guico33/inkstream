@@ -34,19 +34,48 @@ interface ConvertToSpeechRequest {
   targetLanguage?: string;
 }
 
+/**
+ * Preprocesses text to remove Markdown formatting that would
+ * affect the speech output quality when using Amazon Polly.
+ */
+function preprocessTextForSpeech(text: string): string {
+  let processedText = text;
+
+  // Replace Markdown headings with just the text
+  // This removes heading markers like # ## ###, etc.
+  processedText = processedText.replace(/^(#{1,6})\s+(.+?)$/gm, '$2');
+
+  // Additional preprocessing for other Markdown elements
+  // Remove bullet points
+  processedText = processedText.replace(/^\s*[-*+]\s+/gm, '');
+  // Remove numbered lists markers
+  processedText = processedText.replace(/^\s*\d+\.\s+/gm, '');
+  // Remove code block markers
+  processedText = processedText.replace(/```[\s\S]*?```/g, '');
+  // Remove inline code marks
+  processedText = processedText.replace(/`([^`]+)`/g, '$1');
+
+  console.log('Text preprocessed for Polly - removed Markdown formatting');
+  return processedText;
+}
+
 // Voice mapping for different languages
 const voiceMap: Record<
   string,
-  { voiceId: VoiceId; languageCode: LanguageCode }
+  { voiceId: VoiceId; languageCode: LanguageCode; supportsNeural: boolean }
 > = {
-  english: { voiceId: 'Matthew', languageCode: 'en-US' },
-  french: { voiceId: 'Mathieu', languageCode: 'fr-FR' },
-  spanish: { voiceId: 'Miguel', languageCode: 'es-ES' },
-  german: { voiceId: 'Hans', languageCode: 'de-DE' },
-  italian: { voiceId: 'Giorgio', languageCode: 'it-IT' },
-  portuguese: { voiceId: 'Ricardo', languageCode: 'pt-PT' },
-  japanese: { voiceId: 'Takumi', languageCode: 'ja-JP' },
-  chinese: { voiceId: 'Zhiyu', languageCode: 'cmn-CN' },
+  english: { voiceId: 'Joanna', languageCode: 'en-US', supportsNeural: true },
+  french: { voiceId: 'Lea', languageCode: 'fr-FR', supportsNeural: true },
+  spanish: { voiceId: 'Lupe', languageCode: 'es-US', supportsNeural: true },
+  german: { voiceId: 'Vicki', languageCode: 'de-DE', supportsNeural: true },
+  italian: { voiceId: 'Bianca', languageCode: 'it-IT', supportsNeural: true },
+  portuguese: {
+    voiceId: 'Camila',
+    languageCode: 'pt-BR',
+    supportsNeural: true,
+  },
+  japanese: { voiceId: 'Takumi', languageCode: 'ja-JP', supportsNeural: true },
+  chinese: { voiceId: 'Zhiyu', languageCode: 'cmn-CN', supportsNeural: true },
   // Add more languages as needed
 };
 
@@ -74,14 +103,17 @@ async function textToSpeech(
   }-${Date.now()}.mp3`;
 
   try {
+    // Preprocess text to handle Markdown and formatting characters
+    const processedText = preprocessTextForSpeech(text);
+
     // Call Amazon Polly to synthesize speech
     const pollyResponse = await polly.send(
       new SynthesizeSpeechCommand({
-        Text: text,
+        Text: processedText,
         OutputFormat: OutputFormat.MP3,
         VoiceId: voiceSettings.voiceId,
         LanguageCode: voiceSettings.languageCode,
-        Engine: Engine.NEURAL,
+        Engine: voiceSettings.supportsNeural ? Engine.NEURAL : Engine.STANDARD,
       })
     );
 

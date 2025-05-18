@@ -6,7 +6,8 @@
     "cdk:synth:dev": "cdk synth --profile dev",
     "cdk:deploy:dev": "cdk deploy --profile dev",
     "cdk:diff:dev": "cdk diff --profile dev",
-    "cdk:destroy:dev": "cdk destroy --profile dev"
+    "cdk:destroy:dev": "cdk destroy --profile dev",
+    "test:workflow": "./test-workflow.sh"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.0.0",
@@ -18,6 +19,7 @@
     "constructs": "^10.4.2"
   },
   "devDependencies": {
+    "@aws-sdk/credential-provider-ini": "^3.812.0",
     "@types/aws-lambda": "^8.10.149",
     "aws-cdk": "^2.1016.0",
     "ts-node": "^10.9.2",
