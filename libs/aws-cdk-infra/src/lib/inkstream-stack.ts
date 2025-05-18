@@ -1,11 +1,10 @@
 import * as cdk from 'aws-cdk-lib';
-import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
-import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { Construct } from 'constructs';
 import { ApiGatewayConstruct } from './constructs/api-gateway-construct';
 import { StorageConstruct } from './constructs/storage-construct';
 import { WorkflowControlLambdas } from './constructs/workflow-control-lambdas';
 import { WorkflowStepLambdas } from './constructs/workflow-step-lambdas';
+import { WorkflowStepFunctions } from './constructs/workflow-stepfunctions';
 
 export class InkstreamStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -26,66 +25,17 @@ export class InkstreamStack extends cdk.Stack {
     });
 
     // Step Functions workflow definition
-    const extractTextTask = new tasks.LambdaInvoke(this, 'Extract Text', {
-      lambdaFunction: stepLambdas.extractTextFn,
-      payloadResponseOnly: true,
-    });
-    const formatTextTask = new tasks.LambdaInvoke(this, 'Format Text', {
-      lambdaFunction: stepLambdas.formatTextFn,
-      payloadResponseOnly: true,
-    });
-    const translateTextTask = new tasks.LambdaInvoke(this, 'Translate Text', {
-      lambdaFunction: stepLambdas.translateTextFn,
-      payloadResponseOnly: true,
-    });
-    const convertToSpeechWithTranslateTask = new tasks.LambdaInvoke(
+    const workflowSF = new WorkflowStepFunctions(
       this,
-      'Convert to Speech With Translate',
+      'WorkflowStepFunctions',
       {
-        lambdaFunction: stepLambdas.convertToSpeechFn,
-        payloadResponseOnly: true,
+        extractTextFn: stepLambdas.extractTextFn,
+        formatTextFn: stepLambdas.formatTextFn,
+        translateTextFn: stepLambdas.translateTextFn,
+        convertToSpeechFn: stepLambdas.convertToSpeechFn,
       }
     );
-    const convertToSpeechNoTranslateTask = new tasks.LambdaInvoke(
-      this,
-      'Convert to Speech No Translate',
-      {
-        lambdaFunction: stepLambdas.convertToSpeechFn,
-        payloadResponseOnly: true,
-      }
-    );
-    const workflow = extractTextTask
-      .next(formatTextTask)
-      .next(
-        new sfn.Choice(this, 'TranslateChoice')
-          .when(
-            sfn.Condition.booleanEquals('$.doTranslate', true),
-            translateTextTask.next(
-              new sfn.Choice(this, 'SpeechChoice')
-                .when(
-                  sfn.Condition.booleanEquals('$.doSpeech', true),
-                  convertToSpeechWithTranslateTask.next(
-                    new sfn.Succeed(this, 'DoneWithTranslateAndSpeech')
-                  )
-                )
-                .otherwise(new sfn.Succeed(this, 'DoneWithTranslateNoSpeech'))
-            )
-          )
-          .otherwise(
-            new sfn.Choice(this, 'SpeechChoiceNoTranslate')
-              .when(
-                sfn.Condition.booleanEquals('$.doSpeech', true),
-                convertToSpeechNoTranslateTask.next(
-                  new sfn.Succeed(this, 'DoneWithSpeechNoTranslate')
-                )
-              )
-              .otherwise(new sfn.Succeed(this, 'DoneWithoutTranslateOrSpeech'))
-          )
-      );
-    const stateMachine = new sfn.StateMachine(this, 'ProcessingWorkflow', {
-      definition: workflow,
-      timeout: cdk.Duration.minutes(5),
-    });
+    const stateMachine = workflowSF.stateMachine;
 
     // Lambdas for workflow control
     const controlLambdas = new WorkflowControlLambdas(
