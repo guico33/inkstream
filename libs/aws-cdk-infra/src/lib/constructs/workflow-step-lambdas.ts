@@ -45,15 +45,21 @@ export class WorkflowStepLambdas extends Construct {
     this.formatTextFn = new NodejsFunction(this, 'FormatTextFunction', {
       entry: path.join(__dirname, '../../lambda/format-text/index.ts'),
       handler: 'handler',
-      description: 'Format extracted text with Claude HAIKU',
+      description: 'Format extracted text with Claude Haiku',
       runtime: lambda.Runtime.NODEJS_18_X,
-      timeout: cdk.Duration.seconds(10),
+      timeout: cdk.Duration.seconds(60), // Increased timeout for Bedrock API calls
+      initialPolicy: [
+        new cdk.aws_iam.PolicyStatement({
+          actions: ['bedrock:InvokeModel'],
+          resources: ['*'], // You can restrict this to specific model ARNs if needed
+        }),
+      ],
     });
 
     this.translateTextFn = new NodejsFunction(this, 'TranslateTextFunction', {
       entry: path.join(__dirname, '../../lambda/translate-text/index.ts'),
       handler: 'handler',
-      description: 'Translate text with Claude HAIKU',
+      description: 'Translate text with Claude Haiku',
       runtime: lambda.Runtime.NODEJS_18_X,
       timeout: cdk.Duration.seconds(10),
     });

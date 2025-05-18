@@ -9,6 +9,7 @@
     "cdk:destroy:dev": "cdk destroy --profile dev"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0",
     "@aws-sdk/client-s3": "^3.812.0",
     "@aws-sdk/client-sfn": "^3.812.0",
     "@aws-sdk/client-textract": "^3.812.0",
