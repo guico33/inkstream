@@ -22,6 +22,7 @@ export class WorkflowControlLambdas extends Construct {
     this.startWorkflowFn = new NodejsFunction(this, 'StartWorkflowFunction', {
       entry: path.join(__dirname, '../../lambda/start-workflow/index.ts'),
       handler: 'handler',
+      description: 'Start a workflow execution',
       runtime: lambda.Runtime.NODEJS_18_X,
       timeout: cdk.Duration.seconds(10),
       environment: {
@@ -32,6 +33,7 @@ export class WorkflowControlLambdas extends Construct {
     this.workflowStatusFn = new NodejsFunction(this, 'WorkflowStatusFunction', {
       entry: path.join(__dirname, '../../lambda/workflow-status/index.ts'),
       handler: 'handler',
+      description: 'Get the status of a workflow execution',
       runtime: lambda.Runtime.NODEJS_18_X,
       timeout: cdk.Duration.seconds(10),
     });

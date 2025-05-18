@@ -21,17 +21,31 @@ export class WorkflowStepLambdas extends Construct {
     this.extractTextFn = new NodejsFunction(this, 'ExtractTextFunction', {
       entry: path.join(__dirname, '../../lambda/extract-text/index.ts'),
       handler: 'handler',
+      description:
+        'Extract text from PDF or image with Textract (or read text file)',
       runtime: lambda.Runtime.NODEJS_18_X,
-      timeout: cdk.Duration.seconds(10),
+      timeout: cdk.Duration.seconds(60),
       environment: {
         TABLE_NAME: props.tableName,
         BUCKET_NAME: props.bucketName,
       },
+      initialPolicy: [
+        new cdk.aws_iam.PolicyStatement({
+          actions: [
+            'textract:StartDocumentTextDetection',
+            'textract:GetDocumentTextDetection',
+            'textract:DetectDocumentText',
+            's3:GetObject',
+          ],
+          resources: ['*'],
+        }),
+      ],
     });
 
     this.formatTextFn = new NodejsFunction(this, 'FormatTextFunction', {
       entry: path.join(__dirname, '../../lambda/format-text/index.ts'),
       handler: 'handler',
+      description: 'Format extracted text with Claude HAIKU',
       runtime: lambda.Runtime.NODEJS_18_X,
       timeout: cdk.Duration.seconds(10),
     });
@@ -39,6 +53,7 @@ export class WorkflowStepLambdas extends Construct {
     this.translateTextFn = new NodejsFunction(this, 'TranslateTextFunction', {
       entry: path.join(__dirname, '../../lambda/translate-text/index.ts'),
       handler: 'handler',
+      description: 'Translate text with Claude HAIKU',
       runtime: lambda.Runtime.NODEJS_18_X,
       timeout: cdk.Duration.seconds(10),
     });
@@ -48,6 +63,7 @@ export class WorkflowStepLambdas extends Construct {
       'ConvertToSpeechFunction',
       {
         entry: path.join(__dirname, '../../lambda/convert-to-speech/index.ts'),
+        description: 'Convert text to speech with Polly',
         handler: 'handler',
         runtime: lambda.Runtime.NODEJS_18_X,
         timeout: cdk.Duration.seconds(10),
