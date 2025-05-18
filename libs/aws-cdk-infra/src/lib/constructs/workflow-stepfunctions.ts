@@ -75,7 +75,7 @@ export class WorkflowStepFunctions extends Construct {
       );
     this.stateMachine = new sfn.StateMachine(this, 'ProcessingWorkflow', {
       definition: workflow,
-      timeout: cdk.Duration.minutes(5),
+      timeout: cdk.Duration.minutes(15), // Increased timeout for the overall workflow
     });
   }
 }

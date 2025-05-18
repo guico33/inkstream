@@ -61,7 +61,13 @@ export class WorkflowStepLambdas extends Construct {
       handler: 'handler',
       description: 'Translate text with Claude Haiku',
       runtime: lambda.Runtime.NODEJS_18_X,
-      timeout: cdk.Duration.seconds(10),
+      timeout: cdk.Duration.seconds(60), // Increased timeout for Bedrock API calls
+      initialPolicy: [
+        new cdk.aws_iam.PolicyStatement({
+          actions: ['bedrock:InvokeModel'],
+          resources: ['*'], // You can restrict this to specific model ARNs if needed
+        }),
+      ],
     });
 
     this.convertToSpeechFn = new NodejsFunction(
@@ -72,7 +78,17 @@ export class WorkflowStepLambdas extends Construct {
         description: 'Convert text to speech with Polly',
         handler: 'handler',
         runtime: lambda.Runtime.NODEJS_18_X,
-        timeout: cdk.Duration.seconds(10),
+        timeout: cdk.Duration.minutes(5), // Extended timeout for processing larger documents
+        memorySize: 512, // Increased memory for handling audio processing
+        environment: {
+          BUCKET_NAME: props.bucketName,
+        },
+        initialPolicy: [
+          new cdk.aws_iam.PolicyStatement({
+            actions: ['polly:SynthesizeSpeech', 's3:PutObject'],
+            resources: ['*'],
+          }),
+        ],
       }
     );
   }
