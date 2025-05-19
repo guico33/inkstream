@@ -83,15 +83,19 @@ export class AuthConstruct extends Construct {
           cognito.OAuthScope.PROFILE,
         ],
         callbackUrls: [
-          'http://localhost:5174', // Local development
-          'https://your-domain.com', // Replace with your production domain when ready
+          'http://localhost:5174/login', // Local development (must match frontend redirect_uri)
+          'https://your-domain.com/login', // Production (update as needed)
         ],
         logoutUrls: [
           'http://localhost:5174', // Local development
-          'https://your-domain.com', // Replace with your production domain when ready
+          'https://your-domain.com', // Production (update as needed)
         ],
       },
       preventUserExistenceErrors: true,
+      supportedIdentityProviders: [
+        cognito.UserPoolClientIdentityProvider.COGNITO,
+        cognito.UserPoolClientIdentityProvider.GOOGLE,
+      ],
     });
 
     // Add Google as identity provider (requires setting up Google OAuth credentials)
@@ -174,5 +178,12 @@ export class AuthConstruct extends Construct {
         },
       }
     );
+
+    // Create Cognito domain if not already set
+    this.userPool.addDomain('CognitoDomain', {
+      cognitoDomain: {
+        domainPrefix: `${props.envName}-inkstream`, // Change as needed for uniqueness
+      },
+    });
   }
 }
