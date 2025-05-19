@@ -1,6 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { Construct } from 'constructs';
+import * as dotenv from 'dotenv';
+dotenv.config({ path: __dirname + '/../../.env' });
 
 /**
  * Properties for the AuthConstruct
@@ -81,11 +83,11 @@ export class AuthConstruct extends Construct {
           cognito.OAuthScope.PROFILE,
         ],
         callbackUrls: [
-          'http://localhost:3000', // Local development
+          'http://localhost:5174', // Local development
           'https://your-domain.com', // Replace with your production domain when ready
         ],
         logoutUrls: [
-          'http://localhost:3000', // Local development
+          'http://localhost:5174', // Local development
           'https://your-domain.com', // Replace with your production domain when ready
         ],
       },
@@ -93,24 +95,24 @@ export class AuthConstruct extends Construct {
     });
 
     // Add Google as identity provider (requires setting up Google OAuth credentials)
-    // Uncomment and configure when you have your Google OAuth credentials
-    /*
-    const provider = new cognito.UserPoolIdentityProviderGoogle(this, 'Google', {
-      userPool: this.userPool,
-      clientId: 'your-google-client-id',
-      clientSecret: 'your-google-client-secret',
-      scopes: ['profile', 'email', 'openid'],
-      attributeMapping: {
-        email: cognito.ProviderAttribute.GOOGLE_EMAIL,
-        givenName: cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
-        familyName: cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
-        profilePicture: cognito.ProviderAttribute.GOOGLE_PICTURE,
-      },
-    });
-    
-    // Ensure the provider is created before the user pool client
-    this.userPoolClient.node.addDependency(provider);
-    */
+    const googleProvider = new cognito.UserPoolIdentityProviderGoogle(
+      this,
+      'Google',
+      {
+        userPool: this.userPool,
+        clientId: process.env.GOOGLE_CLIENT_ID || 'your-google-client-id',
+        clientSecret:
+          process.env.GOOGLE_CLIENT_SECRET || 'your-google-client-secret',
+        scopes: ['profile', 'email', 'openid'],
+        attributeMapping: {
+          email: cognito.ProviderAttribute.GOOGLE_EMAIL,
+          givenName: cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
+          familyName: cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
+          profilePicture: cognito.ProviderAttribute.GOOGLE_PICTURE,
+        },
+      }
+    );
+    this.userPoolClient.node.addDependency(googleProvider);
 
     // Create the identity pool
     // The identity pool provides AWS credentials to users who sign in through the user pool
