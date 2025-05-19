@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { ApiGatewayConstruct } from './constructs/api-gateway-construct';
+import { AuthConstruct } from './constructs/auth-construct';
 import { StorageConstruct } from './constructs/storage-construct';
 import { WorkflowControlLambdas } from './constructs/workflow-control-lambdas';
 import { WorkflowStepLambdas } from './constructs/workflow-step-lambdas';
@@ -16,6 +17,11 @@ export class InkstreamStack extends cdk.Stack {
     const storage = new StorageConstruct(this, 'Storage', {
       bucketName,
       tableName,
+    });
+
+    // Authentication setup
+    const auth = new AuthConstruct(this, 'Auth', {
+      envName: 'dev',
     });
 
     // Lambdas for workflow steps
@@ -54,6 +60,7 @@ export class InkstreamStack extends cdk.Stack {
     const api = new ApiGatewayConstruct(this, 'ApiGateway', {
       startWorkflowFn: controlLambdas.startWorkflowFn,
       workflowStatusFn: controlLambdas.workflowStatusFn,
+      userPool: auth.userPool,
     });
 
     new cdk.CfnOutput(this, 'HttpApiUrl', {
@@ -62,6 +69,19 @@ export class InkstreamStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'StateMachineArn', {
       value: stateMachine.stateMachineArn,
+    });
+
+    // Output Cognito IDs for frontend configuration
+    new cdk.CfnOutput(this, 'UserPoolId', {
+      value: auth.userPool.userPoolId,
+    });
+
+    new cdk.CfnOutput(this, 'UserPoolWebClientId', {
+      value: auth.userPoolClient.userPoolClientId,
+    });
+
+    new cdk.CfnOutput(this, 'IdentityPoolId', {
+      value: auth.identityPool.ref,
     });
   }
 }
