@@ -20,6 +20,20 @@ export class StorageConstruct extends Construct {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
       versioned: false,
+      cors: [
+        {
+          allowedOrigins: ['http://localhost:5174'], // Add prod origins as needed
+          allowedMethods: [
+            s3.HttpMethods.GET,
+            s3.HttpMethods.PUT,
+            s3.HttpMethods.POST,
+            s3.HttpMethods.HEAD,
+          ],
+          allowedHeaders: ['*'],
+          exposedHeaders: ['ETag'],
+          maxAge: 3000,
+        },
+      ],
     });
 
     this.table = new dynamodb.Table(this, 'UserFilesTable', {

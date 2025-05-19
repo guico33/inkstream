@@ -133,6 +133,18 @@ export class AuthConstruct extends Construct {
       ],
     });
 
+    // IMPORTANT: Manual step required after deployment
+    // For per-user folder access with ${aws:PrincipalTag/sub} variable substitution to work,
+    // you must enable session tags for federated users in the AWS Console:
+    // 1. Go to AWS Console -> Cognito -> Identity Pools -> [your pool] -> Identity providers -> Cognito user pool
+    // 2. Find "Edit attributes for access control" under the Identity Provider settings
+    // 3. Select "Use custom mappings" (add "sub" -> "sub" mapping)
+    // 4. Save changes
+    //
+    // This step is required because AWS CDK doesn't support configuring session tags directly yet.
+    // Future improvement: Consider migrating to the L2 IdentityPool construct from aws-cdk-lib/aws-cognito-identitypool,
+    // which supports configuring attribute mapping in code.
+
     // Create roles for authenticated users
     // This role defines what AWS resources authenticated users can access
     const authenticatedRole = new cdk.aws_iam.Role(this, 'AuthenticatedRole', {
@@ -148,11 +160,18 @@ export class AuthConstruct extends Construct {
         },
         'sts:AssumeRoleWithWebIdentity'
       ),
+      description: 'Role for authenticated users to access S3',
     });
 
+    // Add sts:TagSession to the trust policy for session tags
+    const cfnRole = authenticatedRole.node.defaultChild as cdk.aws_iam.CfnRole;
+    cfnRole.addOverride(
+      'Properties.AssumeRolePolicyDocument.Statement.0.Action',
+      ['sts:AssumeRoleWithWebIdentity', 'sts:TagSession']
+    );
+
     // Define permissions for authenticated users
-    // This policy allows users to access only their own folder in the S3 bucket
-    // The ${cognito-identity.amazonaws.com:sub} variable is replaced with the user's unique ID at runtime
+    // Secure per-user folder policy using variable substitution
     authenticatedRole.addToPolicy(
       new cdk.aws_iam.PolicyStatement({
         effect: cdk.aws_iam.Effect.ALLOW,
@@ -160,14 +179,24 @@ export class AuthConstruct extends Construct {
         resources: [
           `arn:aws:s3:::dev-inkstream-storage-${
             cdk.Stack.of(this).account
-          }/uploads/\${cognito-identity.amazonaws.com:sub}/*`,
+          }/uploads/\${aws:PrincipalTag/sub}/*`, // Changed to use aws:PrincipalTag/sub
         ],
       })
     );
 
     // Attach roles to identity pool
-    // This connects the IAM roles to the identity pool so that authenticated users
-    // get the correct permissions when accessing AWS resources
+    // Use CfnJson to allow deploy-time resolution of the roleMappings key
+    const roleMappings = new cdk.CfnJson(this, 'RoleMappings', {
+      value: {
+        [`${this.userPool.userPoolProviderName}:${this.userPoolClient.userPoolClientId}`]:
+          {
+            Type: 'Token',
+            AmbiguousRoleResolution: 'AuthenticatedRole',
+            // IdentityProvider field removed as it's not strictly needed for Type: 'Token'
+          },
+      },
+    });
+
     new cognito.CfnIdentityPoolRoleAttachment(
       this,
       'IdentityPoolRoleAttachment',
@@ -176,6 +205,7 @@ export class AuthConstruct extends Construct {
         roles: {
           authenticated: authenticatedRole.roleArn,
         },
+        roleMappings: roleMappings.value,
       }
     );
 

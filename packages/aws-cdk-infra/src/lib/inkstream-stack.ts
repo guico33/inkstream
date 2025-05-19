@@ -83,5 +83,11 @@ export class InkstreamStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'IdentityPoolId', {
       value: auth.identityPool.ref,
     });
+
+    new cdk.CfnOutput(this, 'ManualCognitoSetup', {
+      value: `IMPORTANT: Manual step required for per-user S3 folder access.\n1. Go to AWS Console -> Cognito -> Identity Pools -> ${auth.identityPool.identityPoolName} (or ${auth.identityPool.ref}).\n2. Under "Identity providers", select your Cognito User Pool (${auth.userPool.userPoolProviderName}).\n3. Click "Edit attributes for access control".\n4. Select "Use custom mappings".\n5. Add a mapping: Tag key "sub", Claim "sub".\n6. Save changes.\nThis enables the \${aws:PrincipalTag/sub} variable in IAM policies.`,
+      description:
+        'Manual steps required in Cognito Identity Pool for session tags.',
+    });
   }
 }
