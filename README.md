@@ -2,7 +2,6 @@
 
 ![AWS](https://img.shields.io/badge/AWS-CDK%20%7C%20Lambda%20%7C%20Step%20Functions%20%7C%20S3%20%7C%20DynamoDB%20%7C%20Cognito-orange)
 ![React](https://img.shields.io/badge/Frontend-React-blue)
-![Nx](https://img.shields.io/badge/Monorepo-Nx-informational)
 
 ---
 
@@ -23,7 +22,7 @@
 ## 🛠️ Technologies Used
 
 - **Frontend**: React application (Vite, TypeScript, Tailwind)
-- **Monorepo**: [Nx](https://nx.dev/) for code sharing, CI, and scalable development
+- **Monorepo**: npm workspaces for code sharing and scalable development
 - **Backend**:
   - **API Gateway**: Serverless HTTP endpoints
   - **AWS Lambda**: Stateless compute for all backend logic
@@ -40,35 +39,47 @@
 
 ## 📦 Monorepo Structure
 
-- `apps/inkstream/` – React frontend
-- `libs/aws-cdk-infra/` – AWS CDK infrastructure (Step Functions, Lambdas, API Gateway, S3, DynamoDB, Cognito, etc.)
+- `apps/frontend/` – React frontend (Vite, TypeScript, Tailwind)
+- `packages/aws-cdk-infra/` – AWS CDK infrastructure (Step Functions, Lambdas, API Gateway, S3, DynamoDB, Cognito, etc.)
 
 ---
 
 ## 🚀 Quick Start
 
 1. **Install dependencies:**
-
    ```sh
    npm install
    ```
-
-2. **Deploy AWS infrastructure:**
-
+2. **Run the frontend app:**
    ```sh
-   npx nx run aws-cdk-infra:cdk:deploy:dev
+   npm run dev:frontend
    ```
-
-3. **Run the frontend locally:**
-
+3. **Run or deploy the CDK infrastructure:**
    ```sh
-   npx nx dev inkstream
+   npm run dev:infra
+   # or
+   npm run deploy:infra
    ```
 
 ---
 
-## 🌍 Why Inkstream?
+## Running the Frontend (React + Vite)
 
-- **End-to-end serverless**: No servers to manage, infinite scalability
-- **AI-powered**: Uses state-of-the-art LLMs and AWS AI services
-- **Modern developer experience**: Monorepo, Nx, TypeScript, CDK
+```sh
+cd apps/frontend
+npm install
+npm run dev
+```
+
+## Working with AWS CDK Infrastructure
+
+```sh
+cd packages/aws-cdk-infra
+npm install
+# Replace <command> with your CDK command, e.g. synth, deploy, etc.
+npx cdk <command>
+```
+
+---
+
+For more details, see the README in each package.
