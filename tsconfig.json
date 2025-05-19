@@ -4,13 +4,10 @@
   "files": [],
   "references": [
     {
-      "path": "./apps/inkstream"
-    },
-    {
-      "path": "./libs/shared-types"
-    },
-    {
       "path": "./libs/aws-cdk-infra"
+    },
+    {
+      "path": "./apps/frontend"
     }
   ]
 }

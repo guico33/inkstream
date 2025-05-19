@@ -81,11 +81,11 @@ export class AuthConstruct extends Construct {
           cognito.OAuthScope.PROFILE,
         ],
         callbackUrls: [
-          'http://localhost:3000', // Local development for Next.js
+          'http://localhost:3000', // Local development
           'https://your-domain.com', // Replace with your production domain when ready
         ],
         logoutUrls: [
-          'http://localhost:3000', // Local development for Next.js
+          'http://localhost:3000', // Local development
           'https://your-domain.com', // Replace with your production domain when ready
         ],
       },

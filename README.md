@@ -22,7 +22,7 @@
 
 ## 🛠️ Technologies Used
 
-- **Frontend**: [Next.js](https://nextjs.org/) Next.js React application (TypeScript, Tailwind)
+- **Frontend**: React application (Vite, TypeScript, Tailwind)
 - **Monorepo**: [Nx](https://nx.dev/) for code sharing, CI, and scalable development
 - **Backend**:
   - **API Gateway**: Serverless HTTP endpoints
@@ -42,7 +42,6 @@
 
 - `apps/inkstream/` – React frontend
 - `libs/aws-cdk-infra/` – AWS CDK infrastructure (Step Functions, Lambdas, API Gateway, S3, DynamoDB, Cognito, etc.)
-- `libs/shared-types/` – Shared TypeScript types
 
 ---
 
