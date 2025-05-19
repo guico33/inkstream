@@ -46,40 +46,47 @@
 
 ## 🚀 Quick Start
 
-1. **Install dependencies:**
+This project uses npm workspaces. Commands are typically run from the root of the monorepo.
+
+1. **Install all dependencies:** (From the project root, this installs dependencies for all workspaces)
+
    ```sh
    npm install
    ```
-2. **Run the frontend app:**
+
+2. **Run the frontend app:** (Starts the Vite development server for `apps/frontend`)
+
    ```sh
    npm run dev:frontend
    ```
-3. **Run or deploy the CDK infrastructure:**
+
+3. **Deploy the AWS CDK infrastructure:** (Deploys AWS resources defined in `packages/aws-cdk-infra`)
+
    ```sh
-   npm run dev:infra
-   # or
    npm run deploy:infra
    ```
+
+   *Note: You might have other scripts like `npm run synth:infra` or `npm run diff:infra` for specific CDK actions, or you can use `npx cdk <command>` directly within the `packages/aws-cdk-infra` directory (see below).*
 
 ---
 
 ## Running the Frontend (React + Vite)
 
+The frontend application is located in `apps/frontend/`. While `npm run dev:frontend` from the root is recommended, you can also run it directly:
+
 ```sh
 cd apps/frontend
-npm install
-npm run dev
+npm install # Usually not needed if root `npm install` was run
+npm run dev   # Starts the Vite development server
 ```
 
 ## Working with AWS CDK Infrastructure
 
+The AWS CDK infrastructure code is in `packages/aws-cdk-infra/`. While root-level scripts like `npm run deploy:infra` are recommended for common tasks, you can run specific CDK commands directly:
+
 ```sh
 cd packages/aws-cdk-infra
-npm install
-# Replace <command> with your CDK command, e.g. synth, deploy, etc.
-npx cdk <command>
+npm install # Usually not needed if root `npm install` was run
+# Replace <command> with any CDK command, e.g., synth, diff, bootstrap, deploy, etc.
+npx npm run cdk:<command>:<env> # e.g., npx npm run cdk:deploy:dev
 ```
-
----
-
-For more details, see the README in each package.
