@@ -30,6 +30,7 @@ export class InkstreamStack extends cdk.Stack {
     const stepLambdas = new WorkflowStepLambdas(this, 'WorkflowStepLambdas', {
       tableName,
       bucketName,
+      claudeModelId: process.env.CLAUDE_MODEL_ID, // Pass the environment variable here
     });
 
     // Step Functions workflow definition

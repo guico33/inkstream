@@ -1,19 +1,32 @@
-import { Handler } from 'aws-lambda';
 import {
   BedrockRuntimeClient,
   InvokeModelCommand,
 } from '@aws-sdk/client-bedrock-runtime';
+import { Handler } from 'aws-lambda';
+
+// Import utility functions
+import { formatErrorForLogging } from '../../utils/error-utils';
+import {
+  createS3ErrorResponse,
+  createS3Response,
+} from '../../utils/response-utils';
+import { generateUserS3Key, saveTextToS3 } from '../../utils/s3-utils';
 
 // Initialize Bedrock client
 const bedrockRuntime = new BedrockRuntimeClient({});
 
 // Claude 3 Haiku model ID
-const MODEL_ID = 'anthropic.claude-3-haiku-20240307-v1:0';
+const MODEL_ID =
+  process.env.CLAUDE_MODEL_ID || 'anthropic.claude-3-haiku-20240307-v1:0';
 
 interface FormatRequest {
   extractedText: string;
   fileKey: string;
   fileType: string;
+  originalFileBucket: string; // Added to know where the original file is, if needed for context or naming
+  outputBucket: string; // Added to specify where to save the formatted text
+  userId: string; // Added for user-specific S3 paths
+  workflowId?: string; // Optional workflow ID for tracking
 }
 
 async function formatTextWithClaude(extractedText: string): Promise<string> {
@@ -99,29 +112,65 @@ ${processedText}
     // Extract the response text from Claude's response
     return result.content[0].text;
   } catch (error: unknown) {
-    console.error('Error calling Bedrock:', error);
-    throw new Error(
-      `Failed to format text: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`
-    );
+    console.error('Error invoking Bedrock model:', error);
+    // It's better to throw the error here and let the handler catch it
+    // So the handler can decide on the overall Lambda response structure
+    if (error instanceof Error) {
+      throw new Error(`Bedrock model invocation failed: ${error.message}`);
+    } else {
+      throw new Error('Bedrock model invocation failed with an unknown error.');
+    }
   }
 }
 
 export const handler: Handler = async (event: FormatRequest) => {
-  console.log('Format Lambda invoked with event:', JSON.stringify(event));
+  console.log('FormatText Lambda event:', JSON.stringify(event, null, 2));
 
   if (!event.extractedText) {
-    throw new Error('Missing extractedText in event');
+    console.warn('No extracted text provided.');
+    return createS3ErrorResponse(400, 'No extracted text to format');
   }
 
-  // Format the extracted text using Claude
-  const formattedText = await formatTextWithClaude(event.extractedText);
+  if (!event.outputBucket) {
+    console.error('Output bucket not specified.');
+    return createS3ErrorResponse(500, 'Output bucket not configured');
+  }
 
-  // Keep all original properties and add our result
-  // This ensures doTranslate, doSpeech and other properties remain at the root level
-  return {
-    ...event,
-    formattedText,
-  };
+  try {
+    const formattedText = await formatTextWithClaude(event.extractedText);
+
+    // Determine the output S3 key with user-specific path
+    const originalFileKey = event.fileKey;
+    const userId = event.userId || 'unknown-user';
+
+    // Generate S3 key for the formatted text file
+    const outputKey = generateUserS3Key(
+      userId,
+      'formatted',
+      originalFileKey,
+      'txt'
+    );
+
+    // Save the formatted text to S3
+    const s3Path = await saveTextToS3(
+      event.outputBucket,
+      outputKey,
+      formattedText
+    );
+    console.log(`Formatted text saved to s3://${s3Path.bucket}/${s3Path.key}`);
+
+    return createS3Response(s3Path, 'Text formatted and saved successfully.', {
+      formattedTextLength: formattedText.length,
+    });
+  } catch (error: unknown) {
+    console.error(
+      'Error formatting text or saving to S3:',
+      formatErrorForLogging('format and save', error)
+    );
+    return createS3ErrorResponse(
+      500,
+      'Error processing text formatting',
+      error
+    );
+  }
 };
