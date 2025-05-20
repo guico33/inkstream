@@ -8,7 +8,8 @@ import * as apigwv2_integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations
 export interface ApiGatewayConstructProps {
   startWorkflowFn: lambda.IFunction;
   workflowStatusFn: lambda.IFunction;
-  userPool?: cognito.IUserPool;
+  userPool: cognito.IUserPool;
+  userPoolClientId: string;
 }
 
 export class ApiGatewayConstruct extends Construct {
@@ -41,11 +42,6 @@ export class ApiGatewayConstruct extends Construct {
       }
     }
 
-    // Ensure userPool is defined
-    if (!props.userPool) {
-      throw new Error('UserPool is required for Cognito authentication');
-    }
-
     // Create a Cognito User Pool authorizer
     const httpAuthorizer = new apigwv2.HttpAuthorizer(
       this,
@@ -54,7 +50,7 @@ export class ApiGatewayConstruct extends Construct {
         httpApi: this.httpApi,
         type: apigwv2.HttpAuthorizerType.JWT,
         identitySource: ['$request.header.Authorization'],
-        jwtAudience: [props.userPool.userPoolId],
+        jwtAudience: [props.userPoolClientId],
         jwtIssuer: `https://cognito-idp.${
           cdk.Stack.of(this).region
         }.amazonaws.com/${props.userPool.userPoolId}`,
