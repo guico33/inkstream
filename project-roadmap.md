@@ -18,9 +18,10 @@ Goal: Ensure all primary features are working reliably end-to-end for a Minimum 
   - [x] Trigger Step Functions workflow after successful upload.
   - [ ] Display initial confirmation that processing has started.
 - [ ] **Workflow Status & Results Display (Iterative Implementation):**
-  - [ ] **P1.1: Basic Polling & Status Update:** Implement polling in `FileProcessingContext` to fetch workflow status. Display basic status messages (e.g., "Processing", "Success", "Failed") in `S3FileUpload.tsx`.
-  - [ ] **P1.2: Display Basic Results:** Once workflow completes, fetch and display basic results (e.g., extracted text, link to audio). This might involve a new API endpoint or enhancing the status endpoint.
-  - [ ] **P1.3: Error Display:** Clearly display errors from the workflow.
+  - [x] **P1.1: Basic Polling & Status Update:** Implement polling in `FileProcessingContext` to fetch workflow status. Display basic status messages (e.g., "Processing", "Success", "Failed") in `S3FileUpload.tsx`.
+  - [ ] **P1.2: Display Workflow Output:** Properly display the workflow output in the UI, ensuring complex objects are handled and long strings like ARNs are wrapped or truncated.
+  - [ ] **P1.3: Display Basic Results:** Once workflow completes, fetch and display basic results (e.g., extracted text, link to audio). This might involve a new API endpoint or enhancing the status endpoint.
+  - [ ] **P1.4: Error Display:** Clearly display errors from the workflow.
 - [ ] **Authentication Flow:**
   - [ ] Ensure smooth Google sign-in and sign-out.
   - [ ] Secure handling and storage of authentication tokens (e.g., `id_token` currently from localStorage - review best practices, consider HttpOnly cookies if a backend for frontend is introduced, or ensure proper XSS mitigation).
@@ -33,8 +34,10 @@ Goal: Ensure all primary features are working reliably end-to-end for a Minimum 
 - [ ] **API Gateway Endpoints (Iterative Implementation):**
   - [ ] **P1.1: Workflow Status Endpoint (`/workflow-status`):** Create an endpoint that accepts a workflow execution ARN and returns its current status (and potentially basic output/error if available).
   - [ ] **P1.2: (Optional/If Needed) Results Endpoint (`/workflow-results`):** If results are too large or complex for the status endpoint, create a dedicated endpoint to fetch detailed processing results using the execution ARN.
+  - [ ] **New: List Workflows Endpoint (`/workflows`):** Create an endpoint to list a user's past and ongoing workflows, including metadata like file name, status, creation date, and S3 paths to generated files. This will likely query DynamoDB.
 - [ ] **Step Functions Workflow Enhancement:**
   - [ ] Ensure each step (Textract, Bedrock LLM, Polly) is fully implemented and integrated.
+  - [ ] Store generated outputs (formatted text, translated text) to S3 and include their paths in the workflow output.
   - [ ] Robust error handling, retries, and dead-letter queues (DLQs) for each Lambda within the workflow.
   - [ ] Pass necessary data between steps correctly.
   - [ ] Implement idempotency where necessary.
@@ -46,8 +49,8 @@ Goal: Ensure all primary features are working reliably end-to-end for a Minimum 
   - [ ] Secure endpoints (authentication via Cognito Authorizer).
   - [ ] Input validation for API requests.
 - [ ] **DynamoDB:**
-  - [ ] Finalize schema for storing file metadata, user information, and workflow status.
-  - [ ] Implement efficient querying patterns.
+  - [ ] Finalize schema for storing file metadata, user information, workflow status, workflow parameters, and S3 paths to original and generated files.
+  - [ ] Implement efficient querying patterns, especially for the new `List Workflows Endpoint` (e.g., GSI on user ID and timestamp).
 - [ ] **S3 Bucket:**
   - [ ] Lifecycle policies for managing stored files (e.g., moving to cheaper storage, deletion).
 
@@ -67,8 +70,18 @@ Goal: Improve usability, add polish, and prepare for wider testing.
 
 ### Frontend
 
-- [ ] **Advanced UI/UX:**
-  - [ ] Dashboard to view history of uploaded/processed files.
+- [ ] **UI Structure & Navigation:**
+  - [ ] Design and implement a clear navigation structure (e.g., sidebar or top navigation bar).
+  - [ ] Main Page: Focus on file upload and current/most recent workflow status (refine `S3FileUpload.tsx` or create a dedicated view if needed).
+  - [ ] **New: Workflow History Page:**
+    - [ ] Create a new page/route for displaying a history of user\'s workflows.
+    - [ ] Display workflows in a tabular format (columns: File Name, Upload Date, Status, Options Used, Actions).
+    - [ ] For each workflow, show parameters used (e.g., translation language, audio generation choice - once implemented).
+    - [ ] Provide download links for: original uploaded file, formatted text, translated text (if applicable), and audio file (if applicable).
+    - [ ] Implement pagination or infinite scrolling for long lists of workflows.
+- [ ] **Workflow Parameter Selection (Main Page/Upload Component):**
+  - [ ] Implement UI for selecting workflow parameters (e.g., translation language, audio generation).
+- [ ] **Advanced UI/UX (General):**
   - [ ] Real-time (or near real-time) updates on workflow progress (e.g., using WebSockets, or periodic polling with backoff).
   - [ ] Improved display of processed content (e.g., side-by-side original/translated text, embedded audio player).
   - [ ] User settings/profile page (if needed).
@@ -77,6 +90,11 @@ Goal: Improve usability, add polish, and prepare for wider testing.
 
 ### Backend
 
+- [ ] **API Enhancements for Workflow History:**
+  - [ ] **New: List Workflows Endpoint (`/workflows`):** Create an API endpoint to list a user\'s past and ongoing workflows. This should include metadata like file name, status, creation date, workflow parameters used, and S3 paths to original and generated files. This will likely query DynamoDB.
+- [ ] **Data Storage for Workflow History (DynamoDB):**
+  - [ ] Update DynamoDB schema to store comprehensive workflow details: file metadata, user information, workflow status, parameters used (e.g., translation language, audio choice), and S3 paths to all relevant files (original, formatted text, translated text, audio).
+  - [ ] Implement efficient querying patterns for the `List Workflows Endpoint` (e.g., using a Global Secondary Index on user ID and timestamp).
 - [ ] **Monitoring & Alerting:**
   - [ ] Set up CloudWatch Dashboards for key metrics (Lambda invocations, errors, Step Function success/failure rates, API Gateway latency).
   - [ ] Configure CloudWatch Alarms for critical issues.
@@ -85,6 +103,16 @@ Goal: Improve usability, add polish, and prepare for wider testing.
 - [ ] **Scalability:**
   - [ ] Load testing to identify bottlenecks.
   - [ ] Ensure services are configured to scale appropriately.
+
+### General
+
+- [ ] **End-to-End Testing (Iterative Checkpoints):**
+  - [ ] **Checkpoint 1 (Current Goal):** Verify file upload, workflow start, and basic status polling. Sign-in -> Upload -> Workflow Starts -> Status updates to "Running".
+  - [ ] **Checkpoint 2:** Verify workflow completion (success/failure) and display of basic results/errors. Sign-in -> Upload -> Workflow Runs -> Status updates to "Success/Failed" -> Basic results/error message shown.
+  - [ ] **Checkpoint 3 (Full MVP E2E):** Full user flow: Sign-in -> Upload -> Processing (with intermediate status updates) -> View Full Results (text, translation, audio link).
+- [ ] **Configuration Management:**
+  - [ ] Centralize environment-specific configurations (e.g., API endpoints, Cognito IDs) for frontend and backend.
+  - [ ] Ensure `.env` files are correctly used and not committed.
 
 ## Phase 3: Testing & Production Readiness
 
