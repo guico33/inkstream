@@ -9,6 +9,7 @@ import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { useFileProcessing } from '@/lib/contexts/file-processing-context'; // Import the context hook
+import { getWorkflowDisplayInfo } from '@/lib/display'; // Import the new display function
 
 export function S3FileUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -65,56 +66,14 @@ export function S3FileUpload() {
     'workflow_running',
   ].includes(processingStatus);
 
-  let statusMessage = '';
-  let messageColor = 'text-gray-600 dark:text-gray-300';
-
-  if (errorMessage) {
-    statusMessage = `Error: ${errorMessage}`;
-    messageColor = 'text-red-600 dark:text-red-400';
-  } else {
-    switch (processingStatus) {
-      case 'idle':
-        statusMessage = 'Select a file to begin.';
-        break;
-      case 'selecting':
-        statusMessage = selectedFile
-          ? `Selected: ${selectedFile.name}`
-          : 'Select a file.';
-        break;
-      case 'uploading':
-        statusMessage = `Uploading: ${selectedFile?.name}...`;
-        break;
-      case 'starting_workflow':
-        statusMessage = 'Starting workflow...';
-        break;
-      case 'workflow_running':
-        statusMessage = `Processing: ${
-          workflowStatusDetails?.status || 'Running'
-        }`;
-        if (workflowStatusDetails?.status === 'RUNNING' && s3Data?.key) {
-          statusMessage += ` (File: ${s3Data.key.split('/').pop()})`;
-        }
-        break;
-      case 'workflow_succeeded':
-        statusMessage = 'Workflow completed successfully!';
-        messageColor = 'text-green-600 dark:text-green-400';
-        if (workflowStatusDetails?.output) {
-          statusMessage += ` Output: ${workflowStatusDetails.output}`;
-        }
-        break;
-      case 'workflow_failed':
-        statusMessage = `Workflow failed: ${
-          workflowStatusDetails?.error || 'Unknown error'
-        }`;
-        if (workflowStatusDetails?.cause) {
-          statusMessage += ` Cause: ${workflowStatusDetails.cause}`;
-        }
-        messageColor = 'text-red-600 dark:text-red-400';
-        break;
-      default:
-        statusMessage = 'Ready.';
-    }
-  }
+  // Use the new utility function to get status message and color
+  const { statusMessage, messageColor } = getWorkflowDisplayInfo({
+    processingStatus,
+    errorMessage,
+    selectedFile,
+    workflowStatusDetails,
+    s3Data,
+  });
 
   return (
     <div className="flex flex-col gap-4 items-start w-full max-w-md mt-8 p-6 border rounded-lg shadow-md">
@@ -169,15 +128,15 @@ export function S3FileUpload() {
         <div
           className={`mt-4 text-sm p-3 border rounded-md w-full ${
             messageColor.includes('red')
-              ? 'border-red-200 bg-red-50'
+              ? 'border-red-200 bg-red-50 dark:border-red-700 dark:bg-red-900'
               : messageColor.includes('green')
-              ? 'border-green-200 bg-green-50'
-              : 'border-gray-200 bg-gray-50'
+              ? 'border-green-200 bg-green-50 dark:border-green-700 dark:bg-green-900'
+              : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800'
           }`}
         >
           <p className={messageColor}>{statusMessage}</p>
           {workflowData?.executionArn && (
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 break-all">
               Execution ARN: {workflowData.executionArn}
             </p>
           )}

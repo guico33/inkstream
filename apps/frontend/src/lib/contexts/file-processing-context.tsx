@@ -19,22 +19,14 @@ import type {
   StartWorkflowResponse,
   WorkflowStatusResponse,
 } from '../types/api-types'; // Combined import
+import type { ProcessingStatus } from '../types/file-processing-types'; // Added import
 
 interface FileProcessingState {
   selectedFile: File | null;
   uploadProgress: number;
   s3Data: { bucket: string; key: string } | null;
   workflowData: StartWorkflowResponse | null;
-  processingStatus:
-    | 'idle'
-    | 'selecting'
-    | 'uploading'
-    | 'starting_workflow'
-    | 'workflow_running'
-    | 'workflow_succeeded'
-    | 'workflow_failed';
-  // | 'success' // Prefer specific statuses
-  // | 'error'   // Prefer specific statuses or rely on errorMessage
+  processingStatus: ProcessingStatus; // Changed to use imported type
   errorMessage: string | null;
   workflowStatusDetails: WorkflowStatusResponse | null;
 }
