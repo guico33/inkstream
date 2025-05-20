@@ -1,5 +1,6 @@
-import type { User } from '../lib/types';
+import type { User } from '../lib/types/user-types';
 import { getUserDisplayName } from '@/lib/display';
+import { S3FileUpload } from './S3FileUpload';
 
 export function HomePage({ user }: { user: User | null }) {
   const displayName = getUserDisplayName(user);
@@ -9,8 +10,10 @@ export function HomePage({ user }: { user: User | null }) {
         Welcome{displayName ? `, ${displayName}` : ''}!
       </h2>
       <p className="text-gray-600 dark:text-gray-300">
-        This is the Inkstream home page.
+        Inkstream can extract text from documents, images, and more. Use the
+        form below to upload a file and start a workflow.
       </p>
+      <S3FileUpload />
     </div>
   );
 }

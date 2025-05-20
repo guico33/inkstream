@@ -9,16 +9,18 @@ Goal: Ensure all primary features are working reliably end-to-end for a Minimum 
 ### Frontend (React + Vite)
 
 - [x] Basic S3 File Upload with Cognito Authentication (per-user folders).
+- [x] Refactor file upload to use `FileProcessingContext`.
 - [ ] **Robust File Upload:**
   - [ ] Clear visual feedback for upload progress (consider multipart for large files if SDK supports it well on client-side or use pre-signed URLs with server-side progress tracking).
   - [ ] Comprehensive error handling and display for upload failures.
   - [ ] File type validation and size limits.
 - [ ] **Workflow Initiation:**
-  - [ ] Trigger Step Functions workflow after successful upload.
+  - [x] Trigger Step Functions workflow after successful upload.
   - [ ] Display initial confirmation that processing has started.
-- [ ] **Results Display:**
-  - [ ] Basic display of extracted text, translated text, and link to audio file.
-  - [ ] Mechanism to poll or receive updates on workflow status.
+- [ ] **Workflow Status & Results Display (Iterative Implementation):**
+  - [ ] **P1.1: Basic Polling & Status Update:** Implement polling in `FileProcessingContext` to fetch workflow status. Display basic status messages (e.g., "Processing", "Success", "Failed") in `S3FileUpload.tsx`.
+  - [ ] **P1.2: Display Basic Results:** Once workflow completes, fetch and display basic results (e.g., extracted text, link to audio). This might involve a new API endpoint or enhancing the status endpoint.
+  - [ ] **P1.3: Error Display:** Clearly display errors from the workflow.
 - [ ] **Authentication Flow:**
   - [ ] Ensure smooth Google sign-in and sign-out.
   - [ ] Secure handling and storage of authentication tokens (e.g., `id_token` currently from localStorage - review best practices, consider HttpOnly cookies if a backend for frontend is introduced, or ensure proper XSS mitigation).
@@ -27,6 +29,10 @@ Goal: Ensure all primary features are working reliably end-to-end for a Minimum 
 
 - [x] Cognito setup with Google Federation and per-user S3 access (`${aws:PrincipalTag/sub}`).
 - [x] Basic Step Functions workflow structure.
+- [x] API Gateway endpoint for starting the workflow (`/start-workflow`).
+- [ ] **API Gateway Endpoints (Iterative Implementation):**
+  - [ ] **P1.1: Workflow Status Endpoint (`/workflow-status`):** Create an endpoint that accepts a workflow execution ARN and returns its current status (and potentially basic output/error if available).
+  - [ ] **P1.2: (Optional/If Needed) Results Endpoint (`/workflow-results`):** If results are too large or complex for the status endpoint, create a dedicated endpoint to fetch detailed processing results using the execution ARN.
 - [ ] **Step Functions Workflow Enhancement:**
   - [ ] Ensure each step (Textract, Bedrock LLM, Polly) is fully implemented and integrated.
   - [ ] Robust error handling, retries, and dead-letter queues (DLQs) for each Lambda within the workflow.
@@ -47,7 +53,10 @@ Goal: Ensure all primary features are working reliably end-to-end for a Minimum 
 
 ### General
 
-- [ ] **End-to-End Testing:** Manually test the full user flow: Sign-in -> Upload -> Processing -> View Results.
+- [ ] **End-to-End Testing (Iterative Checkpoints):**
+  - [ ] **Checkpoint 1 (Current Goal):** Verify file upload, workflow start, and basic status polling. Sign-in -> Upload -> Workflow Starts -> Status updates to "Running".
+  - [ ] **Checkpoint 2:** Verify workflow completion (success/failure) and display of basic results/errors. Sign-in -> Upload -> Workflow Runs -> Status updates to "Success/Failed" -> Basic results/error message shown.
+  - [ ] **Checkpoint 3 (Full MVP E2E):** Full user flow: Sign-in -> Upload -> Processing (with intermediate status updates) -> View Full Results (text, translation, audio link).
 - [ ] **Configuration Management:**
   - [ ] Centralize environment-specific configurations (e.g., API endpoints, Cognito IDs) for frontend and backend.
   - [ ] Ensure `.env` files are correctly used and not committed.

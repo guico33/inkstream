@@ -5,8 +5,8 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import type { PutObjectCommandInput } from '@aws-sdk/client-s3';
 import { fromCognitoIdentityPool } from '@aws-sdk/credential-provider-cognito-identity';
-import type { User } from './types';
-import { ENV } from './env';
+import type { User } from './types'; // Updated import path
+import { ENV } from './constants'; // Updated import path
 
 // Get AWS credentials for the current user using Cognito Identity Pool
 export function getS3Client(idToken: string) {
@@ -36,7 +36,6 @@ export async function uploadFileToS3({
 }) {
   const s3 = getS3Client(idToken);
   const key = `uploads/${user.sub}/${file.name}`;
-  console.log('[S3] Uploading as user.sub:', user.sub, 'to key:', key);
   const input: PutObjectCommandInput = {
     Bucket: ENV.BUCKET,
     Key: key,

@@ -3,12 +3,17 @@
 // - handleCognitoCodeExchange: Exchanges Cognito OAuth code for tokens and user info.
 
 import type { User } from './types';
-import { ENV } from './env';
+import { ENV } from './constants'; // Updated import path
 
 // Reads the user object from localStorage (if present)
 export function getUserFromStorage(): User | null {
   const user = localStorage.getItem('user');
   return user ? JSON.parse(user) : null;
+}
+
+// Reads the id_token from localStorage (if present)
+export function getIdTokenFromStorage(): string | null {
+  return localStorage.getItem('id_token');
 }
 
 // Exchanges Cognito OAuth code for tokens, decodes user info, and updates state
@@ -23,7 +28,7 @@ export async function handleCognitoCodeExchange(
     code,
     redirect_uri: window.location.origin + '/login',
   });
-  // Add logging for debugging
+
   console.log(
     '[Auth] Exchanging code for tokens with Cognito:',
     body.toString()
@@ -45,11 +50,11 @@ export async function handleCognitoCodeExchange(
   const user: User = JSON.parse(
     atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
   );
-  // Store id_token in localStorage for S3 uploads
+
   localStorage.setItem('id_token', idToken);
   localStorage.setItem('user', JSON.stringify(user));
   setUser(user);
-  // Log for debugging
+
   console.log('[Auth] User set after token exchange:', user);
   navigate('/', { replace: true });
 }

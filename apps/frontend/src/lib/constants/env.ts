@@ -1,4 +1,4 @@
-// env.ts
+// apps/frontend/src/lib/constants/env.ts
 // Centralized export of all environment variables for the frontend app.
 
 export const ENV = {

@@ -1,6 +1,6 @@
 import { getUserDisplayName } from '@/lib/display';
 import { Button } from '../components/ui/button';
-import type { User } from '../lib/types';
+import type { User } from '../lib/types/user-types';
 
 export function Header({
   user,
@@ -27,13 +27,15 @@ export function Header({
                 className="w-8 h-8 rounded-full border border-gray-300"
               />
             )}
-            {/* Sign out triggers Cognito logout via onSignOut */}
-            <Button variant="secondary" onClick={onSignOut}>
+            <Button
+              variant="secondary"
+              className="hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+              onClick={onSignOut}
+            >
               Sign out
             </Button>
           </div>
         ) : (
-          // Sign in button triggers Cognito Hosted UI login
           <Button asChild>
             <a href="/login">Sign in with Google</a>
           </Button>

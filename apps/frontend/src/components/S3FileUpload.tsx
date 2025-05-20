@@ -1,76 +1,186 @@
 // S3FileUpload.tsx
 // React component for uploading files to S3 using Cognito credentials.
 // Uses shadcn/ui components for a modern UI and displays upload status.
+// Integrates with FileProcessingContext to manage the end-to-end workflow.
 
-import { useRef, useState } from 'react';
-import { uploadFileToS3 } from '../lib/aws-s3';
+import { useRef, useEffect } from 'react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { useFileProcessing } from '@/lib/contexts/file-processing-context'; // Import the context hook
 
 export function S3FileUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
-  const [status, setStatus] = useState<string | null>(null);
-  const [progress, setProgress] = useState<number>(0);
-  const [uploading, setUploading] = useState(false);
+  const {
+    selectFile,
+    processSelectedFile,
+    resetProcessing,
+    selectedFile,
+    processingStatus,
+    uploadProgress,
+    errorMessage,
+    workflowStatusDetails,
+    s3Data,
+    workflowData,
+  } = useFileProcessing(); // Use the context
 
-  // Retrieve the idToken from localStorage or from a custom hook/state if you store it there
-  // If you do not store id_token separately, you should update handleCognitoCodeExchange to do so
-  const idToken = localStorage.getItem('id_token');
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    selectFile(file);
+  };
+
+  const handleUpload = async () => {
+    if (selectedFile) {
+      await processSelectedFile();
+    }
+  };
+
+  const handleReset = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''; // Clear the file input
+    }
+    resetProcessing();
+  };
+
+  // Effect to clear file input if selectedFile becomes null from context (e.g. after reset)
+  useEffect(() => {
+    if (!selectedFile && fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [selectedFile]);
 
   if (!user) {
     return (
       <div className="mt-8 text-gray-600 dark:text-gray-300">
-        Please sign in to upload files to S3.
+        Please sign in to upload and process files.
       </div>
     );
   }
 
-  const handleUpload = async () => {
-    if (!idToken) {
-      setStatus('You must be signed in to upload files.');
-      return;
+  const isProcessing = [
+    'uploading',
+    'starting_workflow',
+    'workflow_running',
+  ].includes(processingStatus);
+
+  let statusMessage = '';
+  let messageColor = 'text-gray-600 dark:text-gray-300';
+
+  if (errorMessage) {
+    statusMessage = `Error: ${errorMessage}`;
+    messageColor = 'text-red-600 dark:text-red-400';
+  } else {
+    switch (processingStatus) {
+      case 'idle':
+        statusMessage = 'Select a file to begin.';
+        break;
+      case 'selecting':
+        statusMessage = selectedFile
+          ? `Selected: ${selectedFile.name}`
+          : 'Select a file.';
+        break;
+      case 'uploading':
+        statusMessage = `Uploading: ${selectedFile?.name}...`;
+        break;
+      case 'starting_workflow':
+        statusMessage = 'Starting workflow...';
+        break;
+      case 'workflow_running':
+        statusMessage = `Processing: ${
+          workflowStatusDetails?.status || 'Running'
+        }`;
+        if (workflowStatusDetails?.status === 'RUNNING' && s3Data?.key) {
+          statusMessage += ` (File: ${s3Data.key.split('/').pop()})`;
+        }
+        break;
+      case 'workflow_succeeded':
+        statusMessage = 'Workflow completed successfully!';
+        messageColor = 'text-green-600 dark:text-green-400';
+        if (workflowStatusDetails?.output) {
+          statusMessage += ` Output: ${workflowStatusDetails.output}`;
+        }
+        break;
+      case 'workflow_failed':
+        statusMessage = `Workflow failed: ${
+          workflowStatusDetails?.error || 'Unknown error'
+        }`;
+        if (workflowStatusDetails?.cause) {
+          statusMessage += ` Cause: ${workflowStatusDetails.cause}`;
+        }
+        messageColor = 'text-red-600 dark:text-red-400';
+        break;
+      default:
+        statusMessage = 'Ready.';
     }
-    const file = fileInputRef.current?.files?.[0];
-    if (!file) {
-      setStatus('Please select a file.');
-      return;
-    }
-    setStatus(null);
-    setUploading(true);
-    setProgress(0);
-    try {
-      // Progress is not natively supported by AWS SDK v3 PutObjectCommand in browser,
-      // so we only show indeterminate progress for now.
-      await uploadFileToS3({ file, user, idToken });
-      setProgress(100);
-      setStatus('Upload successful!');
-    } catch (err) {
-      setStatus('Upload failed: ' + (err as Error).message);
-    } finally {
-      setUploading(false);
-    }
-  };
+  }
 
   return (
-    <div className="flex flex-col gap-4 items-start w-full max-w-md mt-8">
-      <label className="font-medium">Upload a file to S3</label>
-      <Input type="file" ref={fileInputRef} disabled={uploading} />
-      <Button onClick={handleUpload} disabled={uploading}>
-        {uploading ? 'Uploading...' : 'Upload to S3'}
-      </Button>
-      {uploading && <Progress value={progress} className="w-full" />}
-      {status && (
-        <div
-          className={
-            status.startsWith('Upload successful')
-              ? 'text-green-600 dark:text-green-400'
-              : 'text-red-600 dark:text-red-400'
+    <div className="flex flex-col gap-4 items-start w-full max-w-md mt-8 p-6 border rounded-lg shadow-md">
+      <h2 className="text-xl font-semibold mb-4">Process Your File</h2>
+      <label htmlFor="file-upload" className="font-medium">
+        1. Select a file
+      </label>
+      <Input
+        id="file-upload"
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        disabled={isProcessing}
+        className="w-full cursor-pointer"
+        accept=".pdf,.jpg,.jpeg,.png,.txt" // Add more file types as needed
+      />
+
+      {selectedFile && (
+        <Button
+          onClick={handleUpload}
+          disabled={isProcessing || !selectedFile}
+          className="w-full mt-2 hover:cursor-pointer disabled:cursor-not-allowed"
+        >
+          {isProcessing ? 'Processing...' : '2. Upload and Start Workflow'}
+        </Button>
+      )}
+
+      {((processingStatus !== 'idle' && processingStatus !== 'selecting') ||
+        errorMessage) && (
+        <Button
+          onClick={handleReset}
+          variant="outline"
+          className="w-full mt-2"
+          disabled={
+            processingStatus === 'uploading' ||
+            processingStatus === 'starting_workflow'
           }
         >
-          {status}
+          Reset / Clear
+        </Button>
+      )}
+
+      {(processingStatus === 'uploading' ||
+        (isProcessing && uploadProgress > 0)) && (
+        <div className="w-full mt-2">
+          <Progress value={uploadProgress} className="w-full" />
+          <p className="text-sm text-center mt-1">{uploadProgress}% uploaded</p>
+        </div>
+      )}
+
+      {statusMessage && (
+        <div
+          className={`mt-4 text-sm p-3 border rounded-md w-full ${
+            messageColor.includes('red')
+              ? 'border-red-200 bg-red-50'
+              : messageColor.includes('green')
+              ? 'border-green-200 bg-green-50'
+              : 'border-gray-200 bg-gray-50'
+          }`}
+        >
+          <p className={messageColor}>{statusMessage}</p>
+          {workflowData?.executionArn && (
+            <p className="text-xs text-gray-500 mt-1">
+              Execution ARN: {workflowData.executionArn}
+            </p>
+          )}
         </div>
       )}
     </div>

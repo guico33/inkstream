@@ -5,7 +5,6 @@ import { Header } from './components/Header';
 import { handleCognitoCodeExchange } from './lib/auth';
 import { useAuth } from './lib/contexts/auth-context';
 import { useEffect, useRef } from 'react';
-import { S3FileUpload } from './components/S3FileUpload';
 
 function AppRoutes() {
   const { user, signOut, setUser } = useAuth();
@@ -45,7 +44,6 @@ function AppRoutes() {
           <Route path="/" element={<HomePage user={user} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
-        <S3FileUpload />
       </main>
     </>
   );
