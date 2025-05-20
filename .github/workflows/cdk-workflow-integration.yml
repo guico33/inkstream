@@ -1,0 +1,23 @@
+name: CDK Workflow Integration Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  workflow-integration-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/aws-cdk-infra
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Make script executable
+        run: chmod +x test-workflow/test-workflow.sh
+      - name: Run workflow integration test
+        run: bash test-workflow/test-workflow.sh

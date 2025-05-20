@@ -1,4 +1,4 @@
-name: CDK Infra Tests
+name: CDK Unit Tests
 
 on:
   push:
