@@ -50,3 +50,18 @@ jobs:
           # CI=true is often used to indicate a non-interactive environment
           CI: true
         run: bash test-workflow/test-workflow.sh
+
+      - name: Cleanup Test User # This step will run even if the test script fails
+        if: always() # Ensures this step runs regardless of previous steps' status
+        env:
+          # Pass necessary environment variables for the cleanup script
+          AWS_REGION: eu-west-3
+          USER_POOL_ID: eu-west-3_3w2Im0QFN
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          # The cleanup script doesn't need the password, API_GATEWAY_URL, etc.
+          # but AWS credentials will still be available from the configure-aws-credentials step
+          CI: true
+        run: |
+          echo "Attempting to cleanup test user..."
+          npx ts-node ./test-workflow/delete-cleanup-user.ts
+        working-directory: packages/aws-cdk-infra # Ensure correct working directory for ts-node
