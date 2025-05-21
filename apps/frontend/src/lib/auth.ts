@@ -2,7 +2,7 @@
 // - getUserFromStorage: Reads the user object from localStorage.
 // - handleCognitoCodeExchange: Exchanges Cognito OAuth code for tokens and user info.
 
-import type { User } from './types';
+import type { User } from './types/user-types';
 import { ENV } from './constants'; // Updated import path
 
 // Reads the user object from localStorage (if present)

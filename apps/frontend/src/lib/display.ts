@@ -1,4 +1,4 @@
-import type { User } from './types';
+import type { User } from './types/user-types';
 import type { ProcessingStatus } from './types/file-processing-types';
 
 export interface WorkflowOutputData {
