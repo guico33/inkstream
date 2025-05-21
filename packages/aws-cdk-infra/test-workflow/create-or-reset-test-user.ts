@@ -17,6 +17,11 @@ if (!REGION || !USER_POOL_ID || !USERNAME || !PASSWORD) {
   process.exit(1);
 }
 
+// Initialize AWS SDK clients.
+// The SDK will automatically use credentials from the environment:
+// - For local development with SSO: Ensure your environment is configured (e.g., via AWS CLI login for SSO)
+//   or that AWS_PROFILE in .env.test points to an SSO-configured profile.
+// - For CI with OIDC: Ensure AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE are set.
 const client = new CognitoIdentityProviderClient({ region: REGION });
 
 export async function deleteUserIfExists() {
@@ -47,7 +52,7 @@ export async function deleteUserIfExists() {
 export async function createTestUser() {
   try {
     console.log(`Creating test user ${USERNAME}...`);
-    await client.send(
+    const createUserResponse = await client.send(
       new AdminCreateUserCommand({
         UserPoolId: USER_POOL_ID,
         Username: USERNAME,
@@ -68,6 +73,17 @@ export async function createTestUser() {
       })
     );
     console.log(`Created and set password for user: ${USERNAME}`);
+    if (!createUserResponse.User?.Attributes) {
+      throw new Error('User created but attributes not found.');
+    }
+    const subAttribute = createUserResponse.User.Attributes.find(
+      (attr) => attr.Name === 'sub'
+    );
+    if (!subAttribute || !subAttribute.Value) {
+      throw new Error('User created but sub attribute not found.');
+    }
+    console.log(`User sub: ${subAttribute.Value}`);
+    return subAttribute.Value;
   } catch (err: any) {
     console.error('Error creating test user:', err);
     process.exit(1);

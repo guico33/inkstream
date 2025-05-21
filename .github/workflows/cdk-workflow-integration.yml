@@ -6,18 +6,47 @@ on:
 jobs:
   workflow-integration-test:
     runs-on: ubuntu-latest
+    # Add permissions for OIDC
+    permissions:
+      id-token: write # Required to fetch the OIDC token
+      contents: read   # Required to checkout the repository
+
     defaults:
       run:
         working-directory: packages/aws-cdk-infra
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4 # Or latest version
+        with:
+          role-to-assume: arn:aws:iam::560756474135:role/GithubCiInkstreamWorkflowTestRole # Replace with your role ARN if different
+          aws-region: eu-west-3 # Your AWS region
+
       - name: Install dependencies
         run: npm ci
+
       - name: Make script executable
         run: chmod +x test-workflow/test-workflow.sh
+
       - name: Run workflow integration test
+        env:
+          # These values are from your .env.test file
+          # Sensitive values should be stored as GitHub secrets
+          API_GATEWAY_URL: https://ta6puk7if6.execute-api.eu-west-3.amazonaws.com/
+          USER_POOL_ID: eu-west-3_3w2Im0QFN
+          USER_POOL_WEB_CLIENT_ID: 5i4ajimnhchqns254ivf57lqlp
+          BUCKET_NAME: dev-inkstream-storage-560756474135
+          AWS_REGION: eu-west-3 # Also set by configure-aws-credentials, but good to have for scripts
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          # CI=true is often used to indicate a non-interactive environment
+          CI: true
         run: bash test-workflow/test-workflow.sh

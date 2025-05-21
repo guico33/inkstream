@@ -11,7 +11,6 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { DescribeExecutionCommand, SFNClient } from '@aws-sdk/client-sfn';
-import { fromIni } from '@aws-sdk/credential-provider-ini';
 import * as dotenv from 'dotenv';
 import 'dotenv/config';
 import * as fs from 'fs';
@@ -32,7 +31,6 @@ const requiredEnvVars = [
   'USER_POOL_WEB_CLIENT_ID',
   'TEST_USERNAME',
   'TEST_PASSWORD',
-  'USER_SUB',
   'BUCKET_NAME',
   'AWS_REGION',
 ];
@@ -62,23 +60,24 @@ const CLIENT_ID = process.env.USER_POOL_WEB_CLIENT_ID;
 // For admin testing - set these via environment variables
 const TEST_USERNAME = process.env.TEST_USERNAME;
 const TEST_PASSWORD = process.env.TEST_PASSWORD;
-const USER_SUB = process.env.USER_SUB; // Cognito user sub ID
 
 // Initialize clients
 const AWS_REGION = process.env.AWS_REGION || 'eu-west-3';
-const AWS_PROFILE = process.env.AWS_PROFILE || 'dev';
+// const AWS_PROFILE = process.env.AWS_PROFILE || 'dev'; // AWS_PROFILE is used by the default credential chain if set in .env
 
+// Initialize AWS SDK clients.
+// The SDK will automatically use credentials from the environment:
+// - For local development with SSO: Ensure your environment is configured (e.g., via AWS CLI login for SSO)
+//   or that AWS_PROFILE in .env.test (if loaded and set) points to an SSO-configured profile.
+// - For CI with OIDC: Ensure AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE are set.
 const s3Client = new S3Client({
   region: AWS_REGION,
-  credentials: fromIni({ profile: AWS_PROFILE }),
 });
 const sfnClient = new SFNClient({
   region: AWS_REGION,
-  credentials: fromIni({ profile: AWS_PROFILE }),
 });
 const cognitoClient = new CognitoIdentityProviderClient({
   region: AWS_REGION,
-  credentials: fromIni({ profile: AWS_PROFILE }),
 });
 
 // Function to get authentication token using Cognito
@@ -215,7 +214,8 @@ async function uploadTestFile(): Promise<string> {
 
 async function startWorkflow(
   fileKey: string,
-  authToken: string
+  authToken: string,
+  userId: string // Added userId as a parameter
 ): Promise<string> {
   console.log('Starting workflow with the following parameters:');
   const workflowParams = {
@@ -226,7 +226,7 @@ async function startWorkflow(
     doSpeech: true,
     targetLanguage: 'japanese',
     workflowId: TEST_FILE_UUID,
-    userId: USER_SUB, // Add user ID from environment variables
+    userId, // Use the passed-in userId parameter
   };
   console.log(JSON.stringify(workflowParams, null, 2));
 
@@ -410,15 +410,24 @@ async function downloadAndVerifyS3File(
   }
 }
 
-async function setupTestUser() {
+async function setupTestUser(): Promise<string> {
   await deleteUserIfExists();
-  await createTestUser();
+  const userSub = await createTestUser();
+  if (!userSub) {
+    throw new Error('Failed to create test user or retrieve user sub.');
+  }
+  return userSub;
 }
 
 async function runWorkflowTest() {
   try {
-    // Step 0: Setup test user
-    await setupTestUser();
+    // Step 0: Setup test user and get userSub
+    const userSub = await setupTestUser(); // Declare userSub locally
+    if (!userSub) {
+      console.error('Failed to retrieve User SUB after setting up test user.');
+      process.exit(1);
+    }
+    console.log(`Using User SUB: ${userSub}`);
 
     // Get an authentication token first
     const authToken = await getAuthToken();
@@ -426,8 +435,8 @@ async function runWorkflowTest() {
     // Step 1: Upload a test file
     const fileKey = await uploadTestFile();
 
-    // Step 2: Start the workflow with auth token
-    const executionArn = await startWorkflow(fileKey, authToken);
+    // Step 2: Start the workflow with auth token and userSub
+    const executionArn = await startWorkflow(fileKey, authToken, userSub);
 
     // Step 3: Check the workflow status
     // This doesn't need auth since it directly queries Step Functions
