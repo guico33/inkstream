@@ -47,7 +47,7 @@ export class WorkflowStepFunctions extends Construct {
         }),
         resultPath: '$.extractTextOutput',
         outputPath: '$',
-        timeout: cdk.Duration.minutes(10), // Textract jobs can take a while
+        timeout: cdk.Duration.minutes(20), // Textract jobs can take a while
       }
     );
 

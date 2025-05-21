@@ -246,7 +246,6 @@ export const handler: Handler = async (event: TranslateRequest) => {
       ...event,
       ...response,
       translatedTextS3Path: s3Path, // Legacy field for backward compatibility
-      translatedText, // Include text content if needed by next step (optional)
     };
   } catch (error: unknown) {
     console.error(
