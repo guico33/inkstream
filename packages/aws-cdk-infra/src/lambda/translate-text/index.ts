@@ -143,9 +143,9 @@ ${text}
 export const handler: Handler = async (event: TranslateRequest) => {
   console.log('TranslateText Lambda event:', JSON.stringify(event, null, 2));
 
-  let textToTranslate = event.formattedText;
+  let textToTranslate: string | undefined = undefined;
 
-  // Fetch text from S3 if a path is provided
+  // Always fetch text from S3 if formattedTextS3Path is provided
   if (event.formattedTextS3Path?.bucket && event.formattedTextS3Path?.key) {
     try {
       textToTranslate = await getTextFromS3(
@@ -173,9 +173,10 @@ export const handler: Handler = async (event: TranslateRequest) => {
     }
   }
 
+  // If S3 path is not present or fetch failed, error out (legacy direct text input is no longer supported)
   if (!textToTranslate) {
     console.error(
-      'No text to translate. Either formattedText or formattedTextS3Path must lead to text content.'
+      'No formattedTextS3Path provided or failed to fetch text from S3.'
     );
     const errorResponse = createS3ErrorResponse(
       400,

@@ -3,6 +3,7 @@ import {
   InvokeModelCommand,
 } from '@aws-sdk/client-bedrock-runtime';
 import { Handler } from 'aws-lambda';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
 // Import utility functions
 import { formatErrorForLogging } from '../../utils/error-utils';
@@ -14,19 +15,30 @@ import { generateUserS3Key, saveTextToS3 } from '../../utils/s3-utils';
 
 // Initialize Bedrock client
 const bedrockRuntime = new BedrockRuntimeClient({});
+const s3 = new S3Client({});
 
 // Claude 3 Haiku model ID
 const MODEL_ID =
   process.env.CLAUDE_MODEL_ID || 'anthropic.claude-3-haiku-20240307-v1:0';
 
-interface FormatRequest {
-  extractedText: string;
-  fileKey: string;
-  fileType: string;
-  originalFileBucket: string; // Added to know where the original file is, if needed for context or naming
-  outputBucket: string; // Added to specify where to save the formatted text
-  userId: string; // Added for user-specific S3 paths
-  workflowId?: string; // Optional workflow ID for tracking
+// Utility to extract text from Textract output JSON
+async function extractTextFromTextractS3(s3Path: {
+  bucket: string;
+  key: string;
+}): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: s3Path.bucket,
+    Key: s3Path.key,
+  });
+  const response = await s3.send(command);
+  if (!response.Body) throw new Error('No response body from S3');
+  const body = await response.Body.transformToString();
+  const textractJson = JSON.parse(body);
+  // Extract text from Textract blocks (DocumentTextDetection)
+  if (!textractJson.Blocks) throw new Error('No Blocks in Textract output');
+  return textractJson.Blocks.filter((b: any) => b.BlockType === 'LINE')
+    .map((b: any) => b.Text)
+    .join('\n');
 }
 
 async function formatTextWithClaude(extractedText: string): Promise<string> {
@@ -123,11 +135,35 @@ ${processedText}
   }
 }
 
-export const handler: Handler = async (event: FormatRequest) => {
+export const handler: Handler = async (event: any) => {
   console.log('FormatText Lambda event:', JSON.stringify(event, null, 2));
 
-  if (!event.extractedText) {
-    console.warn('No extracted text provided.');
+  // Always extract text from S3 if textractOutputS3Path is present
+  let extractedText: string | undefined = undefined;
+  if (event.textractOutputS3Path) {
+    try {
+      extractedText = await extractTextFromTextractS3(
+        event.textractOutputS3Path
+      );
+      console.log(
+        'Extracted text from Textract S3 output. Length:',
+        extractedText.length
+      );
+    } catch (err) {
+      console.error('Failed to extract text from Textract S3 output:', err);
+      return createS3ErrorResponse(
+        500,
+        'Failed to extract text from Textract output',
+        err
+      );
+    }
+  }
+
+  // If textractOutputS3Path is not present, error out (legacy direct text input is no longer supported)
+  if (!extractedText) {
+    console.warn(
+      'No Textract S3 output path provided or failed to extract text.'
+    );
     return createS3ErrorResponse(400, 'No extracted text to format');
   }
 
@@ -137,7 +173,7 @@ export const handler: Handler = async (event: FormatRequest) => {
   }
 
   try {
-    const formattedText = await formatTextWithClaude(event.extractedText);
+    const formattedText = await formatTextWithClaude(extractedText);
 
     // Determine the output S3 key with user-specific path
     const originalFileKey = event.fileKey;

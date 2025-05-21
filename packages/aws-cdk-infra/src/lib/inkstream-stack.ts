@@ -7,8 +7,23 @@ import { WorkflowControlLambdas } from './constructs/workflow-control-lambdas';
 import { WorkflowStepLambdas } from './constructs/workflow-step-lambdas';
 import { WorkflowStepFunctions } from './constructs/workflow-stepfunctions';
 
+function requireEnvVars(vars: string[]) {
+  const missing = vars.filter((v) => !process.env[v]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(', ')}`
+    );
+  }
+}
+
 export class InkstreamStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    requireEnvVars([
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+      'AWS_ACCOUNT_ID',
+      'AWS_REGION',
+    ]);
     super(scope, id, props);
 
     const stage = process.env.STAGE || 'dev';
@@ -21,16 +36,19 @@ export class InkstreamStack extends cdk.Stack {
     // S3 and DynamoDB setup
     const bucketName = `dev-inkstream-storage-${cdk.Stack.of(this).account}`;
     const tableName = `dev-inkstream-user-files-${cdk.Stack.of(this).account}`;
-    const storage = new StorageConstruct(this, 'Storage', {
-      bucketName,
-      tableName,
-    });
 
-    // Lambdas for workflow steps
+    // Lambdas for workflow steps (must be created before StorageConstruct for S3 event notification)
     const stepLambdas = new WorkflowStepLambdas(this, 'WorkflowStepLambdas', {
       tableName,
       bucketName,
       claudeModelId: process.env.CLAUDE_MODEL_ID, // Pass the environment variable here
+    });
+
+    // S3 and DynamoDB setup (pass processTextractS3EventFn for S3 event notification)
+    const storage = new StorageConstruct(this, 'Storage', {
+      bucketName,
+      tableName,
+      processTextractS3EventFn: stepLambdas.processTextractS3EventFn,
     });
 
     // Step Functions workflow definition
@@ -38,10 +56,10 @@ export class InkstreamStack extends cdk.Stack {
       this,
       'WorkflowStepFunctions',
       {
-        extractTextFn: stepLambdas.extractTextFn,
         formatTextFn: stepLambdas.formatTextFn,
         translateTextFn: stepLambdas.translateTextFn,
         convertToSpeechFn: stepLambdas.convertToSpeechFn,
+        startTextractJobFn: stepLambdas.startTextractJobFn, // Pass new Lambda for event-driven Textract
       }
     );
     const stateMachine = workflowSF.stateMachine;

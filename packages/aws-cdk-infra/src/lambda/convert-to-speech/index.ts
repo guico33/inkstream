@@ -156,62 +156,76 @@ export const handler: Handler = async (event: ConvertToSpeechRequest) => {
     JSON.stringify(event, null, 2)
   );
 
-  let textForSpeech = event.textToSpeak;
+  let textForSpeech: string | undefined = undefined;
   let sourceLanguage = event.targetLanguage || 'english';
 
-  // Try to get text from S3 if no direct text is provided
-  if (!textForSpeech) {
+  // Always fetch text from S3, preferring translated text, then formatted text
+  if (event.translatedTextS3Path?.bucket && event.translatedTextS3Path?.key) {
     try {
-      // Try translated text first, if available
-      if (
-        event.translatedTextS3Path?.bucket &&
-        event.translatedTextS3Path?.key
-      ) {
-        console.log(
-          `Fetching translated text from S3: s3://${event.translatedTextS3Path.bucket}/${event.translatedTextS3Path.key}`
-        );
-        textForSpeech = await getTextFromS3(
-          event.translatedTextS3Path.bucket,
-          event.translatedTextS3Path.key
-        );
-        // Use target language from the translation step
-        sourceLanguage = event.targetLanguage || 'english';
-      }
-      // Fall back to formatted text if translated text isn't available
-      else if (
-        event.formattedTextS3Path?.bucket &&
-        event.formattedTextS3Path?.key
-      ) {
-        console.log(
-          `Fetching formatted text from S3: s3://${event.formattedTextS3Path.bucket}/${event.formattedTextS3Path.key}`
-        );
-        textForSpeech = await getTextFromS3(
-          event.formattedTextS3Path.bucket,
-          event.formattedTextS3Path.key
-        );
-        // Default language for formatted text is typically English
-        sourceLanguage = 'english';
-      }
+      console.log(
+        `Fetching translated text from S3: s3://${event.translatedTextS3Path.bucket}/${event.translatedTextS3Path.key}`
+      );
+      textForSpeech = await getTextFromS3(
+        event.translatedTextS3Path.bucket,
+        event.translatedTextS3Path.key
+      );
+      sourceLanguage = event.targetLanguage || 'english';
     } catch (error) {
       console.error(
-        'Error fetching text from S3:',
+        'Error fetching translated text from S3:',
         formatErrorForLogging('S3 fetch', error)
       );
       const errorResponse = createS3ErrorResponse(
         500,
-        'Error fetching text from S3',
+        'Error fetching translated text from S3',
         error
       );
       return {
         ...event,
         ...errorResponse,
-        speechError: `Failed to fetch text: ${getErrorMessage(error)}`,
+        speechError: `Failed to fetch translated text: ${getErrorMessage(
+          error
+        )}`,
+      };
+    }
+  } else if (
+    event.formattedTextS3Path?.bucket &&
+    event.formattedTextS3Path?.key
+  ) {
+    try {
+      console.log(
+        `Fetching formatted text from S3: s3://${event.formattedTextS3Path.bucket}/${event.formattedTextS3Path.key}`
+      );
+      textForSpeech = await getTextFromS3(
+        event.formattedTextS3Path.bucket,
+        event.formattedTextS3Path.key
+      );
+      sourceLanguage = 'english';
+    } catch (error) {
+      console.error(
+        'Error fetching formatted text from S3:',
+        formatErrorForLogging('S3 fetch', error)
+      );
+      const errorResponse = createS3ErrorResponse(
+        500,
+        'Error fetching formatted text from S3',
+        error
+      );
+      return {
+        ...event,
+        ...errorResponse,
+        speechError: `Failed to fetch formatted text: ${getErrorMessage(
+          error
+        )}`,
       };
     }
   }
 
+  // If neither S3 path is present or fetch failed, error out (legacy direct text input is no longer supported)
   if (!textForSpeech) {
-    console.error('No text provided for speech synthesis.');
+    console.error(
+      'No S3 text path provided or failed to fetch text for speech synthesis.'
+    );
     const errorResponse = createS3ErrorResponse(
       400,
       'No text content for speech synthesis'
