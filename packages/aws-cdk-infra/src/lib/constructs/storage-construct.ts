@@ -7,13 +7,11 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 
 export interface StorageConstructProps {
   bucketName: string;
-  tableName: string;
   processTextractS3EventFn?: lambda.IFunction; // Optional for S3 event notification
 }
 
 export class StorageConstruct extends Construct {
   public readonly bucket: s3.Bucket;
-  public readonly table: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: StorageConstructProps) {
     super(scope, id);
@@ -39,14 +37,6 @@ export class StorageConstruct extends Construct {
       ],
     });
 
-    this.table = new dynamodb.Table(this, 'UserFilesTable', {
-      tableName: props.tableName,
-      partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'timestamp', type: dynamodb.AttributeType.NUMBER },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-    });
-
     // Add S3 event notification for Textract output
     if (props.processTextractS3EventFn) {
       this.bucket.addEventNotification(
@@ -59,16 +49,13 @@ export class StorageConstruct extends Construct {
     // Textract Job Tokens Table (for event-driven workflow)
     const accountId = cdk.Stack.of(this).account;
     const textractJobTokensTableName = `dev-inkstream-textract-job-tokens-${accountId}`;
-    const textractJobTokensTable = new dynamodb.Table(
-      this,
-      'TextractJobTokensTable',
-      {
-        tableName: textractJobTokensTableName,
-        partitionKey: { name: 'JobId', type: dynamodb.AttributeType.STRING },
-        timeToLiveAttribute: 'ExpirationTime',
-        removalPolicy: cdk.RemovalPolicy.DESTROY,
-        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      }
-    );
+    // textractJobTokensTable
+    new dynamodb.Table(this, 'TextractJobTokensTable', {
+      tableName: textractJobTokensTableName,
+      partitionKey: { name: 'JobId', type: dynamodb.AttributeType.STRING },
+      timeToLiveAttribute: 'ExpirationTime',
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+    });
   }
 }

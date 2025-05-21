@@ -1,4 +1,5 @@
 {
+  // add stricter rules to the tsconfig
   "compilerOptions": {
     "target": "ES2020",
     "module": "CommonJS",
@@ -6,6 +7,14 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitThis": true,
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "bin/**/*.ts"]

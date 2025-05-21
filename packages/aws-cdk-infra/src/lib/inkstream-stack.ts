@@ -26,28 +26,22 @@ export class InkstreamStack extends cdk.Stack {
     ]);
     super(scope, id, props);
 
-    const stage = process.env.STAGE || 'dev';
-
     // Cognito User Pool and Client
     const auth = new AuthConstruct(this, 'Auth', {
       envName: 'dev',
     });
 
-    // S3 and DynamoDB setup
     const bucketName = `dev-inkstream-storage-${cdk.Stack.of(this).account}`;
-    const tableName = `dev-inkstream-user-files-${cdk.Stack.of(this).account}`;
 
     // Lambdas for workflow steps (must be created before StorageConstruct for S3 event notification)
     const stepLambdas = new WorkflowStepLambdas(this, 'WorkflowStepLambdas', {
-      tableName,
       bucketName,
       claudeModelId: process.env.CLAUDE_MODEL_ID, // Pass the environment variable here
     });
 
     // S3 and DynamoDB setup (pass processTextractS3EventFn for S3 event notification)
-    const storage = new StorageConstruct(this, 'Storage', {
+    new StorageConstruct(this, 'Storage', {
       bucketName,
-      tableName,
       processTextractS3EventFn: stepLambdas.processTextractS3EventFn,
     });
 

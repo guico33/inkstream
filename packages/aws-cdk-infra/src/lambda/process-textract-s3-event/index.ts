@@ -27,7 +27,7 @@ const s3 = new S3Client({});
 
 function extractJobIdFromKey(key: string): string | null {
   const match = key.match(/^textract-output\/(.+?)\//);
-  return match ? match[1] : null;
+  return match ? match[1] ?? null : null;
 }
 
 export const handler: Handler = async (event: S3Event) => {
@@ -43,7 +43,7 @@ export const handler: Handler = async (event: S3Event) => {
     // Only process files that are numbers (e.g., .../1, .../2, .../3)
     const keyParts = key.split('/');
     const lastPart = keyParts[keyParts.length - 1];
-    if (!/^[0-9]+$/.test(lastPart)) {
+    if (!lastPart || !/^[0-9]+$/.test(lastPart)) {
       console.log(`Ignoring non-Textract output file: ${key}`);
       continue;
     }

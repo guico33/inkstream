@@ -5,7 +5,6 @@ import * as path from 'path';
 import * as cdk from 'aws-cdk-lib';
 
 export interface WorkflowStepLambdasProps {
-  tableName: string;
   bucketName: string;
   claudeModelId?: string;
 }
