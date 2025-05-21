@@ -20,7 +20,7 @@ export class WorkflowStepLambdas extends Construct {
     super(scope, id);
 
     this.formatTextFn = new NodejsFunction(this, 'FormatTextFunction', {
-      entry: path.join(__dirname, '../../lambda/format-text/index.ts'),
+      entry: path.join(__dirname, '../../lambda/workflow/format-text/index.ts'),
       handler: 'handler',
       description: 'Format extracted text with Claude Haiku',
       runtime: lambda.Runtime.NODEJS_18_X,
@@ -39,7 +39,10 @@ export class WorkflowStepLambdas extends Construct {
     });
 
     this.translateTextFn = new NodejsFunction(this, 'TranslateTextFunction', {
-      entry: path.join(__dirname, '../../lambda/translate-text/index.ts'),
+      entry: path.join(
+        __dirname,
+        '../../lambda/workflow/translate-text/index.ts'
+      ),
       handler: 'handler',
       description: 'Translate text with Claude Haiku',
       runtime: lambda.Runtime.NODEJS_18_X,
@@ -61,7 +64,10 @@ export class WorkflowStepLambdas extends Construct {
       this,
       'ConvertToSpeechFunction',
       {
-        entry: path.join(__dirname, '../../lambda/convert-to-speech/index.ts'),
+        entry: path.join(
+          __dirname,
+          '../../lambda/workflow/convert-to-speech/index.ts'
+        ),
         description: 'Convert text to speech with Polly',
         handler: 'handler',
         runtime: lambda.Runtime.NODEJS_18_X,
@@ -83,7 +89,10 @@ export class WorkflowStepLambdas extends Construct {
       this,
       'StartTextractJobFunction',
       {
-        entry: path.join(__dirname, '../../lambda/start-textract-job/index.ts'),
+        entry: path.join(
+          __dirname,
+          '../../lambda/workflow/start-textract-job/index.ts'
+        ),
         handler: 'handler',
         description: 'Start Textract job and store Step Function task token',
         runtime: lambda.Runtime.NODEJS_18_X,
@@ -111,7 +120,7 @@ export class WorkflowStepLambdas extends Construct {
       {
         entry: path.join(
           __dirname,
-          '../../lambda/process-textract-s3-event/index.ts'
+          '../../lambda/events/process-textract-s3-event/index.ts'
         ),
         handler: 'handler',
         description:

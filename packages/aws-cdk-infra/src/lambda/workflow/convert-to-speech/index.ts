@@ -4,8 +4,6 @@ import {
   SynthesizeSpeechCommand,
   OutputFormat,
   Engine,
-  VoiceId,
-  LanguageCode,
 } from '@aws-sdk/client-polly';
 import { Readable } from 'stream';
 
@@ -14,16 +12,16 @@ import {
   getTextFromS3,
   generateUserS3Key,
   saveBinaryToS3,
-} from '../../utils/s3-utils';
-import { streamToBuffer } from '../../utils/stream-utils';
+} from '../../../utils/s3-utils';
+import { streamToBuffer } from '../../../utils/stream-utils';
 import {
   createS3Response,
   createS3ErrorResponse,
-} from '../../utils/response-utils';
+} from '../../../utils/response-utils';
 import {
   formatErrorForLogging,
   getErrorMessage,
-} from '../../utils/error-utils';
+} from '../../../utils/error-utils';
 
 // Initialize Polly client
 const polly = new PollyClient({});
@@ -65,10 +63,7 @@ function preprocessTextForSpeech(text: string): string {
 }
 
 // Voice mapping for different languages
-const voiceMap: Record<
-  string,
-  { voiceId: VoiceId; languageCode: LanguageCode; supportsNeural: boolean }
-> = {
+const voiceMap = {
   english: { voiceId: 'Joanna', languageCode: 'en-US', supportsNeural: true },
   french: { voiceId: 'Lea', languageCode: 'fr-FR', supportsNeural: true },
   spanish: { voiceId: 'Lupe', languageCode: 'es-US', supportsNeural: true },
@@ -82,22 +77,25 @@ const voiceMap: Record<
   japanese: { voiceId: 'Takumi', languageCode: 'ja-JP', supportsNeural: true },
   chinese: { voiceId: 'Zhiyu', languageCode: 'cmn-CN', supportsNeural: true },
   // Add more languages as needed
-};
+} as const;
 
 async function textToSpeech(
   text: string,
   language: string,
   fileKey: string,
   outputBucket: string,
-  userId: string,
-  workflowId?: string
+  userId: string
 ): Promise<{ bucket: string; key: string }> {
   if (!text || text.trim() === '') {
     throw new Error('No text content to convert to speech');
   }
 
   const normalizedLang = language.toLowerCase();
-  const voiceSettings = voiceMap[normalizedLang] || voiceMap.english;
+  const voiceSettings =
+    normalizedLang in voiceMap
+      ? voiceMap[normalizedLang as keyof typeof voiceMap]
+      : voiceMap.english; // Default to English if not found
+
   console.log(`Using voice ${voiceSettings.voiceId} for language ${language}`);
 
   // Generate a user-specific S3 key for the audio file
@@ -256,8 +254,7 @@ export const handler: Handler = async (event: ConvertToSpeechRequest) => {
       sourceLanguage,
       event.fileKey,
       event.outputBucket,
-      event.userId || 'unknown-user',
-      event.workflowId
+      event.userId || 'unknown-user'
     );
 
     const response = createS3Response(

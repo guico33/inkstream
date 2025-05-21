@@ -9,15 +9,15 @@ import {
   getTextFromS3,
   generateUserS3Key,
   saveTextToS3,
-} from '../../utils/s3-utils';
+} from '../../../utils/s3-utils';
 import {
   createS3Response,
   createS3ErrorResponse,
-} from '../../utils/response-utils';
+} from '../../../utils/response-utils';
 import {
   getErrorMessage,
   formatErrorForLogging,
-} from '../../utils/error-utils';
+} from '../../../utils/error-utils';
 
 // Initialize Bedrock client
 const bedrockRuntime = new BedrockRuntimeClient({});

@@ -6,12 +6,12 @@ import { Handler } from 'aws-lambda';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
 // Import utility functions
-import { formatErrorForLogging } from '../../utils/error-utils';
+import { formatErrorForLogging } from '../../../utils/error-utils';
 import {
   createS3ErrorResponse,
   createS3Response,
-} from '../../utils/response-utils';
-import { generateUserS3Key, saveTextToS3 } from '../../utils/s3-utils';
+} from '../../../utils/response-utils';
+import { generateUserS3Key, saveTextToS3 } from '../../../utils/s3-utils';
 
 // Initialize Bedrock client
 const bedrockRuntime = new BedrockRuntimeClient({});
