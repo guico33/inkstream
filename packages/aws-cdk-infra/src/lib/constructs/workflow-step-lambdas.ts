@@ -25,7 +25,7 @@ export class WorkflowStepLambdas extends Construct {
       description:
         'Extract text from PDF or image with Textract (or read text file)',
       runtime: lambda.Runtime.NODEJS_18_X,
-      timeout: cdk.Duration.seconds(60),
+      timeout: cdk.Duration.minutes(5), // Changed from 60 seconds to 5 minutes
       environment: {
         TABLE_NAME: props.tableName,
         BUCKET_NAME: props.bucketName,

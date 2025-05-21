@@ -36,6 +36,9 @@ export class WorkflowStepFunctions extends Construct {
       resultPath: '$.extractedTextOutput', // Store lambda output under this key
       outputPath: '$', // Pass the entire input and the result to the next step
       retryOnServiceExceptions: false, // We'll use addRetry below
+      // Add an explicit task timeout. Ensure props.extractTextFn's timeout is >= this.
+      // For example, if Textract can take up to 5 minutes for complex PDFs.
+      timeout: cdk.Duration.minutes(5),
     });
     extractTextTask.addRetry({
       errors: [
