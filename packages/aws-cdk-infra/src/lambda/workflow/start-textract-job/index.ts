@@ -2,9 +2,13 @@ import {
   TextractClient,
   StartDocumentTextDetectionCommand,
 } from '@aws-sdk/client-textract';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { Handler } from 'aws-lambda';
+import {
+  putJobToken,
+  TextractJobToken,
+} from '../../../utils/textract-job-tokens';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
 const textract = new TextractClient({});
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -54,20 +58,16 @@ export const handler: Handler = async (event) => {
     // Store JobId -> TaskToken mapping in DynamoDB
     const now = Math.floor(Date.now() / 1000);
     const ttl = now + 60 * 60 * 6; // 6 hours TTL
-    await ddb.send(
-      new PutCommand({
-        TableName: DYNAMODB_TABLE_NAME,
-        Item: {
-          JobId: jobId,
-          TaskToken: taskToken,
-          FileType: fileType,
-          WorkflowId: workflowId,
-          UserId: userId,
-          S3Input: s3Path,
-          ExpirationTime: ttl,
-        },
-      })
-    );
+    const jobToken: TextractJobToken = {
+      JobId: jobId,
+      TaskToken: taskToken,
+      FileType: fileType,
+      WorkflowId: workflowId,
+      UserId: userId,
+      S3Input: s3Path,
+      ExpirationTime: ttl.toString(),
+    };
+    await putJobToken(DYNAMODB_TABLE_NAME, jobToken, ddb);
     console.log('Stored JobId and TaskToken in DynamoDB:', jobId);
     return { jobId };
   } catch (err) {

@@ -12,6 +12,8 @@ export interface StorageConstructProps {
 
 export class StorageConstruct extends Construct {
   public readonly bucket: s3.Bucket;
+  public readonly textractJobTokensTable: dynamodb.Table;
+  public readonly userWorkflowsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: StorageConstructProps) {
     super(scope, id);
@@ -49,11 +51,24 @@ export class StorageConstruct extends Construct {
     // Textract Job Tokens Table (for event-driven workflow)
     const accountId = cdk.Stack.of(this).account;
     const textractJobTokensTableName = `dev-inkstream-textract-job-tokens-${accountId}`;
-    // textractJobTokensTable
-    new dynamodb.Table(this, 'TextractJobTokensTable', {
-      tableName: textractJobTokensTableName,
-      partitionKey: { name: 'JobId', type: dynamodb.AttributeType.STRING },
-      timeToLiveAttribute: 'ExpirationTime',
+    this.textractJobTokensTable = new dynamodb.Table(
+      this,
+      'TextractJobTokensTable',
+      {
+        tableName: textractJobTokensTableName,
+        partitionKey: { name: 'JobId', type: dynamodb.AttributeType.STRING },
+        timeToLiveAttribute: 'ExpirationTime',
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      }
+    );
+
+    // User Workflows Table (for workflow state tracking)
+    const userWorkflowsTableName = `dev-inkstream-user-workflows-${accountId}`;
+    this.userWorkflowsTable = new dynamodb.Table(this, 'UserWorkflowsTable', {
+      tableName: userWorkflowsTableName,
+      partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'workflowId', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
     });

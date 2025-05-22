@@ -20,10 +20,12 @@
     "@aws-sdk/client-sfn": "^3.812.0",
     "@aws-sdk/client-textract": "^3.812.0",
     "@aws-sdk/credential-provider-ini": "^3.812.0",
+    "@aws-sdk/client-dynamodb": "^3.812.0",
     "@aws-sdk/lib-dynamodb": "^3.814.0",
     "aws-cdk-lib": "^2.196.0",
     "constructs": "^10.4.2",
     "dotenv": "^16.5.0",
+    "dynamodb-toolbox": "^2.3.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

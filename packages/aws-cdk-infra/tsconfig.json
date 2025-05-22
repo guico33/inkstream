@@ -2,7 +2,7 @@
   // add stricter rules to the tsconfig
   "compilerOptions": {
     "target": "ES2020",
-    "module": "CommonJS",
+    "module": "node16",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -15,7 +15,8 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noImplicitThis": true,
-    "types": ["node"]
+    "types": ["node"],
+    "moduleResolution": "node16",
   },
   "include": ["src/**/*.ts", "bin/**/*.ts"]
 }

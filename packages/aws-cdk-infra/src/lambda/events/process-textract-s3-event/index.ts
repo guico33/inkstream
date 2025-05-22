@@ -10,12 +10,14 @@ import {
   SendTaskFailureCommand,
 } from '@aws-sdk/client-sfn';
 import { Handler, S3Event } from 'aws-lambda';
+import { S3Client } from '@aws-sdk/client-s3';
 import {
-  S3Client,
-  ListObjectsV2Command,
-  GetObjectCommand,
-  PutObjectCommand,
-} from '@aws-sdk/client-s3';
+  listNumberedTextractFiles,
+  getExpectedPagesFromFirstFile,
+  mergeTextractBlocks,
+  saveMergedBlocksToS3,
+  extractJobIdFromKey,
+} from './utils';
 
 const accountId = process.env.AWS_ACCOUNT_ID;
 if (!accountId) throw new Error('AWS_ACCOUNT_ID env var is required');
@@ -24,11 +26,6 @@ const DYNAMODB_TABLE_NAME = `dev-inkstream-textract-job-tokens-${accountId}`;
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const sfn = new SFNClient({});
 const s3 = new S3Client({});
-
-function extractJobIdFromKey(key: string): string | null {
-  const match = key.match(/^textract-output\/(.+?)\//);
-  return match ? match[1] ?? null : null;
-}
 
 export const handler: Handler = async (event: S3Event) => {
   console.log('Received S3 event:', JSON.stringify(event));
@@ -65,30 +62,13 @@ export const handler: Handler = async (event: S3Event) => {
       continue;
     }
     // List all numbered files for this job
-    const prefix = `textract-output/${jobId}/`;
-    const listResp = await s3.send(
-      new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix })
-    );
-    const numberedFiles = (listResp.Contents || [])
-      .map((obj) => obj.Key)
-      .filter(
-        (key): key is string =>
-          !!key && /^[0-9]+$/.test(key.slice(prefix.length)) // Corrected regex
-      );
+    const numberedFiles = await listNumberedTextractFiles(s3, bucket, jobId);
     // Get total expected pages from the first file
-    let expectedPages = 0;
-    if (numberedFiles.length > 0) {
-      const getObj = await s3.send(
-        new GetObjectCommand({ Bucket: bucket, Key: numberedFiles[0] })
-      );
-      const body = await getObj.Body?.transformToString();
-      if (body) {
-        try {
-          const json = JSON.parse(body);
-          expectedPages = json.DocumentMetadata?.Pages || 0;
-        } catch {}
-      }
-    }
+    const expectedPages = await getExpectedPagesFromFirstFile(
+      s3,
+      bucket,
+      numberedFiles
+    );
     // If this event is not for the last file, return early
     if (parseInt(lastPart, 10) !== expectedPages && expectedPages > 0) {
       console.log(
@@ -97,36 +77,9 @@ export const handler: Handler = async (event: S3Event) => {
       continue;
     }
     // Aggregate all Textract output parts for this job
-    const results = [];
-    for (const fileKey of numberedFiles) {
-      const getObj = await s3.send(
-        new GetObjectCommand({ Bucket: bucket, Key: fileKey })
-      );
-      const body = await getObj.Body?.transformToString();
-      if (body) results.push({ key: fileKey, body });
-    }
-    // Merge all Blocks arrays
-    let allBlocks: any[] = [];
-    for (const part of results) {
-      try {
-        const json = JSON.parse(part.body);
-        if (Array.isArray(json.Blocks)) {
-          allBlocks = allBlocks.concat(json.Blocks);
-        }
-      } catch (e) {
-        console.warn(`Failed to parse Textract part ${part.key}:`, e);
-      }
-    }
+    const allBlocks = await mergeTextractBlocks(s3, bucket, numberedFiles);
     // Save merged blocks to a new S3 file for downstream processing
-    const mergedKey = `merged-textract-output/${jobId}/merged.json`; // Changed output path
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: mergedKey,
-        Body: JSON.stringify({ Blocks: allBlocks }),
-        ContentType: 'application/json',
-      })
-    );
+    const mergedKey = await saveMergedBlocksToS3(s3, bucket, jobId, allBlocks);
     // Prepare result payload for Step Function
     const result = {
       s3Path: { bucket, key: mergedKey },

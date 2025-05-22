@@ -5,12 +5,11 @@ import {
   StartDocumentTextDetectionCommand,
 } from '@aws-sdk/client-textract';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { describe, beforeEach, it, expect } from 'vitest';
+import { describe, beforeEach, it, expect, vi } from 'vitest';
+import * as jobTokenUtils from '../../../utils/textract-job-tokens';
 
 const textractMock = mockClient(TextractClient as any);
 const ddbMock = mockClient(DynamoDBClient as any);
-const ddbDocMock = mockClient(DynamoDBDocumentClient as any);
 
 // Helper to DRY up handler invocation
 async function callHandler(event: any) {
@@ -23,7 +22,6 @@ describe('start-textract-job Lambda', () => {
   beforeEach(() => {
     textractMock.reset();
     ddbMock.reset();
-    ddbDocMock.reset();
   });
 
   it('should start a Textract job and store JobId in DynamoDB', async () => {
@@ -40,7 +38,9 @@ describe('start-textract-job Lambda', () => {
     (textractMock.on as any)(StartDocumentTextDetectionCommand).resolves({
       JobId: jobId,
     });
-    (ddbDocMock.on as any)(PutCommand).resolves({});
+    const putJobTokenSpy = vi
+      .spyOn(jobTokenUtils, 'putJobToken')
+      .mockResolvedValue(undefined);
 
     // Act
     const result = await callHandler(event);
@@ -51,7 +51,15 @@ describe('start-textract-job Lambda', () => {
       (textractMock.commandCalls as any)(StartDocumentTextDetectionCommand)
         .length
     ).toBe(1);
-    expect((ddbDocMock.commandCalls as any)(PutCommand).length).toBe(1);
+    expect(putJobTokenSpy).toHaveBeenCalledTimes(1);
+    expect(putJobTokenSpy.mock.calls?.[0]?.[1]).toMatchObject({
+      JobId: jobId,
+      TaskToken: 'token',
+      FileType: 'pdf',
+      WorkflowId: 'wf-1',
+      UserId: 'user-1',
+      S3Input: s3Path,
+    });
   });
 
   it('should throw if s3Path is missing', async () => {

@@ -72,7 +72,7 @@ let handler: any;
 beforeAll(async () => {
   vi.stubEnv('AWS_ACCOUNT_ID', 'test');
   // Dynamically import the handler after env var is set
-  handler = (await import('./index')).handler;
+  handler = (await import('./index.js')).handler;
 });
 afterAll(() => {
   vi.unstubAllEnvs();
