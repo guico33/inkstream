@@ -1,7 +1,17 @@
 # Inkstream
 
-![AWS](https://img.shields.io/badge/AWS-CDK%20%7C%20Lambda%20%7C%20Step%20Functions%20%7C%20S3%20%7C%20DynamoDB%20%7C%20Cognito-orange)
-![React](https://img.shields.io/badge/Frontend-React-blue)
+<p align="center">
+  <img src="./assets/inkstream-logo.png" alt="Inkstream logo" width="120" />
+</p>
+
+<p align="center">
+  <a href="https://aws.amazon.com/">
+    <img src="https://img.shields.io/badge/AWS-CDK%20%7C%20Lambda%20%7C%20Step%20Functions%20%7C%20S3%20%7C%20DynamoDB%20%7C%20Cognito-orange" alt="AWS" />
+  </a>
+  <a href="https://react.dev/">
+    <img src="https://img.shields.io/badge/Frontend-React-blue" alt="React" />
+  </a>
+</p>
 
 ---
 
