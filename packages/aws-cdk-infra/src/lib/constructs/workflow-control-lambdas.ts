@@ -6,6 +6,7 @@ import * as cdk from 'aws-cdk-lib';
 
 export interface WorkflowControlLambdasProps {
   stateMachineArn: string;
+  userWorkflowsTableName: string;
 }
 
 export class WorkflowControlLambdas extends Construct {
@@ -27,6 +28,7 @@ export class WorkflowControlLambdas extends Construct {
       timeout: cdk.Duration.seconds(10),
       environment: {
         STATE_MACHINE_ARN: props.stateMachineArn,
+        USER_WORKFLOWS_TABLE: props.userWorkflowsTableName,
       },
     });
 

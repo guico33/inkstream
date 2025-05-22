@@ -40,7 +40,7 @@ export class InkstreamStack extends cdk.Stack {
     });
 
     // S3 and DynamoDB setup (pass processTextractS3EventFn for S3 event notification)
-    new StorageConstruct(this, 'Storage', {
+    const storage = new StorageConstruct(this, 'Storage', {
       bucketName,
       processTextractS3EventFn: stepLambdas.processTextractS3EventFn,
     });
@@ -64,12 +64,16 @@ export class InkstreamStack extends cdk.Stack {
       'WorkflowControlLambdas',
       {
         stateMachineArn: stateMachine.stateMachineArn,
+        userWorkflowsTableName: storage.userWorkflowsTable.tableName,
       }
     );
 
     // Grant permissions to the state machine to invoke the Lambda functions
     stateMachine.grantStartExecution(controlLambdas.startWorkflowFn);
     stateMachine.grantRead(controlLambdas.workflowStatusFn);
+
+    // Grant write permissions to the workflow state table for the startWorkflow Lambda
+    storage.userWorkflowsTable.grantWriteData(controlLambdas.startWorkflowFn);
 
     // API Gateway
     const api = new ApiGatewayConstruct(this, 'ApiGateway', {
