@@ -1,0 +1,25 @@
+# Business Source License 1.1
+
+Parameters
+
+Licensor: Guillaume Cauchet
+Licensed Work: Inkstream (this repository)
+Additional Use Grant: None
+Change Date: 2028-05-22 (3 years from today)
+Change License: MIT License
+
+Terms
+
+The Licensed Work is made available under the terms of the Business Source License 1.1 (the "License"). The License permits use of the Licensed Work, as expressly stated below, and subject to the following terms:
+
+1. Grant of Rights: You may use, copy, modify, and prepare derivative works of the Licensed Work, but only for non-production (non-commercial) purposes, unless you have received a separate commercial license from the Licensor.
+
+2. Production Use: Use of the Licensed Work in production, for commercial purposes, or to provide a service to third parties requires a separate commercial license from the Licensor.
+
+3. Change Date: On the Change Date, the Licensed Work will be made available under the Change License specified above.
+
+4. Notices: All copies of the Licensed Work must include this License.
+
+5. Disclaimer: THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE LICENSED WORK OR THE USE OR OTHER DEALINGS IN THE LICENSED WORK.
+
+For more information, see [https://mariadb.com/bsl11/](https://mariadb.com/bsl11/).
