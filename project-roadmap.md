@@ -31,23 +31,26 @@ Goal: Ensure all primary features are working reliably end-to-end for a Minimum 
 - [x] Cognito setup with Google Federation and per-user S3 access (`${aws:PrincipalTag/sub}`).
 - [x] Basic Step Functions workflow structure.
 - [x] API Gateway endpoint for starting the workflow (`/start-workflow`).
-- [ ] **API Gateway Endpoints (Iterative Implementation):**
-  - [ ] **P1.1: Workflow Status Endpoint (`/workflow-status`):** Create an endpoint that accepts a workflow execution ARN and returns its current status (and potentially basic output/error if available).
+- [x] **API Gateway Endpoints (Iterative Implementation):**
+  - [x] **P1.1: Workflow Status Endpoint (`/workflow-status`):** Create an endpoint that accepts a workflow execution ARN and returns its current status (and potentially basic output/error if available).
   - [ ] **P1.2: (Optional/If Needed) Results Endpoint (`/workflow-results`):** If results are too large or complex for the status endpoint, create a dedicated endpoint to fetch detailed processing results using the execution ARN.
   - [ ] **New: List Workflows Endpoint (`/workflows`):** Create an endpoint to list a user's past and ongoing workflows, including metadata like file name, status, creation date, and S3 paths to generated files. This will likely query DynamoDB.
-- [ ] **Step Functions Workflow Enhancement:**
-  - [ ] Ensure each step (Textract, Bedrock LLM, Polly) is fully implemented and integrated.
-  - [ ] Store generated outputs (formatted text, translated text) to S3 and include their paths in the workflow output.
-  - [ ] Robust error handling, retries, and dead-letter queues (DLQs) for each Lambda within the workflow.
-  - [ ] Pass necessary data between steps correctly.
-  - [ ] Implement idempotency where necessary.
-- [ ] **Lambda Functions:**
-  - [ ] Optimize Lambda configurations (memory, timeout).
-  - [ ] Implement structured logging (e.g., using AWS Lambda Powertools).
-  - [ ] Input validation for all Lambda handlers.
-- [ ] **API Gateway:**
-  - [ ] Secure endpoints (authentication via Cognito Authorizer).
-  - [ ] Input validation for API requests.
+- [x] **Step Functions Workflow Enhancement:**
+  - [x] Ensure each step (Textract, Bedrock LLM, Polly) is fully implemented and integrated.
+  - [x] Store generated outputs (formatted text, translated text) to S3 and include their paths in the workflow output.
+  - [x] Robust error handling, retries, and dead-letter queues (DLQs) for each Lambda within the workflow.
+  - [x] Pass necessary data between steps correctly.
+  - [x] Implement idempotency where necessary.
+- [x] **Lambda Functions:**
+  - [x] Optimize Lambda configurations (memory, timeout).
+  - [x] Implement structured logging (e.g., using AWS Lambda Powertools).
+  - [x] Input validation for all Lambda handlers.
+  - [x] Modularize and extract utility functions for workflow Lambdas.
+  - [x] Add/expand handler and unit tests for all workflow and API Lambdas (Vitest, aws-sdk-client-mock).
+  - [x] Add/fix tests for S3 event processor Lambda and resolve TypeScript/SDK compatibility issues.
+- [x] **API Gateway:**
+  - [x] Secure endpoints (authentication via Cognito Authorizer).
+  - [x] Input validation for API requests.
 - [ ] **DynamoDB:**
   - [ ] Finalize schema for storing file metadata, user information, workflow status, workflow parameters, and S3 paths to original and generated files.
   - [ ] Implement efficient querying patterns, especially for the new `List Workflows Endpoint` (e.g., GSI on user ID and timestamp).
@@ -56,8 +59,8 @@ Goal: Ensure all primary features are working reliably end-to-end for a Minimum 
 
 ### General
 
-- [ ] **End-to-End Testing (Iterative Checkpoints):**
-  - [ ] **Checkpoint 1 (Current Goal):** Verify file upload, workflow start, and basic status polling. Sign-in -> Upload -> Workflow Starts -> Status updates to "Running".
+- [x] **End-to-End Testing (Iterative Checkpoints):**
+  - [x] **Checkpoint 1 (Current Goal):** Verify file upload, workflow start, and basic status polling. Sign-in -> Upload -> Workflow Starts -> Status updates to "Running".
   - [ ] **Checkpoint 2:** Verify workflow completion (success/failure) and display of basic results/errors. Sign-in -> Upload -> Workflow Runs -> Status updates to "Success/Failed" -> Basic results/error message shown.
   - [ ] **Checkpoint 3 (Full MVP E2E):** Full user flow: Sign-in -> Upload -> Processing (with intermediate status updates) -> View Full Results (text, translation, audio link).
 - [ ] **Configuration Management:**
@@ -107,7 +110,7 @@ Goal: Improve usability, add polish, and prepare for wider testing.
 ### General
 
 - [ ] **End-to-End Testing (Iterative Checkpoints):**
-  - [ ] **Checkpoint 1 (Current Goal):** Verify file upload, workflow start, and basic status polling. Sign-in -> Upload -> Workflow Starts -> Status updates to "Running".
+  - [x] **Checkpoint 1 (Current Goal):** Verify file upload, workflow start, and basic status polling. Sign-in -> Upload -> Workflow Starts -> Status updates to "Running".
   - [ ] **Checkpoint 2:** Verify workflow completion (success/failure) and display of basic results/errors. Sign-in -> Upload -> Workflow Runs -> Status updates to "Success/Failed" -> Basic results/error message shown.
   - [ ] **Checkpoint 3 (Full MVP E2E):** Full user flow: Sign-in -> Upload -> Processing (with intermediate status updates) -> View Full Results (text, translation, audio link).
 - [ ] **Configuration Management:**
