@@ -8,7 +8,7 @@ import {
   generateFileKey,
   generateAudioFileKey,
   extractUuidFromFileKey,
-} from '../utils/file-utils';
+} from '../file-utils';
 
 describe('File Utilities', () => {
   describe('getFileExtension', () => {

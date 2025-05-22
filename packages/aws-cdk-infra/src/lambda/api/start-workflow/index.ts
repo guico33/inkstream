@@ -28,11 +28,25 @@ export const handler = async (
     const stateMachineArn = process.env.STATE_MACHINE_ARN as string;
 
     if (!stateMachineArn) {
-      throw new Error('STATE_MACHINE_ARN environment variable is not set');
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          message: 'STATE_MACHINE_ARN environment variable is not set',
+        }),
+      };
     }
 
     // Parse request body if available
     let requestBody: WorkflowInput = {};
+    if (!event.body) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          message: 'Invalid request body format',
+          error: 'Body must be valid JSON',
+        }),
+      };
+    }
     if (event.body) {
       try {
         requestBody = JSON.parse(event.body);
@@ -68,7 +82,28 @@ export const handler = async (
       name: `Execution-${workflowId.substring(0, 8)}-${Date.now()}`,
     });
 
-    const response = await sfnClient.send(startExecutionCommand);
+    let response: any = undefined;
+    try {
+      response = await sfnClient.send(startExecutionCommand);
+    } catch (err) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          message: 'Failed to start workflow',
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      };
+    }
+
+    if (!response || !response.executionArn) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          message: 'Failed to start workflow',
+          error: 'Step Functions did not return an executionArn',
+        }),
+      };
+    }
 
     return {
       statusCode: 200,

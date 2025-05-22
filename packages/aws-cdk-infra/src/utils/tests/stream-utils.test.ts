@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Readable } from 'node:stream';
-import { streamToString, streamToBuffer } from '../utils/stream-utils';
+import { streamToString, streamToBuffer } from '../stream-utils';
 
 describe('stream-utils', () => {
   describe('streamToString', () => {

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { createSuccessResponse, createS3Response, createS3ErrorResponse, S3Path } from '../utils/response-utils';
+import {
+  createSuccessResponse,
+  createS3Response,
+  createS3ErrorResponse,
+  S3Path,
+} from '../response-utils';
 
 describe('Response Utils', () => {
   describe('createSuccessResponse', () => {
@@ -9,9 +14,16 @@ describe('Response Utils', () => {
       expect(JSON.parse(res.body)).toEqual({ message: 'OK' });
     });
     it('includes additional data in the response', () => {
-      const res = createSuccessResponse(201, 'Created', { foo: 'bar', count: 2 });
+      const res = createSuccessResponse(201, 'Created', {
+        foo: 'bar',
+        count: 2,
+      });
       expect(res.statusCode).toBe(201);
-      expect(JSON.parse(res.body)).toEqual({ message: 'Created', foo: 'bar', count: 2 });
+      expect(JSON.parse(res.body)).toEqual({
+        message: 'Created',
+        foo: 'bar',
+        count: 2,
+      });
       expect(res.foo).toBe('bar');
       expect(res.count).toBe(2);
     });

@@ -1,23 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as s3Utils from '../utils/s3-utils';
+import * as s3Utils from '../s3-utils';
 
 // Use vi.hoisted to declare mockSend so it is available in the mock factory
 const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }));
 vi.mock('@aws-sdk/client-s3', () => ({
-  S3Client: vi
-    .fn()
-    .mockImplementation(() => ({
-      send: (...args: any[]) => mockSend(...args),
-    })),
+  S3Client: vi.fn().mockImplementation(() => ({
+    send: (...args: any[]) => mockSend(...args),
+  })),
   GetObjectCommand: vi.fn(),
   PutObjectCommand: vi.fn(),
 }));
-vi.mock('../utils/stream-utils', () => ({
+vi.mock('../stream-utils', () => ({
   streamToString: vi.fn().mockResolvedValue('mocked string'),
   streamToBuffer: vi.fn().mockResolvedValue(Buffer.from('mocked buffer')),
 }));
-vi.mock('../utils/file-utils', () => {
-  const original = vi.importActual('../utils/file-utils');
+vi.mock('../file-utils', () => {
+  const original = vi.importActual('../file-utils');
   return {
     ...original,
     getMimeType: vi.fn().mockReturnValue('mock/type'),

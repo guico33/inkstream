@@ -3,7 +3,7 @@ import {
   getErrorMessage,
   formatErrorForLogging,
   createErrorResponse,
-} from '../utils/error-utils';
+} from '../error-utils';
 
 describe('Error Utils', () => {
   describe('getErrorMessage', () => {

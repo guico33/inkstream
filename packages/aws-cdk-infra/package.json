@@ -30,6 +30,7 @@
     "@types/aws-lambda": "^8.10.149",
     "@vitest/coverage-v8": "^3.1.4",
     "aws-cdk": "^2.1016.0",
+    "aws-sdk-client-mock": "^4.1.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "vitest": "^3.1.4"
