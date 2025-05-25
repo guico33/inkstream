@@ -17,17 +17,16 @@ export class WorkflowStepFunctions extends Construct {
   constructor(scope: Construct, id: string, props: WorkflowStepFunctionsProps) {
     super(scope, id);
 
-    // Define common parameters to be passed through the workflow
-    const commonParameters = {
-      'fileKey.$': '$.fileKey',
-      'outputBucket.$': '$.outputBucket',
-      'originalFileBucket.$': '$.originalFileBucket',
-      'userId.$': '$.userId',
-      'workflowId.$': '$.workflowId',
-      'doTranslate.$': '$.doTranslate',
-      'targetLanguage.$': '$.targetLanguage',
-      'doSpeech.$': '$.doSpeech',
-    };
+    // Params papssed to each step function task
+    // const executionInput = {
+    //   doTranslate: requestBody.doTranslate ?? false,
+    //   doSpeech: requestBody.doSpeech ?? false,
+    //   targetLanguage: requestBody.targetLanguage ?? 'french',
+    //   storageBucket: process.env.STORAGE_BUCKET,
+    //   fileKey,
+    //   userId,
+    //   timestamp: Date.now(),
+    // };
 
     // Event-driven Textract: Start job and wait for callback
     const startTextractJobTask = new tasks.LambdaInvoke(
@@ -37,40 +36,20 @@ export class WorkflowStepFunctions extends Construct {
         lambdaFunction: props.startTextractJobFn,
         integrationPattern: sfn.IntegrationPattern.WAIT_FOR_TASK_TOKEN,
         payload: sfn.TaskInput.fromObject({
-          s3Path: {
-            bucket: sfn.JsonPath.stringAt('$.originalFileBucket'),
-            key: sfn.JsonPath.stringAt('$.fileKey'),
-          },
-          workflowId: sfn.JsonPath.stringAt('$.workflowId'),
-          userId: sfn.JsonPath.stringAt('$.userId'),
+          workflowId: sfn.JsonPath.executionId, // Inject the Step Functions execution ARN
           taskToken: sfn.JsonPath.taskToken,
         }),
-        resultPath: '$.extractTextOutput',
-        outputPath: '$',
         timeout: cdk.Duration.minutes(20), // Textract jobs can take a while
       }
     );
 
     const formatTextTask = new tasks.LambdaInvoke(this, 'Format Text', {
       lambdaFunction: props.formatTextFn,
-      payload: sfn.TaskInput.fromObject({
-        ...commonParameters,
-        'textractOutputS3Path.$': '$.extractTextOutput.s3Path',
-      }),
-      resultPath: '$.formatTextOutput',
-      outputPath: '$',
     });
 
     // Define the Translate Text LambdaInvoke task
     const translateTextTask = new tasks.LambdaInvoke(this, 'Translate Text', {
       lambdaFunction: props.translateTextFn,
-      payload: sfn.TaskInput.fromObject({
-        ...commonParameters,
-        // Assumes formatTextTask output structure if successful:
-        'formattedTextS3Path.$': '$.formatTextOutput.Payload.s3Path',
-      }),
-      resultPath: '$.translateTextOutput',
-      outputPath: '$',
     });
 
     // Task for converting translated text to speech
@@ -79,13 +58,6 @@ export class WorkflowStepFunctions extends Construct {
       'Convert Translated Text to Speech',
       {
         lambdaFunction: props.convertToSpeechFn,
-        payload: sfn.TaskInput.fromObject({
-          ...commonParameters,
-          // Assumes translateTextTask output structure if successful:
-          'translatedTextS3Path.$': '$.translateTextOutput.Payload.s3Path',
-        }),
-        resultPath: '$.speechOutput',
-        outputPath: '$',
       }
     );
 
@@ -95,13 +67,6 @@ export class WorkflowStepFunctions extends Construct {
       'Convert Formatted Text to Speech',
       {
         lambdaFunction: props.convertToSpeechFn,
-        payload: sfn.TaskInput.fromObject({
-          ...commonParameters,
-          // Assumes formatTextTask output structure if successful:
-          'formattedTextS3Path.$': '$.formatTextOutput.Payload.s3Path',
-        }),
-        resultPath: '$.speechOutput',
-        outputPath: '$',
       }
     );
 

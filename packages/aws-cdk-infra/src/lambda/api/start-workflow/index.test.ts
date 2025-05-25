@@ -6,149 +6,199 @@ import {
   beforeEach,
   afterAll,
   beforeAll,
+  vitest,
 } from 'vitest';
-import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn';
-import * as workflowState from '../../../utils/workflow-state';
-
-vi.mock('uuid', () => ({ v4: () => 'test-uuid' }));
-
-let mockSend: ReturnType<typeof vi.fn>;
-beforeEach(() => {
-  mockSend = vi.fn();
-  vi.spyOn(SFNClient.prototype, 'send').mockImplementation(mockSend);
-});
-
-let handler: any;
-
-// Helper to import handler after spies are set up
-async function importHandler() {
-  return (await import('./index.js')).handler;
-}
-
-beforeAll(() => {
-  vi.stubEnv('USER_WORKFLOWS_TABLE', 'test-table');
-  vi.stubEnv(
-    'STATE_MACHINE_ARN',
-    'arn:aws:states:us-east-1:123456789012:stateMachine:test'
-  );
-});
-afterAll(() => {
-  vi.unstubAllEnvs();
-});
+import { SFNClient } from '@aws-sdk/client-sfn';
+import * as workflowStateUtils from '../../../utils/workflow-state';
 
 describe('start-workflow Lambda handler', () => {
+  let handler: any;
+  let sfnSendSpy: any;
+
+  beforeAll(async () => {
+    // Dynamically import handler after setting env
+    vitest.stubEnv('STATE_MACHINE_ARN', 'test-arn');
+    vitest.stubEnv('USER_WORKFLOWS_TABLE', 'test-table');
+    vitest.stubEnv('STORAGE_BUCKET', 'test-bucket');
+    handler = (await import('./index.js')).handler;
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('returns 400 if no body is provided', async () => {
-    handler = await importHandler();
-    const event = { body: undefined } as any;
-    const result = await handler(event);
-    expect(result.statusCode).toBe(400);
-    expect(JSON.parse(result.body).message).toMatch(
-      /Invalid request body format/
+    // Mock createWorkflow and updateWorkflowStatus
+    vi.spyOn(workflowStateUtils, 'createWorkflow').mockResolvedValue(undefined);
+    vi.spyOn(workflowStateUtils, 'updateWorkflowStatus').mockResolvedValue(
+      undefined
     );
+    // Mock SFNClient.send
+    sfnSendSpy = vi.spyOn(SFNClient.prototype, 'send');
   });
 
-  it('returns 400 if body is invalid JSON', async () => {
-    handler = await importHandler();
-    const event = { body: '{invalidJson' } as any;
-    const result = await handler(event);
-    expect(result.statusCode).toBe(400);
-    expect(JSON.parse(result.body).message).toMatch(
-      /Invalid request body format/
-    );
+  afterAll(() => {
+    vi.restoreAllMocks();
   });
 
-  it('returns 500 if STATE_MACHINE_ARN is not set', async () => {
-    process.env.STATE_MACHINE_ARN = '';
-    handler = await importHandler();
-    const event = {
-      body: JSON.stringify({ fileKey: 'file.txt', userId: 'user' }),
-    } as any;
-    const result = await handler(event);
-    expect(result.statusCode).toBe(500);
-    expect(JSON.parse(result.body).message).toMatch(
-      /STATE_MACHINE_ARN environment variable is not set/
-    );
-    process.env.STATE_MACHINE_ARN =
-      'arn:aws:states:us-east-1:123456789012:stateMachine:test';
-  });
-
-  it('returns 200 and executionArn on success', async () => {
-    const createWorkflowSpy = vi
-      .spyOn(workflowState, 'createWorkflow')
-      .mockResolvedValueOnce();
-    handler = await importHandler();
-    mockSend.mockResolvedValueOnce({
-      executionArn: 'arn:aws:states:execution:123',
-      startDate: '2025-05-22T00:00:00Z',
+  it('returns 200 and workflowId on success', async () => {
+    sfnSendSpy.mockResolvedValue({
+      executionArn: 'arn:aws:states:...',
+      startDate: '2024-01-01T00:00:00.000Z',
     });
     const event = {
-      body: JSON.stringify({ fileKey: 'file.txt', userId: 'user' }),
-    } as any;
+      body: JSON.stringify({ filename: 'file.txt' }), // Use filename instead of fileKey
+      requestContext: { authorizer: { jwt: { claims: { sub: 'user' } } } },
+    };
     const result = await handler(event);
     expect(result.statusCode).toBe(200);
     const body = JSON.parse(result.body);
     expect(body.message).toMatch(/Workflow started successfully/);
-    expect(body.executionArn).toBe('arn:aws:states:execution:123');
-    expect(body.startDate).toBe('2025-05-22T00:00:00Z');
-    expect(mockSend).toHaveBeenCalledWith(expect.any(StartExecutionCommand));
-    createWorkflowSpy.mockRestore();
+    expect(body.workflowId).toBeDefined();
   });
 
   it('returns 500 if SFNClient.send throws', async () => {
-    const createWorkflowSpy = vi
-      .spyOn(workflowState, 'createWorkflow')
-      .mockResolvedValueOnce();
-    handler = await importHandler();
-    mockSend.mockRejectedValueOnce(new Error('sfn error'));
+    sfnSendSpy.mockRejectedValue(new Error('fail sfn'));
     const event = {
-      body: JSON.stringify({ fileKey: 'file.txt', userId: 'user' }),
-    } as any;
+      body: JSON.stringify({ filename: 'file.txt' }), // Use filename instead of fileKey
+      requestContext: { authorizer: { jwt: { claims: { sub: 'user' } } } },
+    };
     const result = await handler(event);
     expect(result.statusCode).toBe(500);
     const body = JSON.parse(result.body);
     expect(body.message).toMatch(/Failed to start workflow/);
-    expect(body.error).toMatch(
-      /sfn error|Step Functions did not return an executionArn/
-    );
-    createWorkflowSpy.mockRestore();
   });
 
   it('calls createWorkflow with correct arguments', async () => {
-    const createWorkflowSpy = vi
-      .spyOn(workflowState, 'createWorkflow')
-      .mockResolvedValueOnce();
-    handler = await importHandler();
-    mockSend.mockResolvedValueOnce({
-      executionArn: 'arn:aws:states:execution:123',
-      startDate: '2025-05-22T00:00:00Z',
+    sfnSendSpy.mockResolvedValue({
+      executionArn: 'arn:aws:states:...',
+      startDate: '2024-01-01T00:00:00.000Z',
     });
+    const createWorkflowSpy = vi.spyOn(workflowStateUtils, 'createWorkflow');
     const event = {
       body: JSON.stringify({
-        fileKey: 'file.txt',
-        userId: 'user',
+        filename: 'file.txt',
         doTranslate: true,
         doSpeech: false,
         targetLanguage: 'es',
       }),
-    } as any;
+      requestContext: { authorizer: { jwt: { claims: { sub: 'user' } } } },
+    };
     await handler(event);
     expect(createWorkflowSpy).toHaveBeenCalledWith(
       'test-table',
       expect.objectContaining({
         userId: 'user',
-        workflowId: 'test-uuid',
         status: 'STARTING',
         parameters: {
           doTranslate: true,
           doSpeech: false,
           targetLanguage: 'es',
         },
+        // ...other expected fields if needed
       })
     );
-    createWorkflowSpy.mockRestore();
+  });
+
+  // New test cases for Zod validation and error handling
+  it('returns 400 for missing request body', async () => {
+    const event = {
+      body: null,
+      requestContext: { authorizer: { jwt: { claims: { sub: 'user' } } } },
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(400);
+    const body = JSON.parse(result.body);
+    expect(body.message).toBe('Validation error');
+    expect(body.error).toBe('Request body is required');
+  });
+
+  it('returns 400 for invalid JSON in request body', async () => {
+    const event = {
+      body: 'invalid json',
+      requestContext: { authorizer: { jwt: { claims: { sub: 'user' } } } },
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(400);
+    const body = JSON.parse(result.body);
+    expect(body.message).toBe('Validation error');
+    expect(body.error).toBe('Invalid request body format - must be valid JSON');
+  });
+
+  it('returns 400 for missing filename in request body', async () => {
+    const event = {
+      body: JSON.stringify({ doTranslate: true }),
+      requestContext: { authorizer: { jwt: { claims: { sub: 'user' } } } },
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(400);
+    const body = JSON.parse(result.body);
+    expect(body.message).toBe('Validation error');
+    expect(body.error).toContain('filename is required');
+  });
+
+  it('returns 400 for empty filename in request body', async () => {
+    const event = {
+      body: JSON.stringify({ filename: '' }),
+      requestContext: { authorizer: { jwt: { claims: { sub: 'user' } } } },
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(400);
+    const body = JSON.parse(result.body);
+    expect(body.message).toBe('Validation error');
+    expect(body.error).toContain('filename cannot be empty');
+  });
+
+  it('returns 400 for missing userId in JWT claims', async () => {
+    const event = {
+      body: JSON.stringify({ filename: 'file.txt' }),
+      requestContext: { authorizer: { jwt: { claims: {} } } },
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(400);
+    const body = JSON.parse(result.body);
+    expect(body.message).toBe('Validation error');
+    expect(body.error).toBe('Invalid or missing userId in JWT claims');
+  });
+
+  it('uses default values for optional fields', async () => {
+    sfnSendSpy.mockResolvedValue({
+      executionArn: 'arn:aws:states:...',
+      startDate: '2024-01-01T00:00:00.000Z',
+    });
+    const createWorkflowSpy = vi.spyOn(workflowStateUtils, 'createWorkflow');
+    const event = {
+      body: JSON.stringify({ filename: 'file.txt' }), // Only required field
+      requestContext: { authorizer: { jwt: { claims: { sub: 'user' } } } },
+    };
+    await handler(event);
+    expect(createWorkflowSpy).toHaveBeenCalledWith(
+      'test-table',
+      expect.objectContaining({
+        parameters: {
+          doTranslate: false,
+          doSpeech: false,
+          targetLanguage: 'english',
+        },
+      })
+    );
+  });
+
+  it('returns 500 if createWorkflow fails', async () => {
+    sfnSendSpy.mockResolvedValue({
+      executionArn: 'arn:aws:states:...',
+      startDate: '2024-01-01T00:00:00.000Z',
+    });
+    vi.spyOn(workflowStateUtils, 'createWorkflow').mockRejectedValue(
+      new Error('DynamoDB error')
+    );
+    const event = {
+      body: JSON.stringify({ filename: 'file.txt' }),
+      requestContext: { authorizer: { jwt: { claims: { sub: 'user' } } } },
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(500);
+    const body = JSON.parse(result.body);
+    expect(body.message).toBe('Failed to start workflow');
+    expect(body.error).toContain(
+      'Failed to create workflow record in DynamoDB'
+    );
   });
 });

@@ -19,6 +19,8 @@ export type WorkflowStatus =
   | 'FORMATTING_TEXT'
   | 'TRANSLATING'
   | 'CONVERTING_TO_SPEECH'
+  | 'TEXT_FORMATTING_COMPLETE'
+  | 'TRANSLATION_COMPLETE'
   | 'SUCCEEDED'
   | 'FAILED';
 
@@ -29,6 +31,7 @@ export interface WorkflowParameters {
 }
 
 export interface WorkflowS3Paths {
+  originalFile: string;
   formattedText?: string;
   translatedText?: string;
   audioFile?: string;
@@ -66,12 +69,14 @@ const getWorkflowTableAndEntity = (tableName: string) => {
       workflowId: string().key(),
       status: anyOf(
         string().enum('STARTING'),
-        string().enum('SUCCEEDED'),
-        string().enum('FAILED'),
         string().enum('EXTRACTING_TEXT'),
         string().enum('FORMATTING_TEXT'),
         string().enum('TRANSLATING'),
-        string().enum('CONVERTING_TO_SPEECH')
+        string().enum('CONVERTING_TO_SPEECH'),
+        string().enum('TEXT_FORMATTING_COMPLETE'),
+        string().enum('TRANSLATION_COMPLETE'),
+        string().enum('SUCCEEDED'),
+        string().enum('FAILED')
       ),
       parameters: map({
         doTranslate: boolean().optional(),
@@ -79,6 +84,7 @@ const getWorkflowTableAndEntity = (tableName: string) => {
         targetLanguage: string().optional(),
       }).optional(),
       s3Paths: map({
+        originalFile: string().required(),
         formattedText: string().optional(),
         translatedText: string().optional(),
         audioFile: string().optional(),

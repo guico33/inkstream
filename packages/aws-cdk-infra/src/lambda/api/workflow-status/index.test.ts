@@ -1,58 +1,210 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { handler } from './index';
-import { SFNClient } from '@aws-sdk/client-sfn';
-
-let mockSend: ReturnType<typeof vi.fn>;
-beforeEach(() => {
-  mockSend = vi.fn();
-  vi.spyOn(SFNClient.prototype, 'send').mockImplementation(mockSend);
-});
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterAll,
+  beforeAll,
+  vitest,
+} from 'vitest';
+import * as workflowStateUtils from '../../../utils/workflow-state';
+import { WorkflowRecord } from '../../../utils/workflow-state';
 
 describe('workflow-status Lambda handler', () => {
-  it('returns 400 if executionArn is missing', async () => {
-    const event = { queryStringParameters: {}, body: undefined } as any;
-    const result = await handler(event);
-    expect(result.statusCode).toBe(400);
-    expect(JSON.parse(result.body).message).toMatch(/Missing executionArn/);
+  let handler: any;
+
+  beforeAll(async () => {
+    // Dynamically import handler after setting env
+    vitest.stubEnv('USER_WORKFLOWS_TABLE', 'test-user-workflows-table');
+    handler = (await import('./index.js')).handler;
   });
 
-  it('returns 400 if executionArn is missing in invalid JSON body', async () => {
-    const event = { queryStringParameters: {}, body: '{invalidJson' } as any;
-    const result = await handler(event);
-    expect(result.statusCode).toBe(400);
-    expect(JSON.parse(result.body).message).toMatch(/Missing executionArn/);
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Mock getWorkflow
+    vi.spyOn(workflowStateUtils, 'getWorkflow').mockResolvedValue(undefined);
   });
 
-  it('returns 200 and workflow status if found', async () => {
-    mockSend.mockResolvedValueOnce({
-      status: 'SUCCEEDED',
-      output: JSON.stringify({ foo: 'bar' }),
-      input: JSON.stringify({ input: true }),
-      startDate: '2025-05-22T00:00:00Z',
-      stopDate: '2025-05-22T01:00:00Z',
-      executionArn: 'arn:aws:states:execution:123',
-    });
-    const event = {
-      queryStringParameters: { executionArn: 'arn:aws:states:execution:123' },
-    } as any;
+  afterAll(() => {
+    vi.restoreAllMocks();
+  });
+
+  const createMockEvent = (
+    options: {
+      workflowId?: string | null;
+      userId?: string | null;
+    } = {}
+  ) => {
+    // Use hasOwnProperty to distinguish between undefined passed explicitly vs not passed at all
+    const workflowId = 'workflowId' in options ? options.workflowId : 'wf-123';
+    const userId = 'userId' in options ? options.userId : 'user-123';
+
+    const event: any = {
+      requestContext: {
+        authorizer: {
+          jwt: {
+            claims: {},
+          },
+        },
+      },
+      queryStringParameters: {},
+    };
+
+    // Only set userId if it's not null/undefined
+    if (userId !== null && userId !== undefined) {
+      event.requestContext.authorizer.jwt.claims.sub = userId;
+    }
+
+    // Only set workflowId if it's not null/undefined
+    if (workflowId !== null && workflowId !== undefined) {
+      event.queryStringParameters.workflowId = workflowId;
+    }
+
+    return event;
+  };
+
+  const createMockWorkflowRecord = (): WorkflowRecord => ({
+    userId: 'user-123',
+    workflowId: 'wf-123',
+    status: 'SUCCEEDED',
+    parameters: {
+      doTranslate: true,
+      doSpeech: false,
+      targetLanguage: 'spanish',
+    },
+    s3Paths: {
+      originalFile: 'users/user-123/uploads/file.pdf',
+      formattedText: 'users/user-123/formatted/file.txt',
+      translatedText: 'users/user-123/translated/file.txt',
+    },
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T01:00:00.000Z',
+  });
+
+  it('returns 200 and workflow details when workflow is found', async () => {
+    const mockWorkflow = createMockWorkflowRecord();
+    vi.spyOn(workflowStateUtils, 'getWorkflow').mockResolvedValue(mockWorkflow);
+
+    const event = createMockEvent();
     const result = await handler(event);
+
     expect(result.statusCode).toBe(200);
     const body = JSON.parse(result.body);
+    expect(body.workflowId).toBe('wf-123');
     expect(body.status).toBe('SUCCEEDED');
-    expect(body.output).toEqual({ foo: 'bar' });
-    expect(body.input).toEqual({ input: true });
-    expect(body.executionArn).toBe('arn:aws:states:execution:123');
+    expect(body.parameters).toEqual({
+      doTranslate: true,
+      doSpeech: false,
+      targetLanguage: 'spanish',
+    });
+    expect(body.s3Paths).toEqual({
+      originalFile: 'users/user-123/uploads/file.pdf',
+      formattedText: 'users/user-123/formatted/file.txt',
+      translatedText: 'users/user-123/translated/file.txt',
+    });
+    expect(body.createdAt).toBe('2024-01-01T00:00:00.000Z');
+    expect(body.updatedAt).toBe('2024-01-01T01:00:00.000Z');
   });
 
-  it('returns 500 if SFNClient.send throws', async () => {
-    mockSend.mockRejectedValueOnce(new Error('sfn error'));
-    const event = {
-      queryStringParameters: { executionArn: 'arn:aws:states:execution:123' },
-    } as any;
+  it('returns 404 when workflow is not found', async () => {
+    vi.spyOn(workflowStateUtils, 'getWorkflow').mockResolvedValue(undefined);
+
+    const event = createMockEvent();
     const result = await handler(event);
+
+    expect(result.statusCode).toBe(404);
+    const body = JSON.parse(result.body);
+    expect(body.message).toBe('Workflow not found');
+    expect(body.workflowId).toBe('wf-123');
+  });
+
+  it('returns 400 when workflowId is missing from query parameters', async () => {
+    const event = createMockEvent({ workflowId: undefined });
+    const result = await handler(event);
+
+    expect(result.statusCode).toBe(400);
+    const body = JSON.parse(result.body);
+    expect(body.message).toBe('Validation error');
+    expect(body.error).toBe('workflowId is required as query parameter');
+  });
+
+  it('returns 400 when workflowId is empty in query parameters', async () => {
+    const event = createMockEvent({ workflowId: '' });
+    const result = await handler(event);
+
+    expect(result.statusCode).toBe(400);
+    const body = JSON.parse(result.body);
+    expect(body.message).toBe('Validation error');
+    expect(body.error).toContain('workflowId cannot be empty');
+  });
+
+  it('returns 400 when userId is missing from JWT claims', async () => {
+    const event = createMockEvent({ userId: undefined });
+    const result = await handler(event);
+
+    expect(result.statusCode).toBe(400);
+    const body = JSON.parse(result.body);
+    expect(body.message).toBe('Validation error');
+    expect(body.error).toBe('Invalid or missing userId in JWT claims');
+  });
+
+  it('returns 400 when userId is empty in JWT claims', async () => {
+    const event = createMockEvent({ userId: '' });
+    const result = await handler(event);
+
+    expect(result.statusCode).toBe(400);
+    const body = JSON.parse(result.body);
+    expect(body.message).toBe('Validation error');
+    expect(body.error).toBe('Invalid or missing userId in JWT claims');
+  });
+
+  it('returns 500 when DynamoDB query fails', async () => {
+    vi.spyOn(workflowStateUtils, 'getWorkflow').mockRejectedValue(
+      new Error('DynamoDB connection error')
+    );
+
+    const event = createMockEvent();
+    const result = await handler(event);
+
     expect(result.statusCode).toBe(500);
     const body = JSON.parse(result.body);
-    expect(body.message).toMatch(/Failed to get workflow status/);
-    expect(body.error).toMatch(/sfn error/);
+    expect(body.message).toBe('Failed to get workflow status');
+    expect(body.error).toContain('Failed to retrieve workflow from DynamoDB');
+  });
+
+  it('includes error field in response when workflow has an error', async () => {
+    const mockWorkflow: WorkflowRecord = {
+      ...createMockWorkflowRecord(),
+      status: 'FAILED',
+      error: 'Text formatting failed',
+    };
+    vi.spyOn(workflowStateUtils, 'getWorkflow').mockResolvedValue(mockWorkflow);
+
+    const event = createMockEvent();
+    const result = await handler(event);
+
+    expect(result.statusCode).toBe(200);
+    const body = JSON.parse(result.body);
+    expect(body.status).toBe('FAILED');
+    expect(body.error).toBe('Text formatting failed');
+  });
+
+  it('calls getWorkflow with correct parameters', async () => {
+    const getWorkflowSpy = vi
+      .spyOn(workflowStateUtils, 'getWorkflow')
+      .mockResolvedValue(createMockWorkflowRecord());
+
+    const event = createMockEvent({
+      workflowId: 'custom-workflow-id',
+      userId: 'custom-user-id',
+    });
+    await handler(event);
+
+    expect(getWorkflowSpy).toHaveBeenCalledWith(
+      'test-user-workflows-table',
+      'custom-user-id',
+      'custom-workflow-id'
+    );
   });
 });

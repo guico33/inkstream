@@ -1,100 +1,164 @@
 import { Handler } from 'aws-lambda';
 import { PollyClient } from '@aws-sdk/client-polly';
+import { z } from 'zod';
 
 // Import utility functions
 import { getTextFromS3 } from '../../../utils/s3-utils';
-import {
-  createS3Response,
-  createS3ErrorResponse,
-} from '../../../utils/response-utils';
 import {
   formatErrorForLogging,
   getErrorMessage,
 } from '../../../utils/error-utils';
 import { textToSpeech } from './utils';
+import { WorkflowCommonState } from '../../../types/workflow';
+import { updateWorkflowStatus } from '../../../utils/workflow-state';
+import {
+  ValidationError,
+  S3Error,
+  ExternalServiceError,
+} from '../../../errors';
 
 // Initialize Polly client
 const polly = new PollyClient({});
 
-interface ConvertToSpeechRequest {
-  fileKey: string;
-  formattedTextS3Path?: { bucket: string; key: string };
-  translatedTextS3Path?: { bucket: string; key: string };
-  outputBucket: string;
-  textToSpeak?: string; // Allow direct text input
-  targetLanguage?: string;
-  workflowId?: string;
-  userId: string; // Added for user-specific S3 paths
+// Zod schema for input validation
+const ConvertToSpeechEventSchema = z
+  .object({
+    storageBucket: z
+      .string({
+        required_error: 'storageBucket is required',
+        invalid_type_error: 'storageBucket must be a string',
+      })
+      .min(1, 'storageBucket cannot be empty'),
+    originalFileKey: z
+      .string({
+        required_error: 'originalFileKey is required',
+        invalid_type_error: 'originalFileKey must be a string',
+      })
+      .min(1, 'originalFileKey cannot be empty'),
+    userId: z
+      .string({
+        required_error: 'userId is required',
+        invalid_type_error: 'userId must be a string',
+      })
+      .min(1, 'userId cannot be empty'),
+    targetLanguage: z
+      .string({
+        required_error: 'targetLanguage is required',
+        invalid_type_error: 'targetLanguage must be a string',
+      })
+      .min(1, 'targetLanguage cannot be empty'),
+    workflowId: z
+      .string({
+        required_error: 'workflowId is required',
+        invalid_type_error: 'workflowId must be a string',
+      })
+      .min(1, 'workflowId cannot be empty'),
+    workflowTableName: z
+      .string({
+        required_error: 'workflowTableName is required',
+        invalid_type_error: 'workflowTableName must be a string',
+      })
+      .min(1, 'workflowTableName cannot be empty'),
+    translatedTextFileKey: z
+      .string()
+      .min(1, 'translatedTextFileKey cannot be empty if provided')
+      .optional(),
+    formattedTextFileKey: z
+      .string()
+      .min(1, 'formattedTextFileKey cannot be empty if provided')
+      .optional(),
+    timestamp: z.number().optional(),
+  })
+  .refine((data) => data.translatedTextFileKey || data.formattedTextFileKey, {
+    message:
+      'Either translatedTextFileKey or formattedTextFileKey must be provided',
+    path: ['translatedTextFileKey', 'formattedTextFileKey'],
+  });
+
+interface ConvertToSpeechEvent extends WorkflowCommonState {
+  translatedTextFileKey?: string;
+  formattedTextFileKey?: string;
+  workflowId: string;
+  workflowTableName: string;
 }
 
-export const handler: Handler = async (event: ConvertToSpeechRequest) => {
+export const handler: Handler = async (event: ConvertToSpeechEvent) => {
   console.log(
     'ConvertToSpeech Lambda invoked with event:',
     JSON.stringify(event, null, 2)
   );
 
+  // Validate input using Zod schema
+  try {
+    ConvertToSpeechEventSchema.parse(event);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const firstError = error.errors[0];
+      throw new ValidationError(firstError?.message || 'Validation failed');
+    }
+    throw new ValidationError('Invalid input format');
+  }
+
+  const {
+    translatedTextFileKey,
+    formattedTextFileKey,
+    storageBucket,
+    userId,
+    originalFileKey,
+    targetLanguage,
+    workflowId,
+    workflowTableName,
+  } = event;
+
+  // Update workflow status to CONVERTING_TO_SPEECH
+  try {
+    await updateWorkflowStatus(
+      workflowTableName,
+      userId,
+      workflowId,
+      'CONVERTING_TO_SPEECH'
+    );
+    console.log('Updated workflow status to CONVERTING_TO_SPEECH');
+  } catch (statusError) {
+    console.error(
+      'Failed to update workflow status to CONVERTING_TO_SPEECH:',
+      statusError
+    );
+    // Continue execution even if status update fails
+  }
+
   let textForSpeech: string | undefined = undefined;
-  let sourceLanguage = event.targetLanguage || 'english';
 
   // Always fetch text from S3, preferring translated text, then formatted text
-  if (event.translatedTextS3Path?.bucket && event.translatedTextS3Path?.key) {
+  if (translatedTextFileKey) {
     try {
       console.log(
-        `Fetching translated text from S3: s3://${event.translatedTextS3Path.bucket}/${event.translatedTextS3Path.key}`
+        `Fetching translated text from S3: s3://${storageBucket}/${translatedTextFileKey}`
       );
-      textForSpeech = await getTextFromS3(
-        event.translatedTextS3Path.bucket,
-        event.translatedTextS3Path.key
-      );
-      sourceLanguage = event.targetLanguage || 'english';
+      textForSpeech = await getTextFromS3(storageBucket, translatedTextFileKey);
     } catch (error) {
       console.error(
         'Error fetching translated text from S3:',
         formatErrorForLogging('S3 fetch', error)
       );
-      const errorResponse = createS3ErrorResponse(
-        500,
-        'Error fetching translated text from S3',
-        error
+      throw new S3Error(
+        `Failed to fetch translated text: ${getErrorMessage(error)}`
       );
-      return {
-        ...event,
-        ...errorResponse,
-        speechError: `Failed to fetch translated text: ${getErrorMessage(
-          error
-        )}`,
-      };
     }
-  } else if (
-    event.formattedTextS3Path?.bucket &&
-    event.formattedTextS3Path?.key
-  ) {
+  } else if (formattedTextFileKey) {
     try {
       console.log(
-        `Fetching formatted text from S3: s3://${event.formattedTextS3Path.bucket}/${event.formattedTextS3Path.key}`
+        `Fetching formatted text from S3: s3://${storageBucket}/${formattedTextFileKey}`
       );
-      textForSpeech = await getTextFromS3(
-        event.formattedTextS3Path.bucket,
-        event.formattedTextS3Path.key
-      );
-      sourceLanguage = 'english';
+      textForSpeech = await getTextFromS3(storageBucket, formattedTextFileKey);
     } catch (error) {
       console.error(
         'Error fetching formatted text from S3:',
         formatErrorForLogging('S3 fetch', error)
       );
-      const errorResponse = createS3ErrorResponse(
-        500,
-        'Error fetching formatted text from S3',
-        error
+      throw new S3Error(
+        `Failed to fetch formatted text: ${getErrorMessage(error)}`
       );
-      return {
-        ...event,
-        ...errorResponse,
-        speechError: `Failed to fetch formatted text: ${getErrorMessage(
-          error
-        )}`,
-      };
     }
   }
 
@@ -103,50 +167,79 @@ export const handler: Handler = async (event: ConvertToSpeechRequest) => {
     console.error(
       'No S3 text path provided or failed to fetch text for speech synthesis.'
     );
-    const errorResponse = createS3ErrorResponse(
-      400,
-      'No text content for speech synthesis'
-    );
-    return {
-      ...event,
-      ...errorResponse,
-      speechError: 'No text content provided',
-    };
+
+    // Update workflow status to FAILED
+    try {
+      await updateWorkflowStatus(
+        workflowTableName,
+        userId,
+        workflowId,
+        'FAILED',
+        { error: 'No text content provided for speech synthesis' }
+      );
+    } catch (statusError) {
+      console.error('Failed to update workflow status to FAILED:', statusError);
+    }
+
+    throw new ValidationError('No text content provided for speech synthesis');
   }
 
-  if (!event.outputBucket) {
-    console.error('Output bucket not specified.');
-    const errorResponse = createS3ErrorResponse(
-      500,
-      'Output bucket not configured'
+  // Ensure targetLanguage is defined (should be guaranteed by Zod validation)
+  if (!targetLanguage) {
+    // Update workflow status to FAILED
+    try {
+      await updateWorkflowStatus(
+        workflowTableName,
+        userId,
+        workflowId,
+        'FAILED',
+        { error: 'targetLanguage is required for speech synthesis' }
+      );
+    } catch (statusError) {
+      console.error('Failed to update workflow status to FAILED:', statusError);
+    }
+
+    throw new ValidationError(
+      'targetLanguage is required for speech synthesis'
     );
-    return {
-      ...event,
-      ...errorResponse,
-      speechError: 'Output bucket not configured',
-    };
   }
 
   try {
     const s3Path = await textToSpeech(
       polly,
       textForSpeech,
-      sourceLanguage,
-      event.fileKey,
-      event.outputBucket,
-      event.userId || 'unknown-user'
+      targetLanguage,
+      originalFileKey,
+      storageBucket,
+      userId
     );
 
-    const response = createS3Response(
-      s3Path,
-      'Speech synthesized and saved successfully.',
-      { sourceLanguage }
-    );
+    // Update workflow status to SUCCEEDED with S3 paths
+    try {
+      await updateWorkflowStatus(
+        workflowTableName,
+        userId,
+        workflowId,
+        'SUCCEEDED',
+        {
+          s3Paths: {
+            originalFile: originalFileKey,
+            audioFile: s3Path.key,
+          },
+        }
+      );
+      console.log('Updated workflow status to SUCCEEDED with audio file path');
+    } catch (statusError) {
+      console.error(
+        'Failed to update workflow status to SUCCEEDED:',
+        statusError
+      );
+      // Continue execution even if status update fails
+    }
 
     return {
-      ...event,
-      ...response,
-      speechS3Path: s3Path, // For backward compatibility
+      message: 'Speech synthesis completed successfully',
+      speechFileKey: s3Path.key,
     };
   } catch (error: unknown) {
     console.error(
@@ -154,16 +247,22 @@ export const handler: Handler = async (event: ConvertToSpeechRequest) => {
       formatErrorForLogging('speech synthesis handler', error)
     );
 
-    const errorResponse = createS3ErrorResponse(
-      500,
-      'Error processing speech synthesis',
-      error
-    );
+    // Update workflow status to FAILED with error details
+    try {
+      await updateWorkflowStatus(
+        workflowTableName,
+        userId,
+        workflowId,
+        'FAILED',
+        { error: 'Error processing speech synthesis' }
+      );
+    } catch (statusError) {
+      console.error('Failed to update workflow status to FAILED:', statusError);
+    }
 
-    return {
-      ...event,
-      ...errorResponse,
-      speechError: getErrorMessage(error),
-    };
+    throw new ExternalServiceError(
+      `Error processing speech synthesis: ${getErrorMessage(error)}`,
+      'Polly'
+    );
   }
 };

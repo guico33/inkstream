@@ -16,7 +16,10 @@ const baseRecord: WorkflowRecord = {
   workflowId,
   status: 'STARTING',
   parameters: { doTranslate: true, doSpeech: false, targetLanguage: 'fr' },
-  s3Paths: { formattedText: 's3://bucket/fmt.txt' },
+  s3Paths: {
+    originalFile: 's3://bucket/original.txt',
+    formattedText: 's3://bucket/fmt.txt',
+  },
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z',
 };

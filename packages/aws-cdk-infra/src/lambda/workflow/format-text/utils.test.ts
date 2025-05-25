@@ -11,6 +11,17 @@ vi.mock('@aws-sdk/client-s3', async (importOriginal) => {
   };
 });
 
+vi.mock('@aws-sdk/client-bedrock-runtime', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    BedrockRuntimeClient: vi.fn().mockImplementation(() => ({
+      send: vi.fn(),
+    })),
+    InvokeModelCommand: vi.fn().mockImplementation((input) => input),
+  };
+});
+
 describe('extractTextFromTextractS3', () => {
   let mockS3Client: any;
   beforeEach(() => {
@@ -58,7 +69,7 @@ describe('extractTextFromTextractS3', () => {
 describe('formatTextWithClaude', () => {
   const mockBedrock = {
     send: vi.fn(),
-  };
+  } as any; // Use 'as any' to bypass strict typing for mock
 
   beforeEach(() => {
     mockBedrock.send.mockReset();
@@ -86,5 +97,19 @@ describe('formatTextWithClaude', () => {
     await expect(
       formatTextWithClaude(mockBedrock, 'Some text')
     ).rejects.toThrow('Bedrock model invocation failed: Claude error');
+  });
+
+  it('should handle properly typed BedrockRuntimeClient', async () => {
+    const extractedText = 'Test content';
+    const mockClaudeResponse = {
+      body: new TextEncoder().encode(
+        JSON.stringify({ content: [{ text: 'Properly typed response.' }] })
+      ),
+    };
+    mockBedrock.send.mockResolvedValue(mockClaudeResponse);
+
+    const result = await formatTextWithClaude(mockBedrock, extractedText);
+    expect(result).toBe('Properly typed response.');
+    expect(mockBedrock.send).toHaveBeenCalledTimes(1);
   });
 });

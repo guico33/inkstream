@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  getErrorMessage,
-  formatErrorForLogging,
-  createErrorResponse,
-} from '../error-utils';
+import { getErrorMessage, formatErrorForLogging } from '../error-utils';
 
 describe('Error Utils', () => {
   describe('getErrorMessage', () => {
@@ -35,42 +31,6 @@ describe('Error Utils', () => {
       expect(formatErrorForLogging('test', 42)).toBe(
         'Error in test: Unknown error occurred'
       );
-    });
-  });
-
-  describe('createErrorResponse', () => {
-    it('returns a response with statusCode and message', () => {
-      const res = createErrorResponse(400, 'Bad request');
-      expect(res.statusCode).toBe(400);
-      expect(JSON.parse(res.body)).toEqual({ message: 'Bad request' });
-    });
-    it('includes error message if error is provided', () => {
-      const res = createErrorResponse(
-        500,
-        'Internal error',
-        new Error('fail!')
-      );
-      expect(res.statusCode).toBe(500);
-      expect(JSON.parse(res.body)).toEqual({
-        message: 'Internal error',
-        error: 'fail!',
-      });
-    });
-    it('includes error string if error is a string', () => {
-      const res = createErrorResponse(404, 'Not found', 'missing');
-      expect(res.statusCode).toBe(404);
-      expect(JSON.parse(res.body)).toEqual({
-        message: 'Not found',
-        error: 'missing',
-      });
-    });
-    it('handles unknown error types', () => {
-      const res = createErrorResponse(418, 'I am a teapot', 123);
-      expect(res.statusCode).toBe(418);
-      expect(JSON.parse(res.body)).toEqual({
-        message: 'I am a teapot',
-        error: 'Unknown error occurred',
-      });
     });
   });
 });

@@ -179,7 +179,7 @@ export class AuthConstruct extends Construct {
         resources: [
           `arn:aws:s3:::dev-inkstream-storage-${
             cdk.Stack.of(this).account
-          }/uploads/\${aws:PrincipalTag/sub}/*`, // Changed to use aws:PrincipalTag/sub
+          }/users/\${aws:PrincipalTag/sub}/uploads/*`,
         ],
       })
     );

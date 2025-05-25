@@ -1,4 +1,8 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import {
+  BedrockRuntimeClient,
+  InvokeModelCommand,
+} from '@aws-sdk/client-bedrock-runtime';
 
 const s3 = new S3Client({});
 
@@ -27,7 +31,7 @@ export async function extractTextFromTextractS3(
 }
 
 export async function formatTextWithClaude(
-  bedrockRuntime: any,
+  bedrockRuntime: BedrockRuntimeClient,
   extractedText: string
 ): Promise<string> {
   if (!extractedText || extractedText.trim() === '') {
@@ -102,9 +106,7 @@ ${processedText}
   };
 
   try {
-    const response = await bedrockRuntime.send(
-      new (require('@aws-sdk/client-bedrock-runtime').InvokeModelCommand)(input)
-    );
+    const response = await bedrockRuntime.send(new InvokeModelCommand(input));
     const result = JSON.parse(new TextDecoder().decode(response.body));
     return result.content[0].text;
   } catch (error: unknown) {

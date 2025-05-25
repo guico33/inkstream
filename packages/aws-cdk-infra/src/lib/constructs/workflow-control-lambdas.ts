@@ -7,6 +7,7 @@ import * as cdk from 'aws-cdk-lib';
 export interface WorkflowControlLambdasProps {
   stateMachineArn: string;
   userWorkflowsTableName: string;
+  storageBucket: string;
 }
 
 export class WorkflowControlLambdas extends Construct {
@@ -29,6 +30,7 @@ export class WorkflowControlLambdas extends Construct {
       environment: {
         STATE_MACHINE_ARN: props.stateMachineArn,
         USER_WORKFLOWS_TABLE: props.userWorkflowsTableName,
+        STORAGE_BUCKET: props.storageBucket,
       },
     });
 
@@ -38,6 +40,9 @@ export class WorkflowControlLambdas extends Construct {
       description: 'Get the status of a workflow execution',
       runtime: lambda.Runtime.NODEJS_18_X,
       timeout: cdk.Duration.seconds(10),
+      environment: {
+        USER_WORKFLOWS_TABLE: props.userWorkflowsTableName,
+      },
     });
   }
 }

@@ -113,10 +113,13 @@ describe('process-textract-s3-event Lambda', () => {
   it('returns done if not last part', async () => {
     ddbDocMock.on(GetCommand as any).resolves({
       Item: {
-        TaskToken: 'token',
-        FileType: 'pdf',
-        WorkflowId: 'wf',
-        UserId: 'user',
+        jobId, // <-- required for dynamodb-toolbox schema
+        taskToken: 'token',
+        workflowId: 'wf',
+        userId: 'user',
+        expirationTime: '9999999999', // required for dynamodb-toolbox schema
+        _ct: '2024-01-01T00:00:00.000Z', // required for dynamodb-toolbox
+        _md: '2024-01-01T00:00:00.000Z', // required for dynamodb-toolbox
       },
     } as any);
     s3Mock
@@ -136,10 +139,13 @@ describe('process-textract-s3-event Lambda', () => {
   it('aggregates, merges, uploads, and sends task success for last part', async () => {
     ddbDocMock.on(GetCommand as any).resolves({
       Item: {
-        TaskToken: 'token',
-        FileType: 'pdf',
-        WorkflowId: 'wf',
-        UserId: 'user',
+        jobId, // <-- required for dynamodb-toolbox schema
+        taskToken: 'token',
+        workflowId: 'wf',
+        userId: 'user',
+        expirationTime: '9999999999', // required for dynamodb-toolbox schema
+        _ct: '2024-01-01T00:00:00.000Z', // required for dynamodb-toolbox
+        _md: '2024-01-01T00:00:00.000Z', // required for dynamodb-toolbox
       },
     } as any);
     s3Mock
@@ -163,15 +169,26 @@ describe('process-textract-s3-event Lambda', () => {
     expect(s3Mock.commandCalls(PutObjectCommand as any).length).toBe(1);
     expect(sfnMock.commandCalls(SendTaskSuccessCommand as any).length).toBe(1);
     expect(ddbDocMock.commandCalls(DeleteCommand as any).length).toBe(1);
+
+    // New: Check the payload sent to SendTaskSuccessCommand
+    const call = sfnMock.commandCalls(SendTaskSuccessCommand as any)[0];
+    expect(call?.args?.[0]?.input?.taskToken).toBe('token');
+    const output = JSON.parse(call?.args?.[0]?.input?.output);
+    expect(output).toMatchObject({
+      textractMergedFileKey: 'merged-textract-output/job-123/merged.json',
+    });
   });
 
   it('sends task failure if SendTaskSuccessCommand fails', async () => {
     ddbDocMock.on(GetCommand as any).resolves({
       Item: {
-        TaskToken: 'token',
-        FileType: 'pdf',
-        WorkflowId: 'wf',
-        UserId: 'user',
+        jobId, // <-- required for dynamodb-toolbox schema
+        taskToken: 'token',
+        workflowId: 'wf',
+        userId: 'user',
+        expirationTime: '9999999999', // required for dynamodb-toolbox schema
+        _ct: '2024-01-01T00:00:00.000Z', // required for dynamodb-toolbox
+        _md: '2024-01-01T00:00:00.000Z', // required for dynamodb-toolbox
       },
     } as any);
     s3Mock

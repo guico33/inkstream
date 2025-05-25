@@ -2,11 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handler } from './index';
 import * as utils from './utils';
 import * as s3Utils from '../../../utils/s3-utils';
-import * as responseUtils from '../../../utils/response-utils';
+import * as workflowState from '../../../utils/workflow-state';
+import {
+  ValidationError,
+  S3Error,
+  ExternalServiceError,
+  ProcessingError,
+} from '../../../errors';
 
 vi.mock('./utils');
 vi.mock('../../../utils/s3-utils');
-vi.mock('../../../utils/response-utils');
+vi.mock('../../../utils/workflow-state');
 
 async function callHandler(event: any) {
   const context = {} as any;
@@ -17,7 +23,7 @@ async function callHandler(event: any) {
 describe('translate-text Lambda handler', () => {
   const mockedUtils = vi.mocked(utils);
   const mockedS3Utils = vi.mocked(s3Utils);
-  const mockedResponseUtils = vi.mocked(responseUtils);
+  const mockedWorkflowState = vi.mocked(workflowState);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -31,145 +37,165 @@ describe('translate-text Lambda handler', () => {
       bucket: 'bucket',
       key: 'user/translated/file.txt',
     });
-    mockedResponseUtils.createS3Response.mockImplementation(
-      (s3Path, msg, data) => ({
-        statusCode: 200,
-        body: JSON.stringify({ message: msg, s3Path, ...data }),
-        s3Path,
-        ...data,
-      })
-    );
+    mockedWorkflowState.updateWorkflowStatus.mockResolvedValue(undefined);
 
     const event = {
-      formattedTextS3Path: { bucket: 'bucket', key: 'formatted.json' },
-      outputBucket: 'bucket',
-      fileKey: 'file.txt',
+      formattedTextFileKey: 'formatted.txt',
+      storageBucket: 'bucket',
+      originalFileKey: 'file.txt',
       userId: 'user',
       targetLanguage: 'French',
+      workflowId: 'workflow-123',
+      workflowTableName: 'workflows-table',
+      doSpeech: true,
+      timestamp: Date.now(),
     };
     const result = await callHandler(event);
-    expect(result.statusCode).toBe(200);
-    expect(result.s3Path).toEqual({
-      bucket: 'bucket',
-      key: 'user/translated/file.txt',
-    });
-    expect(JSON.parse(result.body).translatedTextLength).toBe(
-      'bonjour le monde'.length
-    );
-    expect(result.translatedTextS3Path).toEqual({
-      bucket: 'bucket',
-      key: 'user/translated/file.txt',
-    });
-  });
+    expect(result.message).toBe('Text translation successful');
+    expect(result.translatedTextFileKey).toBe('user/translated/file.txt');
 
-  it('returns error if getTextFromS3 throws', async () => {
-    mockedS3Utils.getTextFromS3.mockRejectedValue(new Error('fail s3'));
-    mockedResponseUtils.createS3ErrorResponse.mockImplementation(
-      (code, msg, err) => ({
-        statusCode: code,
-        body: JSON.stringify({
-          message: msg,
-          error: (err && (err as Error).message) || String(err),
+    // Should call updateWorkflowStatus with 'SUCCEEDED' since doSpeech=true
+    expect(mockedWorkflowState.updateWorkflowStatus).toHaveBeenCalledWith(
+      'workflows-table',
+      'user',
+      'workflow-123',
+      'SUCCEEDED',
+      expect.objectContaining({
+        s3Paths: expect.objectContaining({
+          originalFile: 'file.txt',
+          translatedText: 'user/translated/file.txt',
         }),
-        s3Path: null,
       })
     );
-    const event = {
-      formattedTextS3Path: { bucket: 'bucket', key: 'formatted.json' },
-      outputBucket: 'bucket',
-      fileKey: 'file.txt',
-      userId: 'user',
-      targetLanguage: 'French',
-    };
-    const result = await callHandler(event);
-    expect(result.statusCode).toBe(500);
-    expect(JSON.parse(result.body).message).toMatch(
-      /Error fetching formatted text/
-    );
-    expect(result.translationError).toMatch(/Failed to fetch text from S3/);
   });
 
-  it('returns error if no text to translate', async () => {
+  it('sets TRANSLATION_COMPLETE status when workflow ends at translation stage', async () => {
+    mockedS3Utils.getTextFromS3.mockResolvedValue('hello world');
+    mockedUtils.translateTextWithClaude.mockResolvedValue('bonjour le monde');
+    mockedS3Utils.generateUserS3Key.mockReturnValue('user/translated/file.txt');
+    mockedS3Utils.saveTextToS3.mockResolvedValue({
+      bucket: 'bucket',
+      key: 'user/translated/file.txt',
+    });
+    mockedWorkflowState.updateWorkflowStatus.mockResolvedValue(undefined);
+
+    const event = {
+      formattedTextFileKey: 'formatted.txt',
+      storageBucket: 'bucket',
+      originalFileKey: 'file.txt',
+      userId: 'user',
+      targetLanguage: 'French',
+      workflowId: 'workflow-123',
+      workflowTableName: 'workflows-table',
+      doSpeech: false,
+      timestamp: Date.now(),
+    };
+    const result = await callHandler(event);
+    expect(result.message).toBe('Text translation successful');
+    expect(result.translatedTextFileKey).toBe('user/translated/file.txt');
+
+    // Should call updateWorkflowStatus with 'TRANSLATION_COMPLETE' since doSpeech=false
+    expect(mockedWorkflowState.updateWorkflowStatus).toHaveBeenCalledWith(
+      'workflows-table',
+      'user',
+      'workflow-123',
+      'TRANSLATION_COMPLETE',
+      expect.objectContaining({
+        s3Paths: expect.objectContaining({
+          originalFile: 'file.txt',
+          translatedText: 'user/translated/file.txt',
+        }),
+      })
+    );
+  });
+
+  it('throws S3Error if getTextFromS3 fails', async () => {
+    mockedS3Utils.getTextFromS3.mockRejectedValue(new Error('fail s3'));
+    mockedWorkflowState.updateWorkflowStatus.mockResolvedValue(undefined);
+
+    const event = {
+      formattedTextFileKey: 'formatted.txt',
+      storageBucket: 'bucket',
+      originalFileKey: 'file.txt',
+      userId: 'user',
+      targetLanguage: 'French',
+      workflowId: 'workflow-123',
+      workflowTableName: 'workflows-table',
+      doSpeech: false,
+      timestamp: Date.now(),
+    };
+
+    await expect(callHandler(event)).rejects.toThrow(S3Error);
+    await expect(callHandler(event)).rejects.toThrow(
+      'Error fetching formatted text from S3'
+    );
+  });
+
+  it('throws ProcessingError if no text to translate', async () => {
     // @ts-expect-error: purposely testing undefined return for error path
     mockedS3Utils.getTextFromS3.mockResolvedValue(undefined);
-    mockedResponseUtils.createS3ErrorResponse.mockImplementation(
-      (code, msg, err) => ({
-        statusCode: code,
-        body: JSON.stringify({
-          message: msg,
-          error: (err && (err as Error).message) || String(err),
-        }),
-        s3Path: null,
-      })
-    );
+    mockedWorkflowState.updateWorkflowStatus.mockResolvedValue(undefined);
+
     const event = {
-      formattedTextS3Path: { bucket: 'bucket', key: 'formatted.json' },
-      outputBucket: 'bucket',
-      fileKey: 'file.txt',
+      formattedTextFileKey: 'formatted.txt',
+      storageBucket: 'bucket',
+      originalFileKey: 'file.txt',
       userId: 'user',
       targetLanguage: 'French',
+      workflowId: 'workflow-123',
+      workflowTableName: 'workflows-table',
+      doSpeech: false,
+      timestamp: Date.now(),
     };
-    const result = await callHandler(event);
-    expect(result.statusCode).toBe(400);
-    expect(JSON.parse(result.body).message).toMatch(
-      /No text content to translate/
+
+    await expect(callHandler(event)).rejects.toThrow(ProcessingError);
+    await expect(callHandler(event)).rejects.toThrow(
+      'No text content to translate'
     );
-    expect(result.translationError).toMatch(/No text content provided/);
   });
 
-  it('returns error if outputBucket is missing', async () => {
+  it('throws ValidationError if storageBucket is missing', async () => {
     mockedS3Utils.getTextFromS3.mockResolvedValue('hello world');
-    mockedResponseUtils.createS3ErrorResponse.mockImplementation(
-      (code, msg, err) => ({
-        statusCode: code,
-        body: JSON.stringify({
-          message: msg,
-          error: (err && (err as Error).message) || String(err),
-        }),
-        s3Path: null,
-      })
-    );
+
     const event = {
-      formattedTextS3Path: { bucket: 'bucket', key: 'formatted.json' },
-      fileKey: 'file.txt',
+      formattedTextFileKey: 'formatted.txt',
+      originalFileKey: 'file.txt',
       userId: 'user',
       targetLanguage: 'French',
+      workflowId: 'workflow-123',
+      workflowTableName: 'workflows-table',
+      doSpeech: false,
+      timestamp: Date.now(),
+      // Missing storageBucket to test error
     };
-    const result = await callHandler(event);
-    expect(result.statusCode).toBe(500);
-    expect(JSON.parse(result.body).message).toMatch(
-      /Output bucket not configured/
+
+    await expect(callHandler(event)).rejects.toThrow(ValidationError);
+    await expect(callHandler(event)).rejects.toThrow(
+      'storageBucket is required'
     );
-    expect(result.translationError).toMatch(/Output bucket not configured/);
   });
 
-  it('returns error if translateTextWithClaude throws', async () => {
+  it('throws ExternalServiceError if translateTextWithClaude fails', async () => {
     mockedS3Utils.getTextFromS3.mockResolvedValue('hello world');
     mockedUtils.translateTextWithClaude.mockRejectedValue(
       new Error('fail translate')
     );
-    mockedResponseUtils.createS3ErrorResponse.mockImplementation(
-      (code, msg, err) => ({
-        statusCode: code,
-        body: JSON.stringify({
-          message: msg,
-          error: (err && (err as Error).message) || String(err),
-        }),
-        s3Path: null,
-      })
-    );
+    mockedWorkflowState.updateWorkflowStatus.mockResolvedValue(undefined);
+
     const event = {
-      formattedTextS3Path: { bucket: 'bucket', key: 'formatted.json' },
-      outputBucket: 'bucket',
-      fileKey: 'file.txt',
+      formattedTextFileKey: 'formatted.txt',
+      storageBucket: 'bucket',
+      originalFileKey: 'file.txt',
       userId: 'user',
       targetLanguage: 'French',
+      workflowId: 'workflow-123',
+      workflowTableName: 'workflows-table',
+      timestamp: Date.now(),
     };
-    const result = await callHandler(event);
-    expect(result.statusCode).toBe(500);
-    expect(JSON.parse(result.body).message).toMatch(
-      /Error processing text translation/
+
+    await expect(callHandler(event)).rejects.toThrow(ExternalServiceError);
+    await expect(callHandler(event)).rejects.toThrow(
+      'Error processing text translation'
     );
-    expect(result.translationError).toMatch(/fail translate/);
   });
 });

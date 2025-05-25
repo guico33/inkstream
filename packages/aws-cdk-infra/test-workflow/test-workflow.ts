@@ -52,7 +52,6 @@ const BUCKET_NAME =
 const API_GATEWAY_URL = process.env.API_GATEWAY_URL; // Get from CDK output or AWS console
 const TEST_FILE_PATH = path.resolve(__dirname, '../test-files/sample.pdf'); // Path to a test PDF file
 const TEST_FILE_UUID = uuidv4();
-const TEST_FILE_KEY = `uploads/test-${TEST_FILE_UUID}-${Date.now()}.pdf`;
 
 // Cognito configuration - Get these from environment variables or CloudFormation outputs
 const USER_POOL_ID = process.env.USER_POOL_ID;
@@ -194,22 +193,28 @@ function httpRequest(
   });
 }
 
-async function uploadTestFile(): Promise<string> {
-  console.log(`Uploading test file to S3: ${TEST_FILE_KEY}`);
+function getUserUploadKey(userId: string, fileName: string): string {
+  return `users/${userId}/uploads/${fileName}`;
+}
+
+async function uploadTestFile(userId: string): Promise<string> {
+  const fileName = `test-${TEST_FILE_UUID}-${Date.now()}.pdf`;
+  const key = getUserUploadKey(userId, fileName);
+  console.log(`Uploading test file to S3: ${key}`);
 
   const fileContent = fs.readFileSync(TEST_FILE_PATH);
 
   await s3Client.send(
     new PutObjectCommand({
       Bucket: BUCKET_NAME,
-      Key: TEST_FILE_KEY,
+      Key: key,
       Body: fileContent,
       ContentType: 'application/pdf',
     })
   );
 
   console.log('File uploaded successfully');
-  return TEST_FILE_KEY;
+  return key;
 }
 
 async function startWorkflow(
@@ -432,8 +437,8 @@ async function runWorkflowTest() {
     // Get an authentication token first
     const authToken = await getAuthToken();
 
-    // Step 1: Upload a test file
-    const fileKey = await uploadTestFile();
+    // Step 1: Upload a test file (now pass userSub)
+    const fileKey = await uploadTestFile(userSub);
 
     // Step 2: Start the workflow with auth token and userSub
     const executionArn = await startWorkflow(fileKey, authToken, userSub);

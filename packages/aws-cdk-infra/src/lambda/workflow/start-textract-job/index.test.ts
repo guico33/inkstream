@@ -1,39 +1,57 @@
-import { handler } from './index';
 import { mockClient } from 'aws-sdk-client-mock';
 import {
   TextractClient,
   StartDocumentTextDetectionCommand,
 } from '@aws-sdk/client-textract';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { describe, beforeEach, it, expect, vi } from 'vitest';
+import {
+  describe,
+  beforeEach,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  afterAll,
+} from 'vitest';
 import * as jobTokenUtils from '../../../utils/textract-job-tokens';
+import * as workflowStateUtils from '../../../utils/workflow-state';
+import { ValidationError } from '../../../errors';
 
 const textractMock = mockClient(TextractClient as any);
 const ddbMock = mockClient(DynamoDBClient as any);
 
-// Helper to DRY up handler invocation
-async function callHandler(event: any) {
-  const context = {} as any;
-  const callback = () => {};
-  return handler(event, context, callback);
-}
+let handler: any;
 
 describe('start-textract-job Lambda', () => {
+  beforeAll(async () => {
+    vi.stubEnv('TEXTRACT_JOB_TOKENS_TABLE', 'test-textract-job-tokens-table');
+    vi.stubEnv('OUTPUT_S3_BUCKET_NAME', 'test-bucket');
+    vi.stubEnv('USER_WORKFLOWS_TABLE', 'test-user-workflows-table');
+    handler = (await import('./index.js')).handler;
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     textractMock.reset();
     ddbMock.reset();
   });
 
   it('should start a Textract job and store JobId in DynamoDB', async () => {
-    // Arrange
     const jobId = 'test-job-id';
-    const s3Path = { bucket: 'bucket', key: 'file.pdf' };
+    const originalFileKey = 'users/user-1/uploads/file.pdf';
     const event = {
-      s3Path,
-      fileType: 'pdf',
+      originalFileKey,
       taskToken: 'token',
       workflowId: 'wf-1',
       userId: 'user-1',
+      storageBucket: 'test-bucket',
+      timestamp: Date.now(),
+      doTranslate: false,
+      doSpeech: false,
+      targetLanguage: 'english',
     };
     (textractMock.on as any)(StartDocumentTextDetectionCommand).resolves({
       JobId: jobId,
@@ -41,64 +59,88 @@ describe('start-textract-job Lambda', () => {
     const putJobTokenSpy = vi
       .spyOn(jobTokenUtils, 'putJobToken')
       .mockResolvedValue(undefined);
+    const updateWorkflowStatusSpy = vi
+      .spyOn(workflowStateUtils, 'updateWorkflowStatus')
+      .mockResolvedValue(undefined);
 
-    // Act
-    const result = await callHandler(event);
+    const result = await handler(event);
 
-    // Assert
-    expect(result).toEqual({ jobId });
+    expect(result).toEqual({
+      message: 'Textract job started successfully',
+      jobId,
+    });
     expect(
       (textractMock.commandCalls as any)(StartDocumentTextDetectionCommand)
         .length
     ).toBe(1);
     expect(putJobTokenSpy).toHaveBeenCalledTimes(1);
     expect(putJobTokenSpy.mock.calls?.[0]?.[1]).toMatchObject({
-      JobId: jobId,
-      TaskToken: 'token',
-      FileType: 'pdf',
-      WorkflowId: 'wf-1',
-      UserId: 'user-1',
-      S3Input: s3Path,
-    });
-  });
-
-  it('should throw if s3Path is missing', async () => {
-    const event = {
-      fileType: 'pdf',
+      jobId,
       taskToken: 'token',
       workflowId: 'wf-1',
       userId: 'user-1',
-    };
-    await expect(callHandler(event)).rejects.toThrow(
-      'Missing s3Path (bucket/key) in event'
+      s3Input: {
+        bucket: 'test-bucket',
+        key: originalFileKey,
+      },
+    });
+    expect(updateWorkflowStatusSpy).toHaveBeenCalledWith(
+      'test-user-workflows-table',
+      'user-1',
+      'wf-1',
+      'EXTRACTING_TEXT'
     );
   });
 
-  it('should throw if taskToken is missing', async () => {
+  it('should throw ValidationError if workflowId is missing', async () => {
     const event = {
-      s3Path: { bucket: 'bucket', key: 'file.pdf' },
-      fileType: 'pdf',
+      originalFileKey: 'users/user-1/uploads/file.pdf',
+      taskToken: 'token',
+      userId: 'user-1',
+      storageBucket: 'test-bucket',
+      timestamp: Date.now(),
+    };
+    await expect(handler(event)).rejects.toThrow(ValidationError);
+    await expect(handler(event)).rejects.toThrow('workflowId is required');
+  });
+
+  it('should throw ValidationError if fileKey is missing', async () => {
+    const event = {
+      taskToken: 'token',
       workflowId: 'wf-1',
       userId: 'user-1',
+      storageBucket: 'test-bucket',
+      timestamp: Date.now(),
     };
-    await expect(callHandler(event)).rejects.toThrow(
-      'Missing taskToken in event'
-    );
+    await expect(handler(event)).rejects.toThrow(ValidationError);
+    await expect(handler(event)).rejects.toThrow('originalFileKey is required');
+  });
+
+  it('should throw ValidationError if taskToken is missing', async () => {
+    const event = {
+      originalFileKey: 'users/user-1/uploads/file.pdf',
+      workflowId: 'wf-1',
+      userId: 'user-1',
+      storageBucket: 'test-bucket',
+      timestamp: Date.now(),
+    };
+    await expect(handler(event)).rejects.toThrow(ValidationError);
+    await expect(handler(event)).rejects.toThrow('taskToken is required');
   });
 
   it('should throw if Textract does not return a JobId', async () => {
     const event = {
-      s3Path: { bucket: 'bucket', key: 'file.pdf' },
-      fileType: 'pdf',
+      originalFileKey: 'users/user-1/uploads/file.pdf',
       taskToken: 'token',
       workflowId: 'wf-1',
       userId: 'user-1',
+      storageBucket: 'test-bucket',
+      timestamp: Date.now(),
     };
     (textractMock.on as any)(StartDocumentTextDetectionCommand).resolves({});
-    await expect(callHandler(event)).rejects.toThrow(
+
+    await expect(handler(event)).rejects.toThrow(
       'Textract did not return a JobId'
     );
   });
-
-  // Add more tests for DynamoDB failure, etc. as needed
 });

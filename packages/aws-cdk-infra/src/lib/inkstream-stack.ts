@@ -31,19 +31,25 @@ export class InkstreamStack extends cdk.Stack {
       envName: 'dev',
     });
 
-    const bucketName = `dev-inkstream-storage-${cdk.Stack.of(this).account}`;
+    // S3 and DynamoDB setup (StorageConstruct must be created before WorkflowStepLambdas)
+    const storage = new StorageConstruct(this, 'Storage');
 
-    // Lambdas for workflow steps (must be created before StorageConstruct for S3 event notification)
+    // Lambdas for workflow steps
     const stepLambdas = new WorkflowStepLambdas(this, 'WorkflowStepLambdas', {
-      bucketName,
+      storageBucketName: storage.storageBucket.bucketName,
       claudeModelId: process.env.CLAUDE_MODEL_ID, // Pass the environment variable here
+      textractJobTokensTableName: storage.textractJobTokensTable.tableName,
+      userWorkflowsTableName: storage.userWorkflowsTable.tableName,
     });
 
-    // S3 and DynamoDB setup (pass processTextractS3EventFn for S3 event notification)
-    const storage = new StorageConstruct(this, 'Storage', {
-      bucketName,
-      processTextractS3EventFn: stepLambdas.processTextractS3EventFn,
-    });
+    // Now that stepLambdas is created, set the S3 event notification
+    storage.storageBucket.addEventNotification(
+      cdk.aws_s3.EventType.OBJECT_CREATED,
+      new cdk.aws_s3_notifications.LambdaDestination(
+        stepLambdas.processTextractS3EventFn
+      ),
+      { prefix: 'textract-output/' }
+    );
 
     // Step Functions workflow definition
     const workflowSF = new WorkflowStepFunctions(
@@ -53,7 +59,7 @@ export class InkstreamStack extends cdk.Stack {
         formatTextFn: stepLambdas.formatTextFn,
         translateTextFn: stepLambdas.translateTextFn,
         convertToSpeechFn: stepLambdas.convertToSpeechFn,
-        startTextractJobFn: stepLambdas.startTextractJobFn, // Pass new Lambda for event-driven Textract
+        startTextractJobFn: stepLambdas.startTextractJobFn,
       }
     );
     const stateMachine = workflowSF.stateMachine;
@@ -65,6 +71,7 @@ export class InkstreamStack extends cdk.Stack {
       {
         stateMachineArn: stateMachine.stateMachineArn,
         userWorkflowsTableName: storage.userWorkflowsTable.tableName,
+        storageBucket: storage.storageBucket.bucketName,
       }
     );
 
@@ -72,8 +79,9 @@ export class InkstreamStack extends cdk.Stack {
     stateMachine.grantStartExecution(controlLambdas.startWorkflowFn);
     stateMachine.grantRead(controlLambdas.workflowStatusFn);
 
-    // Grant write permissions to the workflow state table for the startWorkflow Lambda
+    // Grant write permissions to the workflow state table for the Lambda functions
     storage.userWorkflowsTable.grantWriteData(controlLambdas.startWorkflowFn);
+    storage.userWorkflowsTable.grantReadData(stepLambdas.startTextractJobFn);
 
     // API Gateway
     const api = new ApiGatewayConstruct(this, 'ApiGateway', {

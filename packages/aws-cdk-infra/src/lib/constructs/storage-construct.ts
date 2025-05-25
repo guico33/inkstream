@@ -2,24 +2,19 @@ import { Construct } from 'constructs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as cdk from 'aws-cdk-lib';
-import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-
-export interface StorageConstructProps {
-  bucketName: string;
-  processTextractS3EventFn?: lambda.IFunction; // Optional for S3 event notification
-}
 
 export class StorageConstruct extends Construct {
-  public readonly bucket: s3.Bucket;
+  public readonly storageBucket: s3.Bucket;
   public readonly textractJobTokensTable: dynamodb.Table;
   public readonly userWorkflowsTable: dynamodb.Table;
 
-  constructor(scope: Construct, id: string, props: StorageConstructProps) {
+  constructor(scope: Construct, id: string) {
     super(scope, id);
 
-    this.bucket = new s3.Bucket(this, 'DevStorageBucket', {
-      bucketName: props.bucketName,
+    const bucketName = `dev-inkstream-storage-${cdk.Stack.of(this).account}`;
+
+    this.storageBucket = new s3.Bucket(this, 'DevStorageBucket', {
+      bucketName,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
       versioned: false,
@@ -38,15 +33,6 @@ export class StorageConstruct extends Construct {
         },
       ],
     });
-
-    // Add S3 event notification for Textract output
-    if (props.processTextractS3EventFn) {
-      this.bucket.addEventNotification(
-        s3.EventType.OBJECT_CREATED,
-        new s3n.LambdaDestination(props.processTextractS3EventFn),
-        { prefix: 'textract-output/' }
-      );
-    }
 
     // Textract Job Tokens Table (for event-driven workflow)
     const accountId = cdk.Stack.of(this).account;

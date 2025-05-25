@@ -1,9 +1,5 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import {
-  DynamoDBDocumentClient,
-  GetCommand,
-  DeleteCommand,
-} from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import {
   SFNClient,
   SendTaskSuccessCommand,
@@ -18,6 +14,10 @@ import {
   saveMergedBlocksToS3,
   extractJobIdFromKey,
 } from './utils';
+import {
+  deleteJobToken,
+  getJobToken,
+} from '../../../utils/textract-job-tokens';
 
 const accountId = process.env.AWS_ACCOUNT_ID;
 if (!accountId) throw new Error('AWS_ACCOUNT_ID env var is required');
@@ -44,25 +44,30 @@ export const handler: Handler = async (event: S3Event) => {
       console.log(`Ignoring non-Textract output file: ${key}`);
       continue;
     }
-    const jobId = extractJobIdFromKey(key);
-    if (!jobId) {
+    const textractJobId = extractJobIdFromKey(key);
+    if (!textractJobId) {
       console.warn(`Could not extract JobId from key: ${key}`);
       continue;
     }
     // Lookup TaskToken in DynamoDB
-    const ddbResp = await ddb.send(
-      new GetCommand({
-        TableName: DYNAMODB_TABLE_NAME,
-        Key: { JobId: jobId },
-      })
+    const jobTokenItem = await getJobToken(
+      DYNAMODB_TABLE_NAME,
+      textractJobId,
+      ddb
     );
-    const item = ddbResp.Item;
-    if (!item || !item.TaskToken) {
-      console.warn(`No TaskToken found in DynamoDB for JobId: ${jobId}`);
+
+    if (!jobTokenItem || !jobTokenItem.taskToken) {
+      console.warn(
+        `No TaskToken found in DynamoDB for JobId: ${textractJobId}`
+      );
       continue;
     }
     // List all numbered files for this job
-    const numberedFiles = await listNumberedTextractFiles(s3, bucket, jobId);
+    const numberedFiles = await listNumberedTextractFiles(
+      s3,
+      bucket,
+      textractJobId
+    );
     // Get total expected pages from the first file
     const expectedPages = await getExpectedPagesFromFirstFile(
       s3,
@@ -79,29 +84,31 @@ export const handler: Handler = async (event: S3Event) => {
     // Aggregate all Textract output parts for this job
     const allBlocks = await mergeTextractBlocks(s3, bucket, numberedFiles);
     // Save merged blocks to a new S3 file for downstream processing
-    const mergedKey = await saveMergedBlocksToS3(s3, bucket, jobId, allBlocks);
+    const textractMergedFileKey = await saveMergedBlocksToS3(
+      s3,
+      bucket,
+      textractJobId,
+      allBlocks
+    );
     // Prepare result payload for Step Function
-    const result = {
-      s3Path: { bucket, key: mergedKey },
-      fileType: item.FileType,
-      workflowId: item.WorkflowId,
-      userId: item.UserId,
-      jobId,
-    };
+    const result = { textractMergedFileKey };
     try {
       await sfn.send(
         new SendTaskSuccessCommand({
-          taskToken: item.TaskToken,
+          taskToken: jobTokenItem.taskToken,
           output: JSON.stringify(result),
         })
       );
-      console.log(`Sent task success for JobId: ${jobId}`);
+      console.log(`Sent task success for JobId: ${textractJobId}`);
     } catch (err) {
-      console.error(`Failed to send task success for JobId: ${jobId}`, err);
+      console.error(
+        `Failed to send task success for JobId: ${textractJobId}`,
+        err
+      );
       try {
         await sfn.send(
           new SendTaskFailureCommand({
-            taskToken: item.TaskToken,
+            taskToken: jobTokenItem.taskToken,
             error: 'TextractJobFailed',
             cause: (err as Error).message,
           })
@@ -111,12 +118,7 @@ export const handler: Handler = async (event: S3Event) => {
       }
     }
     // Clean up DynamoDB entry
-    await ddb.send(
-      new DeleteCommand({
-        TableName: DYNAMODB_TABLE_NAME,
-        Key: { JobId: jobId },
-      })
-    );
+    await deleteJobToken(DYNAMODB_TABLE_NAME, textractJobId, ddb);
   }
   return { status: 'done' };
 };

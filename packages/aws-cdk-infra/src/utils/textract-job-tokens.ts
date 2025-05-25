@@ -10,15 +10,15 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { PutItemCommand } from 'dynamodb-toolbox/entity/actions/put';
 import { GetItemCommand } from 'dynamodb-toolbox/entity/actions/get';
+import { DeleteItemCommand } from 'dynamodb-toolbox';
 
-export interface TextractJobToken {
-  JobId: string;
-  TaskToken: string;
-  FileType?: string;
-  WorkflowId?: string;
-  UserId?: string;
-  S3Input?: { bucket: string; key: string };
-  ExpirationTime: string;
+export interface TextractJobTokenItem {
+  jobId: string;
+  taskToken: string;
+  workflowId?: string;
+  userId?: string;
+  s3Input?: { bucket: string; key: string };
+  expirationTime: string;
 }
 
 export function getJobTokenTableAndEntity(
@@ -29,23 +29,22 @@ export function getJobTokenTableAndEntity(
     documentClient || DynamoDBDocumentClient.from(new DynamoDBClient({}));
   const table = new Table({
     name: tableName,
-    partitionKey: { name: 'JobId', type: 'string' },
+    partitionKey: { name: 'jobId', type: 'string' },
     documentClient: client,
   });
   const entity = new Entity({
     name: 'JOBTOKEN',
     table,
     schema: item({
-      JobId: string().key(),
-      TaskToken: string(),
-      FileType: string().optional(),
-      WorkflowId: string().optional(),
-      UserId: string().optional(),
-      S3Input: map({
+      jobId: string().key(),
+      taskToken: string(),
+      workflowId: string().optional(),
+      userId: string().optional(),
+      s3Input: map({
         bucket: string(),
         key: string(),
       }).optional(),
-      ExpirationTime: string(),
+      expirationTime: string(),
     }),
   });
   return { table, entity };
@@ -53,7 +52,7 @@ export function getJobTokenTableAndEntity(
 
 export async function putJobToken(
   tableName: string,
-  record: TextractJobToken,
+  record: TextractJobTokenItem,
   documentClient?: DynamoDBDocumentClient
 ) {
   const { entity } = getJobTokenTableAndEntity(tableName, documentClient);
@@ -64,11 +63,17 @@ export async function getJobToken(
   tableName: string,
   jobId: string,
   documentClient?: DynamoDBDocumentClient
-): Promise<TextractJobToken | undefined> {
+): Promise<TextractJobTokenItem | undefined> {
   const { entity } = getJobTokenTableAndEntity(tableName, documentClient);
-  const { Item } = await entity
-    .build(GetItemCommand)
-    .key({ JobId: jobId })
-    .send();
+  const { Item } = await entity.build(GetItemCommand).key({ jobId }).send();
   return Item;
+}
+
+export async function deleteJobToken(
+  tableName: string,
+  jobId: string,
+  documentClient?: DynamoDBDocumentClient
+) {
+  const { entity } = getJobTokenTableAndEntity(tableName, documentClient);
+  await entity.build(DeleteItemCommand).key({ jobId }).send();
 }

@@ -7,7 +7,7 @@ import {
   GetCommand,
 } from '@aws-sdk/lib-dynamodb';
 import {
-  TextractJobToken,
+  TextractJobTokenItem,
   putJobToken,
   getJobToken,
 } from '../textract-job-tokens';
@@ -18,14 +18,13 @@ const ddbDocMock = mockClient(DynamoDBDocumentClient as any);
 describe('textract-job-tokens utils', () => {
   const tableName = 'test-table';
   const documentClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-  const jobToken: TextractJobToken = {
-    JobId: 'job-1',
-    TaskToken: 'token-1',
-    FileType: 'pdf',
-    WorkflowId: 'wf-1',
-    UserId: 'user-1',
-    S3Input: { bucket: 'bucket', key: 'file.pdf' },
-    ExpirationTime: '1234567890',
+  const jobToken: TextractJobTokenItem = {
+    jobId: 'job-1',
+    taskToken: 'token-1',
+    workflowId: 'wf-1',
+    userId: 'user-1',
+    s3Input: { bucket: 'bucket', key: 'file.pdf' },
+    expirationTime: '1234567890',
   };
 
   beforeEach(() => {
@@ -53,19 +52,19 @@ describe('textract-job-tokens utils', () => {
         _md: '2024-01-01T00:00:00.000Z', // required by dynamodb-toolbox
       },
     });
-    const result = await getJobToken(tableName, jobToken.JobId, documentClient);
+    const result = await getJobToken(tableName, jobToken.jobId, documentClient);
     // The returned item will include _et, but our function returns as TextractJobToken (without _et)
     // So we can check that the main fields match
     expect(result).toMatchObject(jobToken);
     const call = ddbDocMock.commandCalls(GetCommand as any)[0];
-    expect(call?.args?.[0]?.input?.Key).toEqual({ JobId: jobToken.JobId });
+    expect(call?.args?.[0]?.input?.Key).toEqual({ jobId: jobToken.jobId });
     expect(call?.args?.[0]?.input?.TableName).toBe(tableName);
   });
 
   it('getJobToken returns undefined if no item found', async () => {
     // @ts-ignore: allow Item property for test mock
     ddbDocMock.on(GetCommand as any).resolves({ Item: undefined });
-    const result = await getJobToken(tableName, jobToken.JobId, documentClient);
+    const result = await getJobToken(tableName, jobToken.jobId, documentClient);
     expect(result).toBeUndefined();
   });
 });

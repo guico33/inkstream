@@ -1,67 +1,140 @@
-import { Handler } from 'aws-lambda';
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
-
-// Import utility modules
+import { Handler } from 'aws-lambda';
+import { z } from 'zod';
+import { WorkflowCommonState } from '../../../types/workflow';
 import {
-  getTextFromS3,
   generateUserS3Key,
+  getTextFromS3,
   saveTextToS3,
 } from '../../../utils/s3-utils';
+import { translateTextWithClaude } from './utils';
+import { formatErrorForLogging } from '../../../utils/error-utils';
+import { updateWorkflowStatus } from '../../../utils/workflow-state';
 import {
-  createS3Response,
-  createS3ErrorResponse,
-} from '../../../utils/response-utils';
-import {
-  getErrorMessage,
-  formatErrorForLogging,
-} from '../../../utils/error-utils';
+  ValidationError,
+  S3Error,
+  ExternalServiceError,
+  ProcessingError,
+} from '../../../errors';
 
 // Initialize Bedrock client
 const bedrockRuntime = new BedrockRuntimeClient({});
 
-// Claude 3 Haiku model ID
-import { translateTextWithClaude } from './utils';
+// Zod schema for input validation
+const TranslateTextEventSchema = z.object({
+  formattedTextFileKey: z
+    .string({
+      required_error: 'formattedTextFileKey is required',
+      invalid_type_error: 'formattedTextFileKey must be a string',
+    })
+    .min(1, 'formattedTextFileKey cannot be empty'),
+  storageBucket: z
+    .string({
+      required_error: 'storageBucket is required',
+      invalid_type_error: 'storageBucket must be a string',
+    })
+    .min(1, 'storageBucket cannot be empty'),
+  originalFileKey: z
+    .string({
+      required_error: 'originalFileKey is required',
+      invalid_type_error: 'originalFileKey must be a string',
+    })
+    .min(1, 'originalFileKey cannot be empty'),
+  userId: z
+    .string({
+      required_error: 'userId is required',
+      invalid_type_error: 'userId must be a string',
+    })
+    .min(1, 'userId cannot be empty'),
+  targetLanguage: z
+    .string({
+      required_error: 'targetLanguage is required',
+      invalid_type_error: 'targetLanguage must be a string',
+    })
+    .min(1, 'targetLanguage cannot be empty'),
+  workflowId: z
+    .string({
+      required_error: 'workflowId is required',
+      invalid_type_error: 'workflowId must be a string',
+    })
+    .min(1, 'workflowId cannot be empty'),
+  workflowTableName: z
+    .string({
+      required_error: 'workflowTableName is required',
+      invalid_type_error: 'workflowTableName must be a string',
+    })
+    .min(1, 'workflowTableName cannot be empty'),
+  doSpeech: z.boolean().optional(),
+  timestamp: z.number().optional(),
+});
 
-interface TranslateRequest {
-  formattedTextS3Path?: { bucket: string; key: string }; // Input can now be an S3 path to the formatted text
-  formattedText?: string; // Or direct text (legacy or for testing)
-  targetLanguage: string;
-  fileKey: string; // Original file key for naming output
-  outputBucket: string; // Bucket to save translated text
-  userId: string; // Added for user-specific S3 paths
-  workflowId?: string; // Optional workflow ID for tracking
+interface TranslateTextEvent extends WorkflowCommonState {
+  formattedTextFileKey: string;
+  targetLanguage: string; // Required for translation
+  workflowId: string;
+  workflowTableName: string;
 }
 
-export const handler: Handler = async (event: TranslateRequest) => {
+export const handler: Handler = async (event: TranslateTextEvent) => {
   console.log('TranslateText Lambda event:', JSON.stringify(event, null, 2));
+
+  // Validate input using Zod schema
+  try {
+    TranslateTextEventSchema.parse(event);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const firstError = error.errors[0];
+      throw new ValidationError(firstError?.message || 'Validation failed');
+    }
+    throw new ValidationError('Invalid input format');
+  }
+
+  const {
+    formattedTextFileKey,
+    storageBucket,
+    originalFileKey,
+    userId,
+    targetLanguage,
+    workflowId,
+    workflowTableName,
+    doSpeech = false,
+  } = event;
+
+  // Update workflow status to TRANSLATING
+  try {
+    await updateWorkflowStatus(
+      workflowTableName,
+      userId,
+      workflowId,
+      'TRANSLATING'
+    );
+    console.log('Updated workflow status to TRANSLATING');
+  } catch (statusError) {
+    console.error(
+      'Failed to update workflow status to TRANSLATING:',
+      statusError
+    );
+    // Continue execution even if status update fails
+  }
 
   let textToTranslate: string | undefined = undefined;
 
-  // Always fetch text from S3 if formattedTextS3Path is provided
-  if (event.formattedTextS3Path?.bucket && event.formattedTextS3Path?.key) {
+  // Always fetch text from S3 if formattedTextFileKey is provided
+  if (formattedTextFileKey) {
     try {
       textToTranslate = await getTextFromS3(
-        event.formattedTextS3Path.bucket,
-        event.formattedTextS3Path.key
+        storageBucket,
+        formattedTextFileKey
       );
       console.log(
-        `Fetched formatted text from S3: s3://${event.formattedTextS3Path.bucket}/${event.formattedTextS3Path.key}`
+        `Fetched formatted text from S3: s3://${storageBucket}/${formattedTextFileKey}`
       );
     } catch (error) {
       console.error(
         'Error fetching formatted text from S3:',
         formatErrorForLogging('S3 fetch', error)
       );
-      const errorResponse = createS3ErrorResponse(
-        500,
-        'Error fetching formatted text from S3',
-        error
-      );
-      return {
-        ...event,
-        ...errorResponse,
-        translationError: 'Failed to fetch text from S3',
-      };
+      throw new S3Error('Error fetching formatted text from S3', error);
     }
   }
 
@@ -70,31 +143,22 @@ export const handler: Handler = async (event: TranslateRequest) => {
     console.error(
       'No formattedTextS3Path provided or failed to fetch text from S3.'
     );
-    const errorResponse = createS3ErrorResponse(
-      400,
-      'No text content to translate'
-    );
-    return {
-      ...event, // Preserve event properties for workflow continuity
-      ...errorResponse,
-      translationError: 'No text content provided',
-    };
-  }
 
-  if (!event.outputBucket) {
-    console.error('Output bucket not specified.');
-    const errorResponse = createS3ErrorResponse(
-      500,
-      'Output bucket not configured'
-    );
-    return {
-      ...event, // Preserve event properties for workflow continuity
-      ...errorResponse,
-      translationError: 'Output bucket not configured',
-    };
-  }
+    // Update workflow status to FAILED
+    try {
+      await updateWorkflowStatus(
+        workflowTableName,
+        userId,
+        workflowId,
+        'FAILED',
+        { error: 'No text content to translate' }
+      );
+    } catch (statusError) {
+      console.error('Failed to update workflow status to FAILED:', statusError);
+    }
 
-  const targetLanguage = event.targetLanguage || 'French';
+    throw new ProcessingError('No text content to translate');
+  }
 
   try {
     const translatedText = await translateTextWithClaude(
@@ -103,42 +167,52 @@ export const handler: Handler = async (event: TranslateRequest) => {
       targetLanguage
     );
 
-    const userId = event.userId || 'unknown-user';
-
     // Generate S3 key for translated text with language info
     const outputKey = generateUserS3Key(
       userId,
       'translated',
-      event.fileKey,
+      originalFileKey,
       'txt',
       targetLanguage.toLowerCase()
     );
 
     // Save translated text to S3
-    const s3Path = await saveTextToS3(
-      event.outputBucket,
-      outputKey,
-      translatedText
-    );
+    const s3Path = await saveTextToS3(storageBucket, outputKey, translatedText);
     console.log(
       `Translated text saved to S3: s3://${s3Path.bucket}/${s3Path.key}`
     );
 
-    // Return success response with workflow integration data
-    const response = createS3Response(
-      s3Path,
-      'Text translated and saved successfully.',
-      {
-        targetLanguageUsed: targetLanguage,
-        translatedTextLength: translatedText.length,
-      }
-    );
+    // Determine the appropriate completion status based on workflow parameters
+    const completionStatus = !doSpeech ? 'TRANSLATION_COMPLETE' : 'SUCCEEDED';
 
-    // Return all original event properties plus response data for workflow continuity
+    // Update workflow status with S3 paths
+    try {
+      await updateWorkflowStatus(
+        workflowTableName,
+        userId,
+        workflowId,
+        completionStatus,
+        {
+          s3Paths: {
+            originalFile: originalFileKey,
+            translatedText: s3Path.key,
+          },
+        }
+      );
+      console.log(
+        `Updated workflow status to ${completionStatus} with translated text path`
+      );
+    } catch (statusError) {
+      console.error(
+        `Failed to update workflow status to ${completionStatus}:`,
+        statusError
+      );
+      // Continue execution even if status update fails
+    }
+
     return {
-      ...event,
-      ...response,
-      translatedTextS3Path: s3Path, // Legacy field for backward compatibility
+      message: 'Text translation successful',
+      translatedTextFileKey: s3Path.key,
     };
   } catch (error: unknown) {
     console.error(
@@ -146,16 +220,23 @@ export const handler: Handler = async (event: TranslateRequest) => {
       formatErrorForLogging('translate and save', error)
     );
 
-    const errorResponse = createS3ErrorResponse(
-      500,
+    // Update workflow status to FAILED with error details
+    try {
+      await updateWorkflowStatus(
+        workflowTableName,
+        userId,
+        workflowId,
+        'FAILED',
+        { error: 'Error processing text translation' }
+      );
+    } catch (statusError) {
+      console.error('Failed to update workflow status to FAILED:', statusError);
+    }
+
+    throw new ExternalServiceError(
       'Error processing text translation',
+      'Bedrock',
       error
     );
-
-    return {
-      ...event,
-      ...errorResponse,
-      translationError: getErrorMessage(error),
-    };
   }
 };
