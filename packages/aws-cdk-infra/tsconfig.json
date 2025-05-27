@@ -18,5 +18,5 @@
     "types": ["node"],
     "moduleResolution": "node16",
   },
-  "include": ["src/**/*.ts", "bin/**/*.ts"]
+  "include": ["src/**/*.ts", "test-workflow/**/*.ts", "bin/**/*.ts"]
 }

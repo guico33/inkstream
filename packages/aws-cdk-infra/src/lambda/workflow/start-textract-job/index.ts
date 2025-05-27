@@ -17,11 +17,6 @@ import { ValidationError } from '../../../errors';
 const textract = new TextractClient({});
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
-const textractJobTokensTable = process.env.TEXTRACT_JOB_TOKENS_TABLE;
-
-if (!textractJobTokensTable)
-  throw new Error('TEXTRACT_JOB_TOKENS_TABLE environment variable is not set');
-
 // Zod schema for input validation
 const StartTextractJobEventSchema = z.object({
   originalFileKey: z
@@ -64,6 +59,17 @@ interface StartTextractJobEvent extends WorkflowCommonState {
 
 export const handler: Handler = async (event: StartTextractJobEvent) => {
   console.log('Received event:', JSON.stringify(event));
+
+  const textractJobTokensTable = process.env.TEXTRACT_JOB_TOKENS_TABLE;
+  const userWorkflowsTable = process.env.USER_WORKFLOWS_TABLE;
+
+  if (!textractJobTokensTable)
+    throw new Error(
+      'TEXTRACT_JOB_TOKENS_TABLE environment variable is not set'
+    );
+
+  if (!userWorkflowsTable)
+    throw new Error('USER_WORKFLOWS_TABLE environment variable is not set');
 
   // Validate input using Zod schema
   try {
@@ -121,11 +127,11 @@ export const handler: Handler = async (event: StartTextractJobEvent) => {
     console.log('Stored JobId and TaskToken in DynamoDB:', jobId);
 
     // --- Update workflow state in user-workflows table ---
-    const workflowTableName = process.env.USER_WORKFLOWS_TABLE;
-    if (workflowTableName && userId && workflowId) {
+    const userWorkflowTable = process.env.USER_WORKFLOWS_TABLE;
+    if (userWorkflowTable && userId && workflowId) {
       // Only update s3Paths for step-specific outputs, not originalFile
       await updateWorkflowStatus(
-        workflowTableName,
+        userWorkflowTable,
         userId,
         workflowId,
         'EXTRACTING_TEXT'

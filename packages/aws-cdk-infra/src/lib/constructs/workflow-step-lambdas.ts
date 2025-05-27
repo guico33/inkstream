@@ -67,6 +67,7 @@ export class WorkflowStepLambdas extends Construct {
         timeout: cdk.Duration.seconds(30),
         environment: {
           AWS_ACCOUNT_ID: cdk.Stack.of(this).account,
+          USER_WORKFLOWS_TABLE: props.userWorkflowsTableName,
         },
         initialPolicy: [
           new cdk.aws_iam.PolicyStatement({
@@ -99,12 +100,8 @@ export class WorkflowStepLambdas extends Construct {
       },
       initialPolicy: [
         new cdk.aws_iam.PolicyStatement({
-          actions: ['bedrock:InvokeModel', 's3:PutObject', 's3:GetObject'], // Added s3:GetObject
+          actions: ['bedrock:InvokeModel', 's3:PutObject', 's3:GetObject'],
           resources: ['*'], // You can restrict this to specific model ARNs and S3 bucket/paths
-        }),
-        new cdk.aws_iam.PolicyStatement({
-          actions: ['dynamodb:UpdateItem'],
-          resources: ['*'], // Can be restricted to specific table ARN
         }),
       ],
     });
@@ -122,10 +119,11 @@ export class WorkflowStepLambdas extends Construct {
         CLAUDE_MODEL_ID:
           props.claudeModelId || 'anthropic.claude-3-haiku-20240307-v1:0',
         BUCKET_NAME: props.storageBucketName,
+        USER_WORKFLOWS_TABLE: props.userWorkflowsTableName,
       },
       initialPolicy: [
         new cdk.aws_iam.PolicyStatement({
-          actions: ['bedrock:InvokeModel', 's3:PutObject', 's3:GetObject'], // Added s3:GetObject
+          actions: ['bedrock:InvokeModel', 's3:PutObject', 's3:GetObject'],
           resources: ['*'], // You can restrict this to specific model ARNs and S3 bucket/paths
         }),
       ],
@@ -146,10 +144,11 @@ export class WorkflowStepLambdas extends Construct {
         memorySize: 512,
         environment: {
           BUCKET_NAME: props.storageBucketName,
+          USER_WORKFLOWS_TABLE: props.userWorkflowsTableName,
         },
         initialPolicy: [
           new cdk.aws_iam.PolicyStatement({
-            actions: ['polly:SynthesizeSpeech', 's3:PutObject', 's3:GetObject'], // Added s3:GetObject
+            actions: ['polly:SynthesizeSpeech', 's3:PutObject', 's3:GetObject'],
             resources: ['*'], // You can restrict this to S3 bucket/paths
           }),
         ],

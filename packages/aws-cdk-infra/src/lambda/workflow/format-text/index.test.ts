@@ -1,5 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handler } from './index';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterAll,
+} from 'vitest';
 import * as utils from './utils';
 import * as s3Utils from '../../../utils/s3-utils';
 import * as workflowStateUtils from '../../../utils/workflow-state';
@@ -25,7 +32,18 @@ async function callHandler(event: any) {
   return handler(event, context, callback);
 }
 
+let handler: any;
+
 describe('format-text Lambda handler', () => {
+  beforeAll(async () => {
+    vi.stubEnv('USER_WORKFLOWS_TABLE', 'WorkflowTable');
+    handler = (await import('./index.js')).handler;
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock workflow state functions to avoid DynamoDB errors
@@ -55,12 +73,12 @@ describe('format-text Lambda handler', () => {
     const result = await callHandler(event);
     expect(result.formattedTextFileKey).toBe('user/formatted/file.txt');
 
-    // Should call updateWorkflowStatus with 'SUCCEEDED' since doTranslate=true OR doSpeech=true
+    // Should call updateWorkflowStatus with 'TEXT_FORMATTING_COMPLETE' since doTranslate=true OR doSpeech=true (more steps to come)
     expect(mockedWorkflowStateUtils.updateWorkflowStatus).toHaveBeenCalledWith(
       'WorkflowTable',
       'user',
       'workflow-123',
-      'SUCCEEDED',
+      'TEXT_FORMATTING_COMPLETE',
       expect.objectContaining({
         s3Paths: expect.objectContaining({
           originalFile: 'file.txt',
@@ -93,12 +111,12 @@ describe('format-text Lambda handler', () => {
     const result = await callHandler(event);
     expect(result.formattedTextFileKey).toBe('user/formatted/file.txt');
 
-    // Should call updateWorkflowStatus with 'TEXT_FORMATTING_COMPLETE' since doTranslate=false AND doSpeech=false
+    // Should call updateWorkflowStatus with 'SUCCEEDED' since doTranslate=false AND doSpeech=false (workflow is complete)
     expect(mockedWorkflowStateUtils.updateWorkflowStatus).toHaveBeenCalledWith(
       'WorkflowTable',
       'user',
       'workflow-123',
-      'TEXT_FORMATTING_COMPLETE',
+      'SUCCEEDED',
       expect.objectContaining({
         s3Paths: expect.objectContaining({
           originalFile: 'file.txt',

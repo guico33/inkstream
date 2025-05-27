@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:workflow": "./test-workflow/test-workflow.sh",
+    "test:workflow": "vitest run --config vitest.workflow.config.ts --reporter=verbose",
+    "test:workflow:concurrent": "VITEST_CONCURRENT=true vitest run --config vitest.workflow.config.ts --reporter=verbose",
     "get-test-user-token": "ts-node get-test-user-token.ts"
   },
   "dependencies": {

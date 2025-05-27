@@ -3,7 +3,10 @@ import { Handler } from 'aws-lambda';
 import { z } from 'zod';
 
 // Import utility functions
-import { formatErrorForLogging } from '../../../utils/error-utils';
+import {
+  formatErrorForLogging,
+  getErrorMessage,
+} from '../../../utils/error-utils';
 import { generateUserS3Key, saveTextToS3 } from '../../../utils/s3-utils';
 import { updateWorkflowStatus } from '../../../utils/workflow-state';
 import { extractTextFromTextractS3, formatTextWithClaude } from './utils';
@@ -35,9 +38,6 @@ const FormatTextEventSchema = z.object({
   workflowId: z
     .string({ required_error: 'workflowId is required' })
     .min(1, 'workflowId cannot be empty'),
-  workflowTableName: z
-    .string({ required_error: 'workflowTableName is required' })
-    .min(1, 'workflowTableName cannot be empty'),
   doTranslate: z.boolean().optional(),
   doSpeech: z.boolean().optional(),
   targetLanguage: z.string().optional(),
@@ -47,11 +47,15 @@ const FormatTextEventSchema = z.object({
 interface FormatTextEvent extends WorkflowCommonState {
   textractMergedFileKey: string;
   workflowId: string;
-  workflowTableName: string;
 }
 
 export const handler: Handler = async (event: FormatTextEvent) => {
   console.log('FormatText Lambda event:', JSON.stringify(event, null, 2));
+
+  const userWorkflowsTable = process.env.USER_WORKFLOWS_TABLE;
+  if (!userWorkflowsTable) {
+    throw new Error('USER_WORKFLOWS_TABLE environment variable is not set');
+  }
 
   // Validate input using Zod schema
   try {
@@ -70,7 +74,6 @@ export const handler: Handler = async (event: FormatTextEvent) => {
     originalFileKey,
     userId,
     workflowId,
-    workflowTableName,
     doTranslate = false,
     doSpeech = false,
   } = event;
@@ -78,7 +81,7 @@ export const handler: Handler = async (event: FormatTextEvent) => {
   try {
     // Update workflow status to indicate formatting has started
     await updateWorkflowStatus(
-      workflowTableName,
+      userWorkflowsTable,
       userId,
       workflowId,
       'FORMATTING_TEXT'
@@ -89,7 +92,10 @@ export const handler: Handler = async (event: FormatTextEvent) => {
       'Failed to update workflow status to FORMATTING_TEXT:',
       error
     );
-    // Continue execution even if status update fails
+    throw new ExternalServiceError(
+      `Failed to update workflow status: ${getErrorMessage(error)}`,
+      'DynamoDB'
+    );
   }
 
   // Always extract text from S3 if textractOutputS3Path is present
@@ -109,7 +115,7 @@ export const handler: Handler = async (event: FormatTextEvent) => {
         // Update workflow status to FAILED with error details
         try {
           await updateWorkflowStatus(
-            workflowTableName,
+            userWorkflowsTable,
             userId,
             workflowId,
             'FAILED',
@@ -139,7 +145,7 @@ export const handler: Handler = async (event: FormatTextEvent) => {
       // Update workflow status to FAILED with error details
       try {
         await updateWorkflowStatus(
-          workflowTableName,
+          userWorkflowsTable,
           userId,
           workflowId,
           'FAILED',
@@ -164,7 +170,7 @@ export const handler: Handler = async (event: FormatTextEvent) => {
     // Update workflow status to FAILED with error details
     try {
       await updateWorkflowStatus(
-        workflowTableName,
+        userWorkflowsTable,
         userId,
         workflowId,
         'FAILED',
@@ -197,12 +203,12 @@ export const handler: Handler = async (event: FormatTextEvent) => {
 
     // Determine the appropriate completion status based on workflow parameters
     const completionStatus =
-      !doTranslate && !doSpeech ? 'TEXT_FORMATTING_COMPLETE' : 'SUCCEEDED';
+      !doTranslate && !doSpeech ? 'SUCCEEDED' : 'TEXT_FORMATTING_COMPLETE';
 
     // Update workflow status and S3 paths
     try {
       await updateWorkflowStatus(
-        workflowTableName,
+        userWorkflowsTable,
         userId,
         workflowId,
         completionStatus,
@@ -221,7 +227,10 @@ export const handler: Handler = async (event: FormatTextEvent) => {
         `Failed to update workflow status to ${completionStatus}:`,
         statusError
       );
-      // Continue execution even if status update fails
+      throw new ExternalServiceError(
+        `Failed to update workflow status: ${getErrorMessage(statusError)}`,
+        'DynamoDB'
+      );
     }
 
     return {
@@ -236,7 +245,7 @@ export const handler: Handler = async (event: FormatTextEvent) => {
     // Update workflow status to FAILED with error details
     try {
       await updateWorkflowStatus(
-        workflowTableName,
+        userWorkflowsTable,
         userId,
         workflowId,
         'FAILED',

@@ -1,5 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handler } from './index';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterAll,
+} from 'vitest';
 import * as s3Utils from '../../../utils/s3-utils';
 import * as errorUtils from '../../../utils/error-utils';
 import * as workflowState from '../../../utils/workflow-state';
@@ -27,7 +34,18 @@ async function callHandler(event: any) {
   return handler(event, context, callback);
 }
 
+let handler: any;
+
 describe('convert-to-speech Lambda handler', () => {
+  beforeAll(async () => {
+    vi.stubEnv('USER_WORKFLOWS_TABLE', 'WorkflowTable');
+    handler = (await import('./index.js')).handler;
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
   const baseEvent = {
     storageBucket: 'test-bucket',
     originalFileKey: 'document.pdf',

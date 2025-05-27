@@ -42,8 +42,8 @@ export class StorageConstruct extends Construct {
       'TextractJobTokensTable',
       {
         tableName: textractJobTokensTableName,
-        partitionKey: { name: 'JobId', type: dynamodb.AttributeType.STRING },
-        timeToLiveAttribute: 'ExpirationTime',
+        partitionKey: { name: 'jobId', type: dynamodb.AttributeType.STRING },
+        timeToLiveAttribute: 'expirationTime',
         removalPolicy: cdk.RemovalPolicy.DESTROY,
         billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       }

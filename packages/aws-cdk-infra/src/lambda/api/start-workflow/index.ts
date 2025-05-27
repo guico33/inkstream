@@ -9,18 +9,6 @@ import { createWorkflow } from '../../../utils/workflow-state';
 import { WorkflowCommonState } from '../../../types/workflow';
 import { ValidationError, ExternalServiceError } from '../../../errors';
 
-const sfnClient = new SFNClient({});
-
-// Zod schema for request body validation
-const WorkflowInputSchema = z.object({
-  filename: z
-    .string({ required_error: 'filename is required' })
-    .min(1, 'filename cannot be empty'),
-  doTranslate: z.boolean().optional().default(false),
-  doSpeech: z.boolean().optional().default(false),
-  targetLanguage: z.string().optional().default('english'),
-});
-
 // Zod schema for environment variables validation
 const EnvironmentSchema = z.object({
   STATE_MACHINE_ARN: z
@@ -40,6 +28,21 @@ const EnvironmentSchema = z.object({
     .min(1, 'USER_WORKFLOWS_TABLE cannot be empty'),
 });
 
+// validate environment variables
+const env = EnvironmentSchema.parse(process.env);
+
+const sfnClient = new SFNClient({});
+
+// Zod schema for request body validation
+const WorkflowInputSchema = z.object({
+  filename: z
+    .string({ required_error: 'filename is required' })
+    .min(1, 'filename cannot be empty'),
+  doTranslate: z.boolean().optional().default(false),
+  doSpeech: z.boolean().optional().default(false),
+  targetLanguage: z.string().optional().default('english'),
+});
+
 type WorkflowInput = z.infer<typeof WorkflowInputSchema>;
 
 export const handler = async (
@@ -51,9 +54,6 @@ export const handler = async (
   );
 
   try {
-    // Validate environment variables
-    const env = EnvironmentSchema.parse(process.env);
-
     // Validate and parse request body
     const requestBody = validateRequestBody(event.body);
 

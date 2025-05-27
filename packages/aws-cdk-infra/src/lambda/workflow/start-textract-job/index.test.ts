@@ -26,7 +26,7 @@ describe('start-textract-job Lambda', () => {
   beforeAll(async () => {
     vi.stubEnv('TEXTRACT_JOB_TOKENS_TABLE', 'test-textract-job-tokens-table');
     vi.stubEnv('OUTPUT_S3_BUCKET_NAME', 'test-bucket');
-    vi.stubEnv('USER_WORKFLOWS_TABLE', 'test-user-workflows-table');
+    vi.stubEnv('USER_WORKFLOWS_TABLE', 'WorkflowTable');
     handler = (await import('./index.js')).handler;
   });
 
@@ -85,7 +85,7 @@ describe('start-textract-job Lambda', () => {
       },
     });
     expect(updateWorkflowStatusSpy).toHaveBeenCalledWith(
-      'test-user-workflows-table',
+      'WorkflowTable',
       'user-1',
       'wf-1',
       'EXTRACTING_TEXT'

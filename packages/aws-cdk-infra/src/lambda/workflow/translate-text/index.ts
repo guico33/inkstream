@@ -8,7 +8,10 @@ import {
   saveTextToS3,
 } from '../../../utils/s3-utils';
 import { translateTextWithClaude } from './utils';
-import { formatErrorForLogging } from '../../../utils/error-utils';
+import {
+  formatErrorForLogging,
+  getErrorMessage,
+} from '../../../utils/error-utils';
 import { updateWorkflowStatus } from '../../../utils/workflow-state';
 import {
   ValidationError,
@@ -58,25 +61,23 @@ const TranslateTextEventSchema = z.object({
       invalid_type_error: 'workflowId must be a string',
     })
     .min(1, 'workflowId cannot be empty'),
-  workflowTableName: z
-    .string({
-      required_error: 'workflowTableName is required',
-      invalid_type_error: 'workflowTableName must be a string',
-    })
-    .min(1, 'workflowTableName cannot be empty'),
   doSpeech: z.boolean().optional(),
   timestamp: z.number().optional(),
 });
 
 interface TranslateTextEvent extends WorkflowCommonState {
   formattedTextFileKey: string;
-  targetLanguage: string; // Required for translation
+  targetLanguage: string;
   workflowId: string;
-  workflowTableName: string;
 }
 
 export const handler: Handler = async (event: TranslateTextEvent) => {
   console.log('TranslateText Lambda event:', JSON.stringify(event, null, 2));
+
+  const userWorkflowsTable = process.env.USER_WORKFLOWS_TABLE;
+  if (!userWorkflowsTable) {
+    throw new Error('USER_WORKFLOWS_TABLE environment variable is not set');
+  }
 
   // Validate input using Zod schema
   try {
@@ -96,14 +97,13 @@ export const handler: Handler = async (event: TranslateTextEvent) => {
     userId,
     targetLanguage,
     workflowId,
-    workflowTableName,
     doSpeech = false,
   } = event;
 
   // Update workflow status to TRANSLATING
   try {
     await updateWorkflowStatus(
-      workflowTableName,
+      userWorkflowsTable,
       userId,
       workflowId,
       'TRANSLATING'
@@ -114,7 +114,10 @@ export const handler: Handler = async (event: TranslateTextEvent) => {
       'Failed to update workflow status to TRANSLATING:',
       statusError
     );
-    // Continue execution even if status update fails
+    throw new ExternalServiceError(
+      `Failed to update workflow status: ${getErrorMessage(statusError)}`,
+      'DynamoDB'
+    );
   }
 
   let textToTranslate: string | undefined = undefined;
@@ -147,7 +150,7 @@ export const handler: Handler = async (event: TranslateTextEvent) => {
     // Update workflow status to FAILED
     try {
       await updateWorkflowStatus(
-        workflowTableName,
+        userWorkflowsTable,
         userId,
         workflowId,
         'FAILED',
@@ -183,12 +186,12 @@ export const handler: Handler = async (event: TranslateTextEvent) => {
     );
 
     // Determine the appropriate completion status based on workflow parameters
-    const completionStatus = !doSpeech ? 'TRANSLATION_COMPLETE' : 'SUCCEEDED';
+    const completionStatus = doSpeech ? 'TRANSLATION_COMPLETE' : 'SUCCEEDED';
 
     // Update workflow status with S3 paths
     try {
       await updateWorkflowStatus(
-        workflowTableName,
+        userWorkflowsTable,
         userId,
         workflowId,
         completionStatus,
@@ -207,7 +210,10 @@ export const handler: Handler = async (event: TranslateTextEvent) => {
         `Failed to update workflow status to ${completionStatus}:`,
         statusError
       );
-      // Continue execution even if status update fails
+      throw new ExternalServiceError(
+        `Failed to update workflow status: ${getErrorMessage(statusError)}`,
+        'DynamoDB'
+      );
     }
 
     return {
@@ -223,7 +229,7 @@ export const handler: Handler = async (event: TranslateTextEvent) => {
     // Update workflow status to FAILED with error details
     try {
       await updateWorkflowStatus(
-        workflowTableName,
+        userWorkflowsTable,
         userId,
         workflowId,
         'FAILED',

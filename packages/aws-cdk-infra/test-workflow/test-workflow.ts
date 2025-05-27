@@ -1,456 +1,604 @@
-#!/usr/bin/env node
-// test-workflow.ts - Main entry for workflow integration test
+import 'dotenv/config';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import {
   CognitoIdentityProviderClient,
+  AdminCreateUserCommand,
+  AdminSetUserPasswordCommand,
+  AdminDeleteUserCommand,
+  AdminGetUserCommand,
   InitiateAuthCommand,
-  InitiateAuthCommandInput,
 } from '@aws-sdk/client-cognito-identity-provider';
-import {
-  GetObjectCommand,
-  PutObjectCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
-import { DescribeExecutionCommand, SFNClient } from '@aws-sdk/client-sfn';
-import * as dotenv from 'dotenv';
-import 'dotenv/config';
-import * as fs from 'fs';
-import * as https from 'https';
-import * as path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import {
-  createTestUser,
-  deleteUserIfExists,
-} from './create-or-reset-test-user';
-// Load environment variables from .env.test file
-dotenv.config({ path: path.resolve(__dirname, '../.env.test') });
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
 
-// Check required environment variables
-const requiredEnvVars = [
-  'API_GATEWAY_URL',
-  'USER_POOL_ID',
-  'USER_POOL_WEB_CLIENT_ID',
-  'TEST_USERNAME',
-  'TEST_PASSWORD',
-  'BUCKET_NAME',
-  'AWS_REGION',
-];
+// Load environment variables from .env.test
+dotenv.config({ path: path.resolve(__dirname, '..', '.env.test') });
 
-const missingEnvVars = requiredEnvVars.filter(
-  (varName) => !process.env[varName]
+// Determine test execution mode based on environment variable
+const RUN_TESTS_CONCURRENT = process.env.VITEST_CONCURRENT === 'true';
+const testRunner = RUN_TESTS_CONCURRENT ? it.concurrent : it;
+
+console.log(
+  `Running workflow tests in ${
+    RUN_TESTS_CONCURRENT ? 'CONCURRENT' : 'SEQUENTIAL'
+  } mode`
 );
 
-if (missingEnvVars.length > 0) {
-  console.error('Missing required environment variables:');
-  missingEnvVars.forEach((varName) => console.error(`- ${varName}`));
-  console.error('Please check your .env.test file');
-  process.exit(1);
+// Types
+interface WorkflowParams {
+  filename: string;
+  doTranslate: boolean;
+  doSpeech: boolean;
+  targetLanguage?: string;
 }
 
-// Configuration
-const BUCKET_NAME =
-  process.env.BUCKET_NAME || 'dev-inkstream-storage-560756474135';
-const API_GATEWAY_URL = process.env.API_GATEWAY_URL; // Get from CDK output or AWS console
-const TEST_FILE_PATH = path.resolve(__dirname, '../test-files/sample.pdf'); // Path to a test PDF file
-const TEST_FILE_UUID = uuidv4();
+interface WorkflowResponse {
+  message: string;
+  workflowId: string;
+}
 
-// Cognito configuration - Get these from environment variables or CloudFormation outputs
+interface WorkflowStatus {
+  workflowId: string;
+  status: string;
+  parameters: Record<string, any>;
+  s3Paths: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+  error?: string;
+}
+
+// Test configuration - map from .env.test variables
+const API_GATEWAY_URL = process.env.API_GATEWAY_URL;
+const S3_BUCKET = process.env.BUCKET_NAME; // Maps to BUCKET_NAME in .env.test
+const AWS_REGION = process.env.AWS_REGION;
 const USER_POOL_ID = process.env.USER_POOL_ID;
 const CLIENT_ID = process.env.USER_POOL_WEB_CLIENT_ID;
-// For admin testing - set these via environment variables
 const TEST_USERNAME = process.env.TEST_USERNAME;
 const TEST_PASSWORD = process.env.TEST_PASSWORD;
 
-// Initialize clients
-const AWS_REGION = process.env.AWS_REGION || 'eu-west-3';
-// const AWS_PROFILE = process.env.AWS_PROFILE || 'dev'; // AWS_PROFILE is used by the default credential chain if set in .env
+// These will be set during test setup
+let AUTH_TOKEN: string;
+let USER_ID: string;
 
-// Initialize AWS SDK clients.
-// The SDK will automatically use credentials from the environment:
-// - For local development with SSO: Ensure your environment is configured (e.g., via AWS CLI login for SSO)
-//   or that AWS_PROFILE in .env.test (if loaded and set) points to an SSO-configured profile.
-// - For CI with OIDC: Ensure AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE are set.
-const s3Client = new S3Client({
-  region: AWS_REGION,
-});
-const sfnClient = new SFNClient({
-  region: AWS_REGION,
-});
-const cognitoClient = new CognitoIdentityProviderClient({
-  region: AWS_REGION,
-});
+if (
+  !API_GATEWAY_URL ||
+  !S3_BUCKET ||
+  !AWS_REGION ||
+  !USER_POOL_ID ||
+  !CLIENT_ID ||
+  !TEST_USERNAME ||
+  !TEST_PASSWORD
+) {
+  throw new Error(
+    'Missing required environment variables: API_GATEWAY_URL, BUCKET_NAME, AWS_REGION, USER_POOL_ID, USER_POOL_WEB_CLIENT_ID, TEST_USERNAME, TEST_PASSWORD'
+  );
+}
 
-// Function to get authentication token using Cognito
-async function getAuthToken(): Promise<string> {
-  if (!USER_POOL_ID || !CLIENT_ID) {
-    throw new Error(
-      'USER_POOL_ID and USER_POOL_WEB_CLIENT_ID environment variables must be set'
-    );
-  }
+const s3Client = new S3Client({ region: AWS_REGION });
+const cognitoClient = new CognitoIdentityProviderClient({ region: AWS_REGION });
 
-  if (!TEST_USERNAME || !TEST_PASSWORD) {
-    throw new Error(
-      'TEST_USERNAME and TEST_PASSWORD environment variables must be set for testing'
-    );
-  }
+// Test PDF file path
+const TEST_PDF_PATH = path.join(__dirname, '..', 'test-files', 'sample.pdf');
 
-  const params: InitiateAuthCommandInput = {
-    ClientId: CLIENT_ID,
-    // Use regular USER_PASSWORD_AUTH for web client authentication
-    AuthFlow: 'USER_PASSWORD_AUTH',
-    AuthParameters: {
-      USERNAME: TEST_USERNAME,
-      PASSWORD: TEST_PASSWORD,
-    },
-  };
-
+// Test user management functions
+async function deleteUserIfExists() {
+  console.log(`Deleting user ${TEST_USERNAME} if it exists...`);
   try {
-    console.log('Authenticating with Cognito...');
-    const command = new InitiateAuthCommand(params);
-    const response = await cognitoClient.send(command);
-
-    // If the response has AuthenticationResult with an IdToken, we're done
-    if (response.AuthenticationResult?.IdToken) {
-      console.log('Authentication successful');
-      return response.AuthenticationResult.IdToken;
-    }
-
-    // Handle the FORCE_CHANGE_PASSWORD challenge
-    if (response.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
-      console.log(
-        'User requires password change. Please update the user status in the Cognito console:'
-      );
-      console.log(
-        '1. Go to AWS Console > Cognito > User Pools > Your user pool'
-      );
-      console.log('2. Find your user and click on it');
-      console.log('3. Click "Reset password" or change the user status');
-      console.log(
-        '4. Try running the test again after updating the user status'
-      );
-
-      throw new Error(
-        'User requires password change. Please update the user in the Cognito console.'
-      );
-    }
-
-    throw new Error(
-      'No ID token received from authentication and no supported challenge was present'
+    await cognitoClient.send(
+      new AdminGetUserCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: TEST_USERNAME,
+      })
     );
-  } catch (error) {
-    console.error('Authentication failed:', error);
-    throw new Error(`Failed to authenticate with Cognito: ${error}`);
+    await cognitoClient.send(
+      new AdminDeleteUserCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: TEST_USERNAME,
+      })
+    );
+    console.log(`Deleted existing user: ${TEST_USERNAME}`);
+  } catch (err: any) {
+    if (err.name === 'UserNotFoundException') {
+      console.log(`User ${TEST_USERNAME} does not exist, nothing to delete.`);
+      return;
+    }
+    throw err;
   }
 }
 
-// Simple function to make HTTP requests with authentication
-function httpRequest(
+async function createTestUser(): Promise<string> {
+  try {
+    console.log(`Creating test user ${TEST_USERNAME}...`);
+    const createUserResponse = await cognitoClient.send(
+      new AdminCreateUserCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: TEST_USERNAME,
+        UserAttributes: [
+          { Name: 'email', Value: TEST_USERNAME },
+          { Name: 'email_verified', Value: 'true' },
+        ],
+        MessageAction: 'SUPPRESS',
+      })
+    );
+
+    console.log('Setting password for test user...');
+    await cognitoClient.send(
+      new AdminSetUserPasswordCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: TEST_USERNAME,
+        Password: TEST_PASSWORD,
+        Permanent: true,
+      })
+    );
+
+    console.log(`Created and set password for user: ${TEST_USERNAME}`);
+
+    if (!createUserResponse.User?.Attributes) {
+      throw new Error('User created but attributes not found.');
+    }
+
+    const subAttribute = createUserResponse.User.Attributes.find(
+      (attr) => attr.Name === 'sub'
+    );
+
+    if (!subAttribute || !subAttribute.Value) {
+      throw new Error('User created but sub attribute not found.');
+    }
+
+    console.log(`User sub: ${subAttribute.Value}`);
+    return subAttribute.Value;
+  } catch (err: any) {
+    console.error('Error creating test user:', err);
+    throw err;
+  }
+}
+
+async function authenticateUser(): Promise<string> {
+  try {
+    console.log(`Authenticating user ${TEST_USERNAME}...`);
+    const authResponse = await cognitoClient.send(
+      new InitiateAuthCommand({
+        AuthFlow: 'USER_PASSWORD_AUTH',
+        ClientId: CLIENT_ID!,
+        AuthParameters: {
+          USERNAME: TEST_USERNAME!,
+          PASSWORD: TEST_PASSWORD!,
+        },
+      })
+    );
+
+    if (!authResponse.AuthenticationResult?.IdToken) {
+      throw new Error('Authentication succeeded but no ID token received');
+    }
+
+    console.log('User authenticated successfully');
+    return authResponse.AuthenticationResult.IdToken;
+  } catch (err: any) {
+    console.error('Error authenticating user:', err);
+    throw err;
+  }
+}
+
+// Helper functions
+async function httpRequest(
   url: string,
   method: string,
-  data?: unknown,
+  body?: any,
   authToken?: string
-): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const parsedUrl = new URL(url);
-    const options = {
-      hostname: parsedUrl.hostname,
-      path: parsedUrl.pathname + parsedUrl.search,
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken && { Authorization: `Bearer ${authToken}` }),
-      },
-    };
+): Promise<any> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
 
-    const req = https.request(options, (res) => {
-      let responseData = '';
-      res.on('data', (chunk) => {
-        responseData += chunk;
-      });
-      res.on('end', () => {
-        // Handle HTTP error codes
-        if (res.statusCode && res.statusCode >= 400) {
-          return reject(
-            new Error(`HTTP Error ${res.statusCode}: ${responseData}`)
-          );
-        }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
 
-        try {
-          resolve(JSON.parse(responseData));
-        } catch {
-          resolve(responseData);
-        }
-      });
-    });
-
-    req.on('error', (error) => {
-      reject(error);
-    });
-
-    if (data) {
-      req.write(JSON.stringify(data));
-    }
-    req.end();
+  const response = await fetch(url, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
   });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  }
+
+  return response.json();
 }
 
-function getUserUploadKey(userId: string, fileName: string): string {
-  return `users/${userId}/uploads/${fileName}`;
-}
+async function uploadTestFile(
+  fileName: string,
+  testName: string
+): Promise<string> {
+  if (!fs.existsSync(TEST_PDF_PATH)) {
+    throw new Error(`Test PDF file not found at: ${TEST_PDF_PATH}`);
+  }
 
-async function uploadTestFile(userId: string): Promise<string> {
-  const fileName = `test-${TEST_FILE_UUID}-${Date.now()}.pdf`;
-  const key = getUserUploadKey(userId, fileName);
-  console.log(`Uploading test file to S3: ${key}`);
-
-  const fileContent = fs.readFileSync(TEST_FILE_PATH);
+  const fileContent = fs.readFileSync(TEST_PDF_PATH);
+  const fileKey = `users/${USER_ID}/uploads/${fileName}`;
 
   await s3Client.send(
     new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
+      Bucket: S3_BUCKET,
+      Key: fileKey,
       Body: fileContent,
       ContentType: 'application/pdf',
     })
   );
 
-  console.log('File uploaded successfully');
-  return key;
+  console.log(
+    `Uploaded test file for ${testName}: s3://${S3_BUCKET}/${fileKey}`
+  );
+  return fileKey;
+}
+
+async function deleteTestFile(fileKey: string): Promise<void> {
+  try {
+    await s3Client.send(
+      new DeleteObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: fileKey,
+      })
+    );
+    console.log(`Deleted test file: s3://${S3_BUCKET}/${fileKey}`);
+  } catch (error) {
+    console.warn(`Failed to delete test file ${fileKey}:`, error);
+  }
 }
 
 async function startWorkflow(
-  fileKey: string,
-  authToken: string,
-  userId: string // Added userId as a parameter
-): Promise<string> {
-  console.log('Starting workflow with the following parameters:');
-  const workflowParams = {
-    fileKey,
-    outputBucket: BUCKET_NAME,
-    originalFileBucket: BUCKET_NAME,
-    doTranslate: true,
-    doSpeech: true,
-    targetLanguage: 'japanese',
-    workflowId: TEST_FILE_UUID,
-    userId, // Use the passed-in userId parameter
-  };
-  console.log(JSON.stringify(workflowParams, null, 2));
-
-  if (!API_GATEWAY_URL) {
-    throw new Error(
-      'API_GATEWAY_URL environment variable is not set. Please set it to the API Gateway URL from the CDK output.'
-    );
-  }
-
+  params: WorkflowParams
+): Promise<WorkflowResponse> {
   const startWorkflowUrl = `${API_GATEWAY_URL}/workflow/start`;
   const response = await httpRequest(
     startWorkflowUrl,
     'POST',
-    workflowParams,
-    authToken
+    params,
+    AUTH_TOKEN
   );
 
   console.log('Workflow started:', response);
-  // Narrow response type to expected shape
-  if (
-    !response ||
-    typeof response !== 'object' ||
-    !('executionArn' in response)
-  ) {
-    throw new Error('Failed to get execution ARN from response');
+
+  if (!response || !response.workflowId) {
+    throw new Error('Failed to get workflowId from response');
   }
 
-  return (response as { executionArn: string }).executionArn;
+  return response as WorkflowResponse;
 }
 
-async function checkWorkflowStatus(executionArn: string): Promise<void> {
-  console.log(`Checking workflow status for execution: ${executionArn}`);
+async function getWorkflowStatus(workflowId: string): Promise<WorkflowStatus> {
+  const statusUrl = `${API_GATEWAY_URL}/workflow/status?workflowId=${encodeURIComponent(
+    workflowId
+  )}`;
+  const response = await httpRequest(statusUrl, 'GET', undefined, AUTH_TOKEN);
 
-  let isComplete = false;
+  if (!response || !response.status) {
+    throw new Error('Invalid workflow status response');
+  }
+
+  return response as WorkflowStatus;
+}
+
+async function pollWorkflowUntilComplete(
+  workflowId: string,
+  expectedFinalStatus: string,
+  maxAttempts: number = 1800, // 3 minutes at 100ms intervals
+  pollInterval: number = 100
+): Promise<WorkflowStatus[]> {
+  console.log(
+    `Polling workflow ${workflowId} until status: ${expectedFinalStatus}`
+  );
+
+  const statusHistory: WorkflowStatus[] = [];
   let attempts = 0;
-  const maxAttempts = 30; // Check for up to 5 minutes (30 x 10 seconds)
+  let lastStatus: string | undefined;
 
-  while (!isComplete && attempts < maxAttempts) {
-    const command = new DescribeExecutionCommand({
-      executionArn,
-    });
+  while (attempts < maxAttempts) {
+    try {
+      const status = await getWorkflowStatus(workflowId);
 
-    const response = await sfnClient.send(command);
-    console.log(`Execution status: ${response.status}`);
-
-    if (
-      response.status === 'SUCCEEDED' ||
-      response.status === 'FAILED' ||
-      response.status === 'ABORTED'
-    ) {
-      isComplete = true;
-
-      if (response.status === 'SUCCEEDED') {
-        const output = JSON.parse(response.output || '{}');
-        console.log('Workflow completed successfully:');
-        console.log(JSON.stringify(output, null, 2));
-
-        // Download and verify formatted text
-        if (output.formatTextOutput?.s3Path) {
-          await downloadAndVerifyS3File(
-            output.formatTextOutput.s3Path,
-            `formatted-${TEST_FILE_UUID}.txt`,
-            true
-          );
-        } else if (output.formatTextOutput?.body?.formattedText) {
-          // Handle case where text might be directly in body (legacy or small text)
-          console.log('Formatted Text (from direct output):');
-          console.log('--------------------');
-          console.log(
-            output.formatTextOutput.body.formattedText.substring(0, 500) + '...'
-          );
-          console.log('--------------------');
-        }
-
-        // Download and verify translated text
-        if (output.translateTextOutput?.s3Path) {
-          await downloadAndVerifyS3File(
-            output.translateTextOutput.s3Path,
-            `translated-${TEST_FILE_UUID}-${
-              output.targetLanguage || 'lang'
-            }.txt`,
-            true
-          );
-        } else if (output.translateTextOutput?.body?.translatedText) {
-          console.log('Translated Text (from direct output):');
-          console.log('--------------------');
-          console.log(
-            output.translateTextOutput.body.translatedText.substring(0, 500) +
-              '...'
-          );
-          console.log('--------------------');
-        }
-
-        // Download audio file
-        if (output.speechOutput?.s3Path) {
-          await downloadAndVerifyS3File(
-            output.speechOutput.s3Path,
-            `speech-${TEST_FILE_UUID}-${output.targetLanguage || 'lang'}.mp3`,
-            false
-          );
-        }
-      } else {
-        console.error(`Workflow ${response.status}:`, response.error);
-
-        // If there's error information in the output, display it
-        if (response.output) {
-          try {
-            const errorOutput = JSON.parse(response.output);
-            if (errorOutput.error) {
-              console.error('Error details:', errorOutput.error);
-            } else {
-              console.error(
-                'Full error output:',
-                JSON.stringify(errorOutput, null, 2)
-              );
-            }
-          } catch (error) {
-            console.error(
-              'Error parsing execution output:',
-              response.output,
-              error
-            );
-          }
-        }
+      // Only add to history if status changed
+      if (status.status !== lastStatus) {
+        statusHistory.push(status);
+        console.log(
+          `Status transition: ${lastStatus || 'START'} → ${status.status}`
+        );
+        lastStatus = status.status;
       }
-    } else {
-      console.log(
-        'Workflow still running. Waiting 10 seconds before checking again...'
-      );
-      await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds
+
+      // Check if workflow failed - fail immediately, don't continue polling
+      if (status.status === 'FAILED') {
+        console.error(`Workflow failed with status: FAILED`);
+        if (status.error) {
+          console.error(`Failure reason: ${status.error}`);
+        }
+        throw new Error(`Workflow failed: ${status.error || 'Unknown error'}`);
+      }
+
+      // Check if workflow completed successfully
+      if (status.status === expectedFinalStatus) {
+        console.log(
+          `Workflow completed with expected status: ${expectedFinalStatus}`
+        );
+        return statusHistory;
+      }
+
       attempts++;
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    } catch (error) {
+      // Re-throw workflow failure errors immediately - don't treat as polling errors
+      if (
+        error instanceof Error &&
+        error.message.includes('Workflow failed:')
+      ) {
+        throw error;
+      }
+
+      console.error(
+        `Error polling workflow status (attempt ${attempts + 1}):`,
+        error
+      );
+      attempts++;
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
     }
   }
 
-  if (!isComplete) {
-    console.log('Exceeded maximum wait time. Workflow is still running.');
-  }
+  throw new Error(
+    `Workflow did not complete within ${
+      (maxAttempts * pollInterval) / 1000
+    } seconds. Last status: ${lastStatus}`
+  );
 }
 
-// Updated function to download S3 files and handle text/binary content
-async function downloadAndVerifyS3File(
-  s3Path: { bucket: string; key: string },
-  localFilename: string,
-  isText: boolean = false
-): Promise<string | void> {
-  console.log(`Downloading S3 file: s3://${s3Path.bucket}/${s3Path.key}`);
+function validateStatusTransitions(
+  statusHistory: WorkflowStatus[],
+  expectedTransitions: string[]
+): void {
+  const actualStatuses = statusHistory.map((s) => s.status);
 
-  const command = new GetObjectCommand({
-    Bucket: s3Path.bucket,
-    Key: s3Path.key,
+  console.log('Expected transitions:', expectedTransitions);
+  console.log('Actual transitions:', actualStatuses);
+
+  // Require exact match - same length and same statuses in same order
+  expect(actualStatuses).toEqual(expectedTransitions);
+}
+
+// Test suite
+describe('Workflow Integration Tests', () => {
+  const uploadedFiles: string[] = [];
+
+  beforeAll(async () => {
+    console.log('Setting up integration tests...');
+    console.log(`Using test PDF file: ${TEST_PDF_PATH}`);
+
+    // Delete user if exists and create fresh user
+    await deleteUserIfExists();
+    USER_ID = await createTestUser();
+
+    // Authenticate and get token
+    AUTH_TOKEN = await authenticateUser();
+
+    console.log('Test user setup complete');
+
+    // Upload the same PDF file with different names for each test scenario
+    const testScenarios = [
+      'full-workflow-sample.pdf',
+      'translation-only-sample.pdf',
+      'speech-only-sample.pdf',
+      'formatting-only-sample.pdf',
+    ];
+
+    for (const fileName of testScenarios) {
+      const fileKey = await uploadTestFile(
+        fileName,
+        fileName.replace('-sample.pdf', '')
+      );
+      uploadedFiles.push(fileKey);
+    }
+  }, 60000); // 60 second timeout for setup
+
+  afterAll(async () => {
+    console.log('Cleaning up test files and user...');
+
+    // Clean up uploaded files
+    for (const fileKey of uploadedFiles) {
+      await deleteTestFile(fileKey);
+    }
+
+    // Clean up test user
+    await deleteUserIfExists();
+    console.log('Test cleanup complete');
   });
 
-  const response = await s3Client.send(command);
+  testRunner(
+    'should complete full workflow with translation and speech conversion',
+    async () => {
+      const fileKey = uploadedFiles[0];
+      const workflowParams: WorkflowParams = {
+        filename: path.basename(fileKey!),
+        doTranslate: true,
+        doSpeech: true,
+        targetLanguage: 'es',
+      };
 
-  if (!response.Body) {
-    throw new Error(`No response body received for ${s3Path.key}`);
-  }
+      // Start workflow
+      const { workflowId } = await startWorkflow(workflowParams);
 
-  const outputPath = path.resolve(__dirname, '../test-files/', localFilename);
+      // Poll until completion
+      const statusHistory = await pollWorkflowUntilComplete(
+        workflowId,
+        'SUCCEEDED'
+      );
 
-  const chunks: Buffer[] = [];
-  for await (const chunk of response.Body as AsyncIterable<Buffer>) {
-    chunks.push(chunk);
-  }
-  const buffer = Buffer.concat(chunks);
+      // Validate status transitions
+      const expectedTransitions = [
+        'STARTING',
+        'EXTRACTING_TEXT',
+        'FORMATTING_TEXT',
+        'TEXT_FORMATTING_COMPLETE',
+        'TRANSLATING',
+        'TRANSLATION_COMPLETE',
+        'CONVERTING_TO_SPEECH',
+        'SUCCEEDED',
+      ];
+      validateStatusTransitions(statusHistory, expectedTransitions);
 
-  if (isText) {
-    const content = buffer.toString('utf-8');
-    fs.writeFileSync(outputPath, content);
-    console.log(`Text file downloaded to: ${outputPath}`);
-    console.log(`Content snippet for ${localFilename}:`);
-    console.log('--------------------');
-    console.log(
-      content.substring(0, 500) + (content.length > 500 ? '...' : '')
-    );
-    console.log('--------------------');
-    return content;
-  } else {
-    fs.writeFileSync(outputPath, buffer);
-    console.log(`Binary file downloaded to: ${outputPath}`);
-  }
-}
+      // Validate final status details
+      const finalStatus = statusHistory[statusHistory.length - 1]!;
+      expect(finalStatus.status).toBe('SUCCEEDED');
+      expect(finalStatus.parameters).toMatchObject({
+        doTranslate: true,
+        doSpeech: true,
+        targetLanguage: 'es',
+      });
+      expect(finalStatus.s3Paths).toHaveProperty('originalFile');
+      expect(finalStatus.s3Paths).toHaveProperty('formattedText');
+      expect(finalStatus.s3Paths).toHaveProperty('translatedText');
+      expect(finalStatus.s3Paths).toHaveProperty('audioFile');
+    },
+    300000
+  ); // 5 minute timeout
 
-async function setupTestUser(): Promise<string> {
-  await deleteUserIfExists();
-  const userSub = await createTestUser();
-  if (!userSub) {
-    throw new Error('Failed to create test user or retrieve user sub.');
-  }
-  return userSub;
-}
+  testRunner(
+    'should complete workflow ending at translation (no speech)',
+    async () => {
+      const fileKey = uploadedFiles[1];
+      const workflowParams: WorkflowParams = {
+        filename: path.basename(fileKey!),
+        doTranslate: true,
+        doSpeech: false,
+        targetLanguage: 'fr',
+      };
 
-async function runWorkflowTest() {
-  try {
-    // Step 0: Setup test user and get userSub
-    const userSub = await setupTestUser(); // Declare userSub locally
-    if (!userSub) {
-      console.error('Failed to retrieve User SUB after setting up test user.');
-      process.exit(1);
-    }
-    console.log(`Using User SUB: ${userSub}`);
+      // Start workflow
+      const { workflowId } = await startWorkflow(workflowParams);
 
-    // Get an authentication token first
-    const authToken = await getAuthToken();
+      // Poll until completion - when doSpeech=false, translate-text function sets status to 'SUCCEEDED'
+      const statusHistory = await pollWorkflowUntilComplete(
+        workflowId,
+        'SUCCEEDED'
+      );
 
-    // Step 1: Upload a test file (now pass userSub)
-    const fileKey = await uploadTestFile(userSub);
+      // Validate status transitions
+      const expectedTransitions = [
+        'STARTING',
+        'EXTRACTING_TEXT',
+        'FORMATTING_TEXT',
+        'TEXT_FORMATTING_COMPLETE',
+        'TRANSLATING',
+        'SUCCEEDED',
+      ];
+      validateStatusTransitions(statusHistory, expectedTransitions);
 
-    // Step 2: Start the workflow with auth token and userSub
-    const executionArn = await startWorkflow(fileKey, authToken, userSub);
+      // Validate final status details - should be 'SUCCEEDED' when doSpeech=false
+      const finalStatus = statusHistory[statusHistory.length - 1]!;
+      expect(finalStatus.status).toBe('SUCCEEDED');
+      expect(finalStatus.parameters).toMatchObject({
+        doTranslate: true,
+        doSpeech: false,
+        targetLanguage: 'fr',
+      });
+      expect(finalStatus.s3Paths).toHaveProperty('originalFile');
+      expect(finalStatus.s3Paths).toHaveProperty('formattedText');
+      expect(finalStatus.s3Paths).toHaveProperty('translatedText');
+      expect(finalStatus.s3Paths).not.toHaveProperty('audioFile');
+    },
+    300000
+  );
 
-    // Step 3: Check the workflow status
-    // This doesn't need auth since it directly queries Step Functions
-    await checkWorkflowStatus(executionArn);
+  testRunner(
+    'should complete workflow ending at speech conversion (no translation)',
+    async () => {
+      const fileKey = uploadedFiles[2]!;
+      const workflowParams: WorkflowParams = {
+        filename: path.basename(fileKey),
+        doTranslate: false,
+        doSpeech: true,
+      };
 
-    console.log('Test completed');
-  } catch (error) {
-    console.error('Error running workflow test:', error);
-  }
-}
+      // Start workflow
+      const { workflowId } = await startWorkflow(workflowParams);
 
-runWorkflowTest();
+      // Poll until completion
+      const statusHistory = await pollWorkflowUntilComplete(
+        workflowId,
+        'SUCCEEDED'
+      );
+
+      // Validate status transitions
+      const expectedTransitions = [
+        'STARTING',
+        'EXTRACTING_TEXT',
+        'FORMATTING_TEXT',
+        'TEXT_FORMATTING_COMPLETE',
+        'CONVERTING_TO_SPEECH',
+        'SUCCEEDED',
+      ];
+      validateStatusTransitions(statusHistory, expectedTransitions);
+
+      // Validate final status details
+      const finalStatus = statusHistory[statusHistory.length - 1]!;
+      expect(finalStatus.status).toBe('SUCCEEDED');
+      expect(finalStatus.parameters).toMatchObject({
+        doTranslate: false,
+        doSpeech: true,
+      });
+      expect(finalStatus.s3Paths).toHaveProperty('originalFile');
+      expect(finalStatus.s3Paths).toHaveProperty('formattedText');
+      expect(finalStatus.s3Paths).not.toHaveProperty('translatedText');
+      expect(finalStatus.s3Paths).toHaveProperty('audioFile');
+    },
+    300000
+  );
+
+  testRunner(
+    'should complete workflow ending at text formatting (no translation or speech)',
+    async () => {
+      const fileKey = uploadedFiles[3]!; // Use formatting-only file
+      const workflowParams: WorkflowParams = {
+        filename: path.basename(fileKey),
+        doTranslate: false,
+        doSpeech: false,
+      };
+
+      // Start workflow
+      const { workflowId } = await startWorkflow(workflowParams);
+
+      // Poll until completion - when doTranslate=false AND doSpeech=false, format-text function sets status to 'SUCCEEDED'
+      const statusHistory = await pollWorkflowUntilComplete(
+        workflowId,
+        'SUCCEEDED'
+      );
+
+      // Validate status transitions
+      const expectedTransitions = [
+        'STARTING',
+        'EXTRACTING_TEXT',
+        'FORMATTING_TEXT',
+        'SUCCEEDED',
+      ];
+      validateStatusTransitions(statusHistory, expectedTransitions);
+
+      // Validate final status details - should be 'SUCCEEDED' when doTranslate=false AND doSpeech=false
+      const finalStatus = statusHistory[statusHistory.length - 1]!;
+      expect(finalStatus.status).toBe('SUCCEEDED');
+      expect(finalStatus.parameters).toMatchObject({
+        doTranslate: false,
+        doSpeech: false,
+      });
+      expect(finalStatus.s3Paths).toHaveProperty('originalFile');
+      expect(finalStatus.s3Paths).toHaveProperty('formattedText');
+      expect(finalStatus.s3Paths).not.toHaveProperty('translatedText');
+      expect(finalStatus.s3Paths).not.toHaveProperty('audioFile');
+    },
+    300000
+  );
+});

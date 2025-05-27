@@ -1,5 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handler } from './index';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterAll,
+} from 'vitest';
 import * as utils from './utils';
 import * as s3Utils from '../../../utils/s3-utils';
 import * as workflowState from '../../../utils/workflow-state';
@@ -20,10 +27,21 @@ async function callHandler(event: any) {
   return handler(event, context, callback);
 }
 
+let handler: any;
+
 describe('translate-text Lambda handler', () => {
   const mockedUtils = vi.mocked(utils);
   const mockedS3Utils = vi.mocked(s3Utils);
   const mockedWorkflowState = vi.mocked(workflowState);
+
+  beforeAll(async () => {
+    vi.stubEnv('USER_WORKFLOWS_TABLE', 'WorkflowTable');
+    handler = (await import('./index.js')).handler;
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -46,7 +64,7 @@ describe('translate-text Lambda handler', () => {
       userId: 'user',
       targetLanguage: 'French',
       workflowId: 'workflow-123',
-      workflowTableName: 'workflows-table',
+      workflowTableName: 'WorkflowTable',
       doSpeech: true,
       timestamp: Date.now(),
     };
@@ -54,12 +72,12 @@ describe('translate-text Lambda handler', () => {
     expect(result.message).toBe('Text translation successful');
     expect(result.translatedTextFileKey).toBe('user/translated/file.txt');
 
-    // Should call updateWorkflowStatus with 'SUCCEEDED' since doSpeech=true
+    // Should call updateWorkflowStatus with 'TRANSLATION_COMPLETE' since doSpeech=true (more steps to come)
     expect(mockedWorkflowState.updateWorkflowStatus).toHaveBeenCalledWith(
-      'workflows-table',
+      'WorkflowTable',
       'user',
       'workflow-123',
-      'SUCCEEDED',
+      'TRANSLATION_COMPLETE',
       expect.objectContaining({
         s3Paths: expect.objectContaining({
           originalFile: 'file.txt',
@@ -86,7 +104,7 @@ describe('translate-text Lambda handler', () => {
       userId: 'user',
       targetLanguage: 'French',
       workflowId: 'workflow-123',
-      workflowTableName: 'workflows-table',
+      workflowTableName: 'WorkflowTable',
       doSpeech: false,
       timestamp: Date.now(),
     };
@@ -94,12 +112,12 @@ describe('translate-text Lambda handler', () => {
     expect(result.message).toBe('Text translation successful');
     expect(result.translatedTextFileKey).toBe('user/translated/file.txt');
 
-    // Should call updateWorkflowStatus with 'TRANSLATION_COMPLETE' since doSpeech=false
+    // Should call updateWorkflowStatus with 'SUCCEEDED' since doSpeech=false (workflow complete)
     expect(mockedWorkflowState.updateWorkflowStatus).toHaveBeenCalledWith(
-      'workflows-table',
+      'WorkflowTable',
       'user',
       'workflow-123',
-      'TRANSLATION_COMPLETE',
+      'SUCCEEDED',
       expect.objectContaining({
         s3Paths: expect.objectContaining({
           originalFile: 'file.txt',
@@ -120,7 +138,7 @@ describe('translate-text Lambda handler', () => {
       userId: 'user',
       targetLanguage: 'French',
       workflowId: 'workflow-123',
-      workflowTableName: 'workflows-table',
+      workflowTableName: 'WorkflowTable',
       doSpeech: false,
       timestamp: Date.now(),
     };
@@ -143,7 +161,7 @@ describe('translate-text Lambda handler', () => {
       userId: 'user',
       targetLanguage: 'French',
       workflowId: 'workflow-123',
-      workflowTableName: 'workflows-table',
+      workflowTableName: 'WorkflowTable',
       doSpeech: false,
       timestamp: Date.now(),
     };
@@ -163,7 +181,7 @@ describe('translate-text Lambda handler', () => {
       userId: 'user',
       targetLanguage: 'French',
       workflowId: 'workflow-123',
-      workflowTableName: 'workflows-table',
+      workflowTableName: 'WorkflowTable',
       doSpeech: false,
       timestamp: Date.now(),
       // Missing storageBucket to test error
@@ -189,7 +207,7 @@ describe('translate-text Lambda handler', () => {
       userId: 'user',
       targetLanguage: 'French',
       workflowId: 'workflow-123',
-      workflowTableName: 'workflows-table',
+      workflowTableName: 'WorkflowTable',
       timestamp: Date.now(),
     };
 

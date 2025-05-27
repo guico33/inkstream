@@ -53,12 +53,6 @@ const ConvertToSpeechEventSchema = z
         invalid_type_error: 'workflowId must be a string',
       })
       .min(1, 'workflowId cannot be empty'),
-    workflowTableName: z
-      .string({
-        required_error: 'workflowTableName is required',
-        invalid_type_error: 'workflowTableName must be a string',
-      })
-      .min(1, 'workflowTableName cannot be empty'),
     translatedTextFileKey: z
       .string()
       .min(1, 'translatedTextFileKey cannot be empty if provided')
@@ -79,7 +73,6 @@ interface ConvertToSpeechEvent extends WorkflowCommonState {
   translatedTextFileKey?: string;
   formattedTextFileKey?: string;
   workflowId: string;
-  workflowTableName: string;
 }
 
 export const handler: Handler = async (event: ConvertToSpeechEvent) => {
@@ -87,6 +80,11 @@ export const handler: Handler = async (event: ConvertToSpeechEvent) => {
     'ConvertToSpeech Lambda invoked with event:',
     JSON.stringify(event, null, 2)
   );
+
+  const userWorkflowsTable = process.env.USER_WORKFLOWS_TABLE;
+  if (!userWorkflowsTable) {
+    throw new Error('USER_WORKFLOWS_TABLE environment variable is not set');
+  }
 
   // Validate input using Zod schema
   try {
@@ -107,13 +105,12 @@ export const handler: Handler = async (event: ConvertToSpeechEvent) => {
     originalFileKey,
     targetLanguage,
     workflowId,
-    workflowTableName,
   } = event;
 
   // Update workflow status to CONVERTING_TO_SPEECH
   try {
     await updateWorkflowStatus(
-      workflowTableName,
+      userWorkflowsTable,
       userId,
       workflowId,
       'CONVERTING_TO_SPEECH'
@@ -124,7 +121,10 @@ export const handler: Handler = async (event: ConvertToSpeechEvent) => {
       'Failed to update workflow status to CONVERTING_TO_SPEECH:',
       statusError
     );
-    // Continue execution even if status update fails
+    throw new ExternalServiceError(
+      `Failed to update workflow status: ${getErrorMessage(statusError)}`,
+      'DynamoDB'
+    );
   }
 
   let textForSpeech: string | undefined = undefined;
@@ -171,7 +171,7 @@ export const handler: Handler = async (event: ConvertToSpeechEvent) => {
     // Update workflow status to FAILED
     try {
       await updateWorkflowStatus(
-        workflowTableName,
+        userWorkflowsTable,
         userId,
         workflowId,
         'FAILED',
@@ -189,7 +189,7 @@ export const handler: Handler = async (event: ConvertToSpeechEvent) => {
     // Update workflow status to FAILED
     try {
       await updateWorkflowStatus(
-        workflowTableName,
+        userWorkflowsTable,
         userId,
         workflowId,
         'FAILED',
@@ -217,7 +217,7 @@ export const handler: Handler = async (event: ConvertToSpeechEvent) => {
     // Update workflow status to SUCCEEDED with S3 paths
     try {
       await updateWorkflowStatus(
-        workflowTableName,
+        userWorkflowsTable,
         userId,
         workflowId,
         'SUCCEEDED',
@@ -234,7 +234,10 @@ export const handler: Handler = async (event: ConvertToSpeechEvent) => {
         'Failed to update workflow status to SUCCEEDED:',
         statusError
       );
-      // Continue execution even if status update fails
+      throw new ExternalServiceError(
+        `Failed to update workflow status: ${getErrorMessage(statusError)}`,
+        'DynamoDB'
+      );
     }
 
     return {
@@ -250,7 +253,7 @@ export const handler: Handler = async (event: ConvertToSpeechEvent) => {
     // Update workflow status to FAILED with error details
     try {
       await updateWorkflowStatus(
-        workflowTableName,
+        userWorkflowsTable,
         userId,
         workflowId,
         'FAILED',
