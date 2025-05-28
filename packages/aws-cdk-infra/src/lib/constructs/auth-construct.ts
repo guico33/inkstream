@@ -1,5 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 import * as dotenv from 'dotenv';
 dotenv.config({ path: __dirname + '/../../.env' });
@@ -10,6 +11,12 @@ dotenv.config({ path: __dirname + '/../../.env' });
 export interface AuthConstructProps {
   // Environment name used to prefix resource names
   envName: string;
+
+  // Google OAuth Client ID (not sensitive) - required
+  googleClientId: string;
+
+  // Google OAuth Client Secret (from SecretsConstruct) - required
+  googleClientSecret: secretsmanager.ISecret;
 }
 
 /**
@@ -98,15 +105,15 @@ export class AuthConstruct extends Construct {
       ],
     });
 
-    // Add Google as identity provider (requires setting up Google OAuth credentials)
+    // Add Google as identity provider with required credentials
+    // Use the secret passed from SecretsConstruct
     const googleProvider = new cognito.UserPoolIdentityProviderGoogle(
       this,
       'Google',
       {
         userPool: this.userPool,
-        clientId: process.env.GOOGLE_CLIENT_ID || 'your-google-client-id',
-        clientSecret:
-          process.env.GOOGLE_CLIENT_SECRET || 'your-google-client-secret',
+        clientId: props.googleClientId,
+        clientSecretValue: props.googleClientSecret.secretValue,
         scopes: ['profile', 'email', 'openid'],
         attributeMapping: {
           email: cognito.ProviderAttribute.GOOGLE_EMAIL,
@@ -117,6 +124,8 @@ export class AuthConstruct extends Construct {
       }
     );
     this.userPoolClient.node.addDependency(googleProvider);
+
+    console.log('Google OAuth provider configured with Secrets Manager');
 
     // Create the identity pool
     // The identity pool provides AWS credentials to users who sign in through the user pool

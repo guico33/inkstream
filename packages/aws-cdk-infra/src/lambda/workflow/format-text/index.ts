@@ -1,4 +1,3 @@
-import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
 import { Handler } from 'aws-lambda';
 import { z } from 'zod';
 
@@ -9,7 +8,7 @@ import {
 } from '../../../utils/error-utils';
 import { generateUserS3Key, saveTextToS3 } from '../../../utils/s3-utils';
 import { updateWorkflowStatus } from '../../../utils/workflow-state';
-import { extractTextFromTextractS3, formatTextWithClaude } from './utils';
+import { extractTextFromTextractS3 } from './utils';
 import { WorkflowCommonState } from '../../../types/workflow';
 import {
   ValidationError,
@@ -17,9 +16,7 @@ import {
   ExternalServiceError,
   ProcessingError,
 } from '../../../errors';
-
-// Initialize Bedrock client
-const bedrockRuntime = new BedrockRuntimeClient({});
+import { getAiProvider } from '../../shared/ai-providers/ai-provider-factory';
 
 // Zod schema for input validation
 const FormatTextEventSchema = z.object({
@@ -183,11 +180,11 @@ export const handler: Handler = async (event: FormatTextEvent) => {
     throw new ProcessingError('No extracted text to format');
   }
 
+  // Initialize AI provider asynchronously
+  const aiProvider = await getAiProvider();
+
   try {
-    const formattedText = await formatTextWithClaude(
-      bedrockRuntime,
-      extractedText
-    );
+    const formattedText = await aiProvider.formatText(extractedText);
 
     // Generate S3 key for the formatted text file
     const outputKey = generateUserS3Key(

@@ -3,6 +3,7 @@ import { Construct } from 'constructs';
 import { ApiGatewayConstruct } from './constructs/api-gateway-construct';
 import { AuthConstruct } from './constructs/auth-construct';
 import { StorageConstruct } from './constructs/storage-construct';
+import { SecretsConstruct } from './constructs/secrets-construct';
 import { WorkflowControlLambdas } from './constructs/workflow-control-lambdas';
 import { WorkflowStepLambdas } from './constructs/workflow-step-lambdas';
 import { WorkflowStepFunctions } from './constructs/workflow-stepfunctions';
@@ -20,15 +21,27 @@ export class InkstreamStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     requireEnvVars([
       'GOOGLE_CLIENT_ID',
-      'GOOGLE_CLIENT_SECRET',
+      'GOOGLE_CLIENT_SECRET_SECRET_NAME',
       'AWS_ACCOUNT_ID',
       'AWS_REGION',
+      'AI_PROVIDER',
     ]);
     super(scope, id, props);
+
+    // Secrets Manager for API keys and other secrets
+    const secrets = new SecretsConstruct(this, 'Secrets', {
+      envName: 'dev',
+      appName: 'inkstream',
+      openaiApiKeySecretName: process.env.OPENAI_API_KEY_SECRET_NAME,
+      googleClientSecretSecretName:
+        process.env.GOOGLE_CLIENT_SECRET_SECRET_NAME!,
+    });
 
     // Cognito User Pool and Client
     const auth = new AuthConstruct(this, 'Auth', {
       envName: 'dev',
+      googleClientId: process.env.GOOGLE_CLIENT_ID!,
+      googleClientSecret: secrets.googleClientSecretSecret,
     });
 
     // S3 and DynamoDB setup (StorageConstruct must be created before WorkflowStepLambdas)
@@ -37,9 +50,10 @@ export class InkstreamStack extends cdk.Stack {
     // Lambdas for workflow steps
     const stepLambdas = new WorkflowStepLambdas(this, 'WorkflowStepLambdas', {
       storageBucketName: storage.storageBucket.bucketName,
-      claudeModelId: process.env.CLAUDE_MODEL_ID, // Pass the environment variable here
+      bedrockModelId: process.env.CLAUDE_MODEL_ID, // Pass the environment variable here
       textractJobTokensTableName: storage.textractJobTokensTable.tableName,
       userWorkflowsTableName: storage.userWorkflowsTable.tableName,
+      openaiApiKeySecretName: secrets.getOpenAIApiKeySecretName(),
     });
 
     // Now that stepLambdas is created, set the S3 event notification
@@ -89,6 +103,10 @@ export class InkstreamStack extends cdk.Stack {
     storage.userWorkflowsTable.grantWriteData(stepLambdas.formatTextFn);
     storage.userWorkflowsTable.grantWriteData(stepLambdas.translateTextFn);
     storage.userWorkflowsTable.grantWriteData(stepLambdas.convertToSpeechFn);
+
+    // Grant Secrets Manager read permissions to AI workflow lambdas
+    secrets.grantSecretRead(stepLambdas.formatTextFn);
+    secrets.grantSecretRead(stepLambdas.translateTextFn);
 
     // API Gateway
     const api = new ApiGatewayConstruct(this, 'ApiGateway', {

@@ -26,6 +26,19 @@ const mockedUtils = vi.mocked(utils);
 const mockedS3Utils = vi.mocked(s3Utils);
 const mockedWorkflowStateUtils = vi.mocked(workflowStateUtils);
 
+// Mock the AI provider factory
+const mockAIProvider = {
+  formatText: vi.fn(),
+  translateText: vi.fn(),
+};
+
+vi.mock('../../shared/ai-providers/ai-provider-factory', () => ({
+  getAiProvider: vi.fn(() => Promise.resolve(mockAIProvider)),
+  AIProviderFactory: {
+    createFromEnvironment: vi.fn(() => mockAIProvider),
+  },
+}));
+
 async function callHandler(event: any) {
   const context = {} as any;
   const callback = () => {};
@@ -48,11 +61,14 @@ describe('format-text Lambda handler', () => {
     vi.clearAllMocks();
     // Mock workflow state functions to avoid DynamoDB errors
     mockedWorkflowStateUtils.updateWorkflowStatus.mockResolvedValue(undefined);
+    // Reset AI provider mocks
+    mockAIProvider.formatText.mockReset();
+    mockAIProvider.translateText.mockReset();
   });
 
   it('returns success when formatting and saving succeeds', async () => {
     mockedUtils.extractTextFromTextractS3.mockResolvedValue('hello world');
-    mockedUtils.formatTextWithClaude.mockResolvedValue('formatted text');
+    mockAIProvider.formatText.mockResolvedValue('formatted text');
     mockedS3Utils.generateUserS3Key.mockReturnValue('user/formatted/file.txt');
     mockedS3Utils.saveTextToS3.mockResolvedValue({
       bucket: 'bucket',
@@ -90,7 +106,7 @@ describe('format-text Lambda handler', () => {
 
   it('sets TEXT_FORMATTING_COMPLETE status when workflow ends at formatting stage', async () => {
     mockedUtils.extractTextFromTextractS3.mockResolvedValue('hello world');
-    mockedUtils.formatTextWithClaude.mockResolvedValue('formatted text');
+    mockAIProvider.formatText.mockResolvedValue('formatted text');
     mockedS3Utils.generateUserS3Key.mockReturnValue('user/formatted/file.txt');
     mockedS3Utils.saveTextToS3.mockResolvedValue({
       bucket: 'bucket',
@@ -189,11 +205,9 @@ describe('format-text Lambda handler', () => {
     );
   });
 
-  it('throws ExternalServiceError if formatTextWithClaude throws', async () => {
+  it('throws ExternalServiceError if AI provider throws', async () => {
     mockedUtils.extractTextFromTextractS3.mockResolvedValue('some text');
-    mockedUtils.formatTextWithClaude.mockRejectedValue(
-      new Error('fail format')
-    );
+    mockAIProvider.formatText.mockRejectedValue(new Error('fail format'));
     const event = {
       textractMergedFileKey: 'input.json',
       storageBucket: 'bucket',

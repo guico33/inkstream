@@ -1,4 +1,3 @@
-import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
 import { Handler } from 'aws-lambda';
 import { z } from 'zod';
 import { WorkflowCommonState } from '../../../types/workflow';
@@ -7,7 +6,6 @@ import {
   getTextFromS3,
   saveTextToS3,
 } from '../../../utils/s3-utils';
-import { translateTextWithClaude } from './utils';
 import {
   formatErrorForLogging,
   getErrorMessage,
@@ -19,9 +17,7 @@ import {
   ExternalServiceError,
   ProcessingError,
 } from '../../../errors';
-
-// Initialize Bedrock client
-const bedrockRuntime = new BedrockRuntimeClient({});
+import { getAiProvider } from '../../shared/ai-providers/ai-provider-factory';
 
 // Zod schema for input validation
 const TranslateTextEventSchema = z.object({
@@ -163,9 +159,11 @@ export const handler: Handler = async (event: TranslateTextEvent) => {
     throw new ProcessingError('No text content to translate');
   }
 
+  // Initialize AI provider asynchronously
+  const aiProvider = await getAiProvider();
+
   try {
-    const translatedText = await translateTextWithClaude(
-      bedrockRuntime,
+    const translatedText = await aiProvider.translateText(
       textToTranslate,
       targetLanguage
     );

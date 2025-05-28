@@ -7,7 +7,6 @@ import {
   beforeAll,
   afterAll,
 } from 'vitest';
-import * as utils from './utils';
 import * as s3Utils from '../../../utils/s3-utils';
 import * as workflowState from '../../../utils/workflow-state';
 import {
@@ -17,9 +16,21 @@ import {
   ProcessingError,
 } from '../../../errors';
 
-vi.mock('./utils');
 vi.mock('../../../utils/s3-utils');
 vi.mock('../../../utils/workflow-state');
+
+// Mock the AI provider factory
+const mockAIProvider = {
+  formatText: vi.fn(),
+  translateText: vi.fn(),
+};
+
+vi.mock('../../shared/ai-providers/ai-provider-factory', () => ({
+  getAiProvider: vi.fn(() => Promise.resolve(mockAIProvider)),
+  AIProviderFactory: {
+    createFromEnvironment: vi.fn(() => mockAIProvider),
+  },
+}));
 
 async function callHandler(event: any) {
   const context = {} as any;
@@ -30,7 +41,6 @@ async function callHandler(event: any) {
 let handler: any;
 
 describe('translate-text Lambda handler', () => {
-  const mockedUtils = vi.mocked(utils);
   const mockedS3Utils = vi.mocked(s3Utils);
   const mockedWorkflowState = vi.mocked(workflowState);
 
@@ -45,11 +55,14 @@ describe('translate-text Lambda handler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset AI provider mocks
+    mockAIProvider.formatText.mockReset();
+    mockAIProvider.translateText.mockReset();
   });
 
   it('returns success when translation and saving succeeds', async () => {
     mockedS3Utils.getTextFromS3.mockResolvedValue('hello world');
-    mockedUtils.translateTextWithClaude.mockResolvedValue('bonjour le monde');
+    mockAIProvider.translateText.mockResolvedValue('bonjour le monde');
     mockedS3Utils.generateUserS3Key.mockReturnValue('user/translated/file.txt');
     mockedS3Utils.saveTextToS3.mockResolvedValue({
       bucket: 'bucket',
@@ -89,7 +102,7 @@ describe('translate-text Lambda handler', () => {
 
   it('sets TRANSLATION_COMPLETE status when workflow ends at translation stage', async () => {
     mockedS3Utils.getTextFromS3.mockResolvedValue('hello world');
-    mockedUtils.translateTextWithClaude.mockResolvedValue('bonjour le monde');
+    mockAIProvider.translateText.mockResolvedValue('bonjour le monde');
     mockedS3Utils.generateUserS3Key.mockReturnValue('user/translated/file.txt');
     mockedS3Utils.saveTextToS3.mockResolvedValue({
       bucket: 'bucket',
@@ -193,11 +206,9 @@ describe('translate-text Lambda handler', () => {
     );
   });
 
-  it('throws ExternalServiceError if translateTextWithClaude fails', async () => {
+  it('throws ExternalServiceError if AI provider translation fails', async () => {
     mockedS3Utils.getTextFromS3.mockResolvedValue('hello world');
-    mockedUtils.translateTextWithClaude.mockRejectedValue(
-      new Error('fail translate')
-    );
+    mockAIProvider.translateText.mockRejectedValue(new Error('fail translate'));
     mockedWorkflowState.updateWorkflowStatus.mockResolvedValue(undefined);
 
     const event = {

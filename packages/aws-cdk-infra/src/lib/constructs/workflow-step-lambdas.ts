@@ -6,9 +6,10 @@ import * as cdk from 'aws-cdk-lib';
 
 export interface WorkflowStepLambdasProps {
   storageBucketName: string;
-  claudeModelId?: string;
+  bedrockModelId?: string;
   textractJobTokensTableName: string;
   userWorkflowsTableName: string;
+  openaiApiKeySecretName?: string;
 }
 
 export class WorkflowStepLambdas extends Construct {
@@ -89,19 +90,41 @@ export class WorkflowStepLambdas extends Construct {
     this.formatTextFn = new NodejsFunction(this, 'FormatTextFunction', {
       entry: path.join(__dirname, '../../lambda/workflow/format-text/index.ts'),
       handler: 'handler',
-      description: 'Format extracted text with Claude Haiku',
+      description:
+        'Format extracted text with AI provider (Bedrock Claude or OpenAI)',
       runtime: lambda.Runtime.NODEJS_18_X,
-      timeout: cdk.Duration.seconds(60), // Increased timeout for Bedrock API calls
+      timeout: cdk.Duration.seconds(60), // Increased timeout for AI API calls
       environment: {
-        CLAUDE_MODEL_ID:
-          props.claudeModelId || 'anthropic.claude-3-haiku-20240307-v1:0',
-        BUCKET_NAME: props.storageBucketName, // Added BUCKET_NAME for S3 output
+        // AI Provider configuration
+        AI_PROVIDER: process.env.AI_PROVIDER || 'bedrock', // 'bedrock' or 'openai'
+        // Bedrock configuration (legacy)
+        BEDROCK_MODEL_ID:
+          props.bedrockModelId || 'anthropic.claude-3-haiku-20240307-v1:0',
+        // OpenAI configuration - use Secrets Manager for security
+        ...(props.openaiApiKeySecretName && {
+          OPENAI_API_KEY_SECRET_NAME: props.openaiApiKeySecretName,
+        }),
+        OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        // Common configuration
+        BUCKET_NAME: props.storageBucketName,
         USER_WORKFLOWS_TABLE: props.userWorkflowsTableName,
       },
       initialPolicy: [
         new cdk.aws_iam.PolicyStatement({
           actions: ['bedrock:InvokeModel', 's3:PutObject', 's3:GetObject'],
           resources: ['*'], // You can restrict this to specific model ARNs and S3 bucket/paths
+        }),
+        new cdk.aws_iam.PolicyStatement({
+          actions: ['secretsmanager:GetSecretValue'],
+          resources: [
+            `arn:aws:secretsmanager:*:*:secret:inkstream/*`, // Allow access to secrets under inkstream/ path
+          ],
+        }),
+        new cdk.aws_iam.PolicyStatement({
+          actions: ['dynamodb:UpdateItem'],
+          resources: [
+            `arn:aws:dynamodb:*:*:table/${props.userWorkflowsTableName}`,
+          ],
         }),
       ],
     });
@@ -112,12 +135,21 @@ export class WorkflowStepLambdas extends Construct {
         '../../lambda/workflow/translate-text/index.ts'
       ),
       handler: 'handler',
-      description: 'Translate text with Claude Haiku',
+      description: 'Translate text with AI provider (Bedrock Claude or OpenAI)',
       runtime: lambda.Runtime.NODEJS_18_X,
-      timeout: cdk.Duration.seconds(60), // Increased timeout for Bedrock API calls
+      timeout: cdk.Duration.seconds(60), // Increased timeout for AI API calls
       environment: {
+        // AI Provider configuration
+        AI_PROVIDER: process.env.AI_PROVIDER || 'bedrock', // 'bedrock' or 'openai'
+        // Bedrock configuration (legacy)
         CLAUDE_MODEL_ID:
-          props.claudeModelId || 'anthropic.claude-3-haiku-20240307-v1:0',
+          props.bedrockModelId || 'anthropic.claude-3-haiku-20240307-v1:0',
+        // OpenAI configuration - use Secrets Manager for security
+        ...(props.openaiApiKeySecretName && {
+          OPENAI_API_KEY_SECRET_NAME: props.openaiApiKeySecretName,
+        }),
+        OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        // Common configuration
         BUCKET_NAME: props.storageBucketName,
         USER_WORKFLOWS_TABLE: props.userWorkflowsTableName,
       },
@@ -125,6 +157,18 @@ export class WorkflowStepLambdas extends Construct {
         new cdk.aws_iam.PolicyStatement({
           actions: ['bedrock:InvokeModel', 's3:PutObject', 's3:GetObject'],
           resources: ['*'], // You can restrict this to specific model ARNs and S3 bucket/paths
+        }),
+        new cdk.aws_iam.PolicyStatement({
+          actions: ['secretsmanager:GetSecretValue'],
+          resources: [
+            `arn:aws:secretsmanager:*:*:secret:inkstream/*`, // Allow access to secrets under inkstream/ path
+          ],
+        }),
+        new cdk.aws_iam.PolicyStatement({
+          actions: ['dynamodb:UpdateItem'],
+          resources: [
+            `arn:aws:dynamodb:*:*:table/${props.userWorkflowsTableName}`,
+          ],
         }),
       ],
     });
