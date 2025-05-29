@@ -1,3 +1,6 @@
+// Modern auth context using auth-service
+// Provides centralized authentication state management with clean interface
+
 import {
   createContext,
   useContext,
@@ -6,86 +9,102 @@ import {
   useEffect,
   type ReactNode,
 } from 'react';
-import type { User } from '../types';
-import { ENV } from '../constants';
-import { getUserFromStorage, getIdTokenFromStorage } from '../auth';
+import type { User } from '../types/user-types';
+import { authService } from '../auth/auth-service';
 
 interface AuthContextType {
   user: User | null;
-  idToken: string | null;
-  setUser: (user: User | null, token?: string | null) => void;
-  signOut: () => void;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  signOut: () => Promise<void>;
+  refreshTokens: () => Promise<void>;
+  getIdToken: () => Promise<string | null>;
+  getLoginUrl: () => string;
+  exchangeCodeForTokens: (code: string) => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUserState] = useState<User | null>(() =>
-    getUserFromStorage()
-  );
-  const [idToken, setIdTokenState] = useState<string | null>(() =>
-    getIdTokenFromStorage()
-  );
-
-  console.log(
-    '[AuthContext] Initial user state from storage:',
-    user,
-    idToken
-      ? '[idToken present]'
-      : '[No idToken, user may not be authenticated]'
-  );
-
-  const setUser = useCallback(
-    (newUser: User | null, newToken?: string | null) => {
-      setUserState(newUser);
-      if (newUser && newToken !== undefined) {
-        localStorage.setItem('user', JSON.stringify(newUser));
-        if (newToken) {
-          localStorage.setItem('id_token', newToken);
-          setIdTokenState(newToken);
-        } else {
-          localStorage.removeItem('id_token');
-          setIdTokenState(null);
-        }
-      } else if (!newUser) {
-        localStorage.removeItem('user');
-        localStorage.removeItem('id_token');
-        setIdTokenState(null);
-      }
-    },
-    []
-  );
+  const [user, setUser] = useState<User | null>(authService.getCurrentUser());
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const syncAuth = () => {
-      const storedUser = getUserFromStorage();
-      const storedToken = getIdTokenFromStorage();
-      setUserState(storedUser);
-      setIdTokenState(storedToken);
-      console.log('[AuthContext] Synced auth state from storage:', {
-        user: storedUser,
-        idToken: storedToken,
+    // Subscribe to auth state changes
+    const unsubscribe = authService.subscribe((newUser) => {
+      setUser(newUser);
+      setIsLoading(false);
+    });
+
+    // Check if tokens need refreshing on mount
+    setIsLoading(true);
+    authService
+      .refreshTokensIfNeeded()
+      .catch(() => {
+        // Silent fail - user will need to re-authenticate
+      })
+      .finally(() => {
+        setIsLoading(false);
       });
-    };
-    window.addEventListener('storage', syncAuth);
-    syncAuth();
-    return () => window.removeEventListener('storage', syncAuth);
+
+    return unsubscribe;
   }, []);
 
-  const signOut = useCallback(() => {
-    console.log('Signing out user:', user);
-    localStorage.removeItem('user');
-    localStorage.removeItem('id_token');
-    setUserState(null);
-    setIdTokenState(null);
-    const cognitoLogoutUrl = `${ENV.COGNITO_DOMAIN}/logout?client_id=${
-      ENV.COGNITO_CLIENT_ID
-    }&logout_uri=${encodeURIComponent(window.location.origin)}`;
-    window.location.href = cognitoLogoutUrl;
-  }, [user]);
+  const signOut = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      await authService.signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const refreshTokens = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      await authService.refreshTokensIfNeeded();
+    } catch (error) {
+      console.error('Token refresh error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const getIdToken = useCallback(async () => {
+    return authService.getIdToken();
+  }, []);
+
+  const getLoginUrl = useCallback(() => {
+    return authService.getLoginUrl();
+  }, []);
+
+  const exchangeCodeForTokens = useCallback(async (code: string) => {
+    setIsLoading(true);
+    try {
+      await authService.exchangeCodeForTokens(code);
+    } catch (error) {
+      console.error('Token exchange error:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, idToken, setUser, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: authService.isAuthenticated(),
+        isLoading,
+        signOut,
+        refreshTokens,
+        getIdToken,
+        getLoginUrl,
+        exchangeCodeForTokens,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

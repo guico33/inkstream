@@ -8,7 +8,7 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { useAuth } from '@/lib/contexts/auth-context';
-import { useFileProcessing } from '@/lib/contexts/file-processing-context'; // Import the context hook
+import { useFileProcessing } from '@/lib/hooks/use-file-processing'; // Import the context hook
 import { getWorkflowDisplayInfo } from '@/lib/display'; // Import the new display function
 
 export function S3FileUpload() {

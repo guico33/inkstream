@@ -2,18 +2,16 @@ import {
   createContext,
   type ReactNode,
   useCallback,
-  useContext, // Keep useContext, it's used in useFileProcessing hook
   useEffect,
   useRef,
   useState,
 } from 'react';
 import { uploadFileToS3 } from '../aws-s3';
-import {
-  startInkstreamWorkflow,
-  getInkstreamWorkflowStatus,
-} from '../workflow-api';
-
 import { useAuth } from './auth-context';
+import {
+  getInkstreamWorkflowStatus,
+  startInkstreamWorkflow,
+} from '../workflow-api';
 import { POLLING_INTERVAL } from '../constants';
 import type {
   StartWorkflowResponse,
@@ -60,7 +58,7 @@ export function FileProcessingProvider({
   children,
 }: FileProcessingProviderProps) {
   const [state, setState] = useState<FileProcessingState>(initialState);
-  const { user, idToken: currentIdTokenFromAuth } = useAuth(); // Renamed for clarity
+  const { user, getIdToken } = useAuth();
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const clearPolling = useCallback(() => {
@@ -193,11 +191,22 @@ export function FileProcessingProvider({
   );
 
   const processSelectedFile = useCallback(async () => {
-    if (!state.selectedFile || !user || !currentIdTokenFromAuth) {
+    if (!state.selectedFile || !user) {
       setState((prev) => ({
         ...prev,
         errorMessage: 'No file selected or user not authenticated.',
         processingStatus: 'workflow_failed', // Or a more general 'error' state
+      }));
+      return;
+    }
+
+    // Get fresh ID token
+    const idToken = await getIdToken();
+    if (!idToken) {
+      setState((prev) => ({
+        ...prev,
+        errorMessage: 'Unable to get authentication token.',
+        processingStatus: 'workflow_failed',
       }));
       return;
     }
@@ -218,7 +227,6 @@ export function FileProcessingProvider({
       const s3UploadResult = await uploadFileToS3({
         file: state.selectedFile,
         user,
-        idToken: currentIdTokenFromAuth,
       });
 
       setState((prev) => ({
@@ -231,7 +239,7 @@ export function FileProcessingProvider({
       const workflowStartResult = await startInkstreamWorkflow({
         bucket: s3UploadResult.bucket,
         key: s3UploadResult.key,
-        idToken: currentIdTokenFromAuth,
+        idToken: idToken,
       });
 
       setState((prev) => ({
@@ -245,9 +253,9 @@ export function FileProcessingProvider({
         workflowStartResult
       );
 
-      if (workflowStartResult.executionArn && currentIdTokenFromAuth) {
+      if (workflowStartResult.executionArn) {
         const arn = workflowStartResult.executionArn;
-        const token = currentIdTokenFromAuth; // Capture token at this point for the polling session
+        const token = idToken; // Capture token at this point for the polling session
 
         // Initial immediate poll
         pollWorkflowStatus(arn, token);
@@ -280,13 +288,7 @@ export function FileProcessingProvider({
         processingStatus: 'workflow_failed',
       }));
     }
-  }, [
-    state.selectedFile,
-    user,
-    currentIdTokenFromAuth,
-    pollWorkflowStatus,
-    clearPolling,
-  ]);
+  }, [state.selectedFile, user, getIdToken, pollWorkflowStatus, clearPolling]);
 
   const resetProcessing = useCallback(() => {
     clearPolling();
@@ -313,12 +315,5 @@ export function FileProcessingProvider({
   );
 }
 
-export function useFileProcessing() {
-  const context = useContext(FileProcessingContext);
-  if (context === undefined) {
-    throw new Error(
-      'useFileProcessing must be used within a FileProcessingProvider'
-    );
-  }
-  return context;
-}
+// Export the context for use in the separate hook file
+export { FileProcessingContext };

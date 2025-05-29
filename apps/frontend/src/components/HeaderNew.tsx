@@ -5,7 +5,7 @@ import { getUserDisplayName } from '@/lib/display';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../lib/contexts/auth-context';
 
-export function Header() {
+export function HeaderNew() {
   const { user, isAuthenticated, signOut, isLoading } = useAuth();
   const displayName = getUserDisplayName(user);
 
