@@ -82,11 +82,20 @@ export class AuthService {
   // Exchange OAuth code for tokens
   async exchangeCodeForTokens(code: string): Promise<void> {
     try {
+      const redirectUri = window.location.origin + '/auth/callback';
+      console.log('Token exchange request:', {
+        grant_type: 'authorization_code',
+        client_id: ENV.COGNITO_CLIENT_ID,
+        code: code.substring(0, 10) + '...', // Log partial code for debugging
+        redirect_uri: redirectUri,
+        endpoint: `${ENV.COGNITO_DOMAIN}/oauth2/token`,
+      });
+
       const body = new URLSearchParams({
         grant_type: 'authorization_code',
         client_id: ENV.COGNITO_CLIENT_ID,
         code,
-        redirect_uri: window.location.origin + '/auth/callback',
+        redirect_uri: redirectUri,
       });
 
       const response = await fetch(`${ENV.COGNITO_DOMAIN}/oauth2/token`, {
@@ -97,6 +106,8 @@ export class AuthService {
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('Token exchange failed with status:', response.status);
+        console.error('Error response:', errorText);
         throw new AuthError(
           'TOKEN_EXCHANGE_FAILED',
           'Failed to exchange code for tokens',
