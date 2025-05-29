@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '../../lib/contexts/auth-context';
 
 export function AuthCallback() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { exchangeCodeForTokens } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(true);
@@ -25,7 +26,7 @@ export function AuthCallback() {
     console.log('AuthCallback: Starting token exchange process');
 
     const handleCallback = async () => {
-      const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(location.search);
       const code = params.get('code');
       const oauthError = params.get('error');
 
@@ -62,7 +63,7 @@ export function AuthCallback() {
     };
 
     handleCallback();
-  }, [exchangeCodeForTokens, navigate]);
+  }, [exchangeCodeForTokens, navigate, location.search]);
 
   // Show error state
   if (error) {

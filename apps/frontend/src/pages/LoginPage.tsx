@@ -1,26 +1,30 @@
-// Handles the login redirect logic for Cognito + Google authentication.
-// 1. If a Cognito OAuth code is present in the URL, do nothing (handled by AppRoutes).
-// 2. If a user is already authenticated, redirect to home.
-// 3. Otherwise, redirect to Cognito Hosted UI for Google login.
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/contexts/auth-context';
+import { useNavigate, useLocation } from 'react-router';
 
 export function LoginPage() {
   const { user, getLoginUrl, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const code = params.get('code');
     if (code) return; // Let AppRoutes handle code exchange
 
     if (isAuthenticated) {
-      window.location.replace('/');
+      navigate('/', { replace: true });
       return;
     }
 
+    // Prevent multiple redirects
+    if (hasRedirected) return;
+
     // Redirect to Cognito Hosted UI for Google login
-    window.location.href = getLoginUrl();
-  }, [user, getLoginUrl, isAuthenticated]);
+    setHasRedirected(true);
+    window.location.href = getLoginUrl(); // OAuth redirect must use window.location
+  }, [user, getLoginUrl, isAuthenticated, hasRedirected, navigate, location.search]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh]">

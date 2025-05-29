@@ -28,12 +28,17 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(authService.getCurrentUser());
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoginInProgress, setIsLoginInProgress] = useState(false);
 
   useEffect(() => {
     // Subscribe to auth state changes
     const unsubscribe = authService.subscribe((newUser) => {
       setUser(newUser);
       setIsLoading(false);
+      // Clear login in progress when user is authenticated
+      if (newUser) {
+        setIsLoginInProgress(false);
+      }
     });
 
     // Check if tokens need refreshing on mount
@@ -46,6 +51,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         setIsLoading(false);
       });
+
+    // Check if we're in the middle of an OAuth flow
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('code') || window.location.pathname === '/login') {
+      setIsLoginInProgress(true);
+    }
 
     return unsubscribe;
   }, []);
@@ -77,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getLoginUrl = useCallback(() => {
+    // Set login in progress when initiating login
+    setIsLoginInProgress(true);
     return authService.getLoginUrl();
   }, []);
 
@@ -84,8 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       await authService.exchangeCodeForTokens(code);
+      // Success will be handled by the auth service subscription
     } catch (error) {
       console.error('Token exchange error:', error);
+      // Clear login in progress on error
+      setIsLoginInProgress(false);
       throw error;
     } finally {
       setIsLoading(false);
@@ -97,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isAuthenticated: authService.isAuthenticated(),
-        isLoading,
+        isLoading: isLoading || isLoginInProgress,
         signOut,
         refreshTokens,
         getIdToken,

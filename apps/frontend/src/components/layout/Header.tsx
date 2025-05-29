@@ -4,10 +4,18 @@
 import { getUserDisplayName } from '@/lib/display';
 import { Button } from '../ui/button';
 import { useAuth } from '../../lib/contexts/auth-context';
+import { useNavigate } from 'react-router';
 
 export function Header() {
   const { user, isAuthenticated, signOut, isLoading } = useAuth();
+  const navigate = useNavigate();
   const displayName = getUserDisplayName(user);
+
+  const handleLoginClick = () => {
+    if (!isLoading) {
+      navigate('/login');
+    }
+  };
 
   return (
     <header className="flex items-center justify-between px-6 py-4 bg-white dark:bg-gray-900 shadow">
@@ -35,10 +43,8 @@ export function Header() {
             </Button>
           </div>
         ) : (
-          <Button asChild disabled={isLoading}>
-            <a href="/login">
-              {isLoading ? 'Loading...' : 'Sign in with Google'}
-            </a>
+          <Button onClick={handleLoginClick} disabled={isLoading}>
+            {isLoading ? 'Loading...' : 'Sign in with Google'}
           </Button>
         )}
       </nav>
