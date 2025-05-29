@@ -1,8 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router';
-import { LoginPage } from './components/LoginPage';
-import { HomePage } from './components/HomePage';
-import { Header } from './components/Header';
-import { AuthCallback } from './components/AuthCallback';
+import { LoginPage } from './pages/LoginPage';
+import { HomePage } from './pages/HomePage';
+import { Header } from './components/layout/Header';
+import { AuthCallback } from './components/auth/AuthCallback';
 import { useAuth } from './lib/contexts/auth-context';
 
 function AppRoutes() {

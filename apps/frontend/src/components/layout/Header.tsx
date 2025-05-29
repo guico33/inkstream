@@ -2,10 +2,10 @@
 // Cleaner and more maintainable
 
 import { getUserDisplayName } from '@/lib/display';
-import { Button } from '../components/ui/button';
-import { useAuth } from '../lib/contexts/auth-context';
+import { Button } from '../ui/button';
+import { useAuth } from '../../lib/contexts/auth-context';
 
-export function HeaderNew() {
+export function Header() {
   const { user, isAuthenticated, signOut, isLoading } = useAuth();
   const displayName = getUserDisplayName(user);
 

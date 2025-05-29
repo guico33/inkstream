@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { useAuth } from '../lib/contexts/auth-context';
+import { useAuth } from '../../lib/contexts/auth-context';
 
 export function AuthCallback() {
   const navigate = useNavigate();

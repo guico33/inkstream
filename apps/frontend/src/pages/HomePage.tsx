@@ -1,6 +1,6 @@
 import type { User } from '../lib/types/user-types';
 import { getUserDisplayName } from '@/lib/display';
-import { S3FileUpload } from './S3FileUpload';
+import { S3FileUpload } from '../components/FileUpload';
 
 export function HomePage({ user }: { user: User | null }) {
   const displayName = getUserDisplayName(user);
