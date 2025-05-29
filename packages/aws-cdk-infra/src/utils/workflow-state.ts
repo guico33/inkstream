@@ -9,9 +9,12 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { GetItemCommand } from 'dynamodb-toolbox/entity/actions/get';
 import { PutItemCommand } from 'dynamodb-toolbox/entity/actions/put';
-import { UpdateItemCommand } from 'dynamodb-toolbox/entity/actions/update';
+import {
+  UpdateItemCommand,
+  $append,
+} from 'dynamodb-toolbox/entity/actions/update';
 import { QueryCommand } from 'dynamodb-toolbox/table/actions/query';
-import { anyOf, boolean } from 'dynamodb-toolbox';
+import { anyOf, boolean, list } from 'dynamodb-toolbox';
 
 export type WorkflowStatus =
   | 'STARTING'
@@ -37,10 +40,17 @@ export interface WorkflowS3Paths {
   audioFile?: string;
 }
 
+export interface WorkflowStatusHistoryEntry {
+  status: WorkflowStatus;
+  timestamp: string;
+  error?: string;
+}
+
 export interface WorkflowRecord {
   userId: string;
   workflowId: string;
   status: WorkflowStatus;
+  statusHistory: WorkflowStatusHistoryEntry[];
   parameters?: WorkflowParameters;
   s3Paths?: WorkflowS3Paths;
   createdAt?: string;
@@ -49,6 +59,47 @@ export interface WorkflowRecord {
 }
 
 const documentClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+
+const statusSchema = anyOf(
+  string().enum('STARTING'),
+  string().enum('EXTRACTING_TEXT'),
+  string().enum('FORMATTING_TEXT'),
+  string().enum('TRANSLATING'),
+  string().enum('CONVERTING_TO_SPEECH'),
+  string().enum('TEXT_FORMATTING_COMPLETE'),
+  string().enum('TRANSLATION_COMPLETE'),
+  string().enum('SUCCEEDED'),
+  string().enum('FAILED')
+).required();
+
+const statusHistoryEntrySchema = map({
+  status: statusSchema,
+  timestamp: string().required(),
+  error: string().optional(),
+});
+
+const workflowStatusHistorySchema = list(statusHistoryEntrySchema);
+
+const workflowItemSchema = item({
+  userId: string().key(),
+  workflowId: string().key(),
+  status: statusSchema,
+  statusHistory: workflowStatusHistorySchema,
+  parameters: map({
+    doTranslate: boolean().optional(),
+    doSpeech: boolean().optional(),
+    targetLanguage: string().optional(),
+  }).optional(),
+  s3Paths: map({
+    originalFile: string().required(),
+    formattedText: string().optional(),
+    translatedText: string().optional(),
+    audioFile: string().optional(),
+  }).optional(),
+  createdAt: string().optional(),
+  updatedAt: string().optional(),
+  error: string().optional(),
+});
 
 /**
  * Returns a strongly-typed Workflow Entity for the given table name.
@@ -64,35 +115,7 @@ const getWorkflowTableAndEntity = (tableName: string) => {
   const workflowEntity = new Entity({
     name: 'WORKFLOW',
     table: workflowTable,
-    schema: item({
-      userId: string().key(),
-      workflowId: string().key(),
-      status: anyOf(
-        string().enum('STARTING'),
-        string().enum('EXTRACTING_TEXT'),
-        string().enum('FORMATTING_TEXT'),
-        string().enum('TRANSLATING'),
-        string().enum('CONVERTING_TO_SPEECH'),
-        string().enum('TEXT_FORMATTING_COMPLETE'),
-        string().enum('TRANSLATION_COMPLETE'),
-        string().enum('SUCCEEDED'),
-        string().enum('FAILED')
-      ),
-      parameters: map({
-        doTranslate: boolean().optional(),
-        doSpeech: boolean().optional(),
-        targetLanguage: string().optional(),
-      }).optional(),
-      s3Paths: map({
-        originalFile: string().required(),
-        formattedText: string().optional(),
-        translatedText: string().optional(),
-        audioFile: string().optional(),
-      }).optional(),
-      createdAt: string().optional(),
-      updatedAt: string().optional(),
-      error: string().optional(),
-    }),
+    schema: workflowItemSchema,
   });
   return { workflowEntity, workflowTable };
 };
@@ -123,7 +146,7 @@ export async function updateWorkflowStatus(
   tableName: string,
   userId: string,
   workflowId: string,
-  status: WorkflowStatus,
+  newStatus: WorkflowStatus,
   updates?: Partial<WorkflowRecord>
 ): Promise<void> {
   const { workflowEntity } = getWorkflowTableAndEntity(tableName);
@@ -133,8 +156,15 @@ export async function updateWorkflowStatus(
     .item({
       userId,
       workflowId,
-      status,
+      status: newStatus,
       updatedAt: now,
+      statusHistory: $append([
+        {
+          status: newStatus,
+          timestamp: now,
+          error: updates?.error,
+        },
+      ]),
       ...(updates || {}),
     })
     .send();

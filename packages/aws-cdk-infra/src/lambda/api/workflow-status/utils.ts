@@ -5,7 +5,7 @@ import {
   DescribeExecutionCommand,
   ExecutionStatus,
 } from '@aws-sdk/client-sfn';
-import { getWorkflow } from '../../../utils/workflow-state';
+import { getWorkflow, WorkflowRecord } from '../../../utils/workflow-state';
 import { ValidationError, ExternalServiceError } from '../../../errors';
 
 // Initialize Step Functions client
@@ -72,23 +72,13 @@ export async function getStepFunctionsExecutionDetails(
  * Combines DynamoDB workflow record with Step Functions execution details
  */
 export function combineWorkflowStatus(
-  workflowRecord: any,
+  workflowRecord: WorkflowRecord,
   executionDetails: StepFunctionsExecutionDetails
 ) {
-  const baseStatus = {
-    workflowId: workflowRecord.workflowId,
-    status: workflowRecord.status,
-    parameters: workflowRecord.parameters || {},
-    s3Paths: workflowRecord.s3Paths || {},
-    createdAt: workflowRecord.createdAt,
-    updatedAt: workflowRecord.updatedAt,
-    error: workflowRecord.error,
-  };
-
   // Add Step Functions execution details if available
   if (executionDetails) {
     return {
-      ...baseStatus,
+      ...workflowRecord,
       execution: {
         status: executionDetails.status,
         startDate: executionDetails.startDate?.toISOString(),
@@ -108,7 +98,7 @@ export function combineWorkflowStatus(
     };
   }
 
-  return baseStatus;
+  return workflowRecord;
 }
 
 /**

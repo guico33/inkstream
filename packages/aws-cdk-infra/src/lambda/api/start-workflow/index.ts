@@ -201,6 +201,12 @@ async function createWorkflowRecord(
       userId,
       workflowId,
       status: 'STARTING',
+      statusHistory: [
+        {
+          status: 'STARTING',
+          timestamp: nowIso,
+        },
+      ],
       parameters: {
         doTranslate: executionInput.doTranslate,
         doSpeech: executionInput.doSpeech,

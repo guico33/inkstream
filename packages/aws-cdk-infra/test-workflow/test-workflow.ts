@@ -43,16 +43,6 @@ interface WorkflowResponse {
   workflowId: string;
 }
 
-interface WorkflowStatus {
-  workflowId: string;
-  status: string;
-  parameters: Record<string, any>;
-  s3Paths: Record<string, any>;
-  createdAt: string;
-  updatedAt: string;
-  error?: string;
-}
-
 // Test configuration - map from .env.test variables
 const API_GATEWAY_URL = process.env.API_GATEWAY_URL;
 const S3_BUCKET = process.env.BUCKET_NAME; // Maps to BUCKET_NAME in .env.test
@@ -274,67 +264,53 @@ async function startWorkflow(
   return response as WorkflowResponse;
 }
 
-async function getWorkflowStatus(workflowId: string): Promise<WorkflowStatus> {
+async function getWorkflowRecord(workflowId: string): Promise<any> {
   const statusUrl = `${API_GATEWAY_URL}/workflow/status?workflowId=${encodeURIComponent(
     workflowId
   )}`;
   const response = await httpRequest(statusUrl, 'GET', undefined, AUTH_TOKEN);
 
-  if (!response || !response.status) {
-    throw new Error('Invalid workflow status response');
+  if (!response || !response.statusHistory) {
+    throw new Error('Invalid workflow record response');
   }
 
-  return response as WorkflowStatus;
+  return response;
 }
 
 async function pollWorkflowUntilComplete(
   workflowId: string,
   expectedFinalStatus: string,
-  maxAttempts: number = 1800, // 3 minutes at 100ms intervals
-  pollInterval: number = 100
-): Promise<WorkflowStatus[]> {
+  maxAttempts: number = 60, // 3 minutes max at 3s interval
+  pollInterval: number = 3000 // 3 seconds
+): Promise<any> {
   console.log(
     `Polling workflow ${workflowId} until status: ${expectedFinalStatus}`
   );
-
-  const statusHistory: WorkflowStatus[] = [];
   let attempts = 0;
   let lastStatus: string | undefined;
 
   while (attempts < maxAttempts) {
     try {
-      const status = await getWorkflowStatus(workflowId);
+      console.log(`Polling attempt ${attempts + 1}...`);
+      const record = await getWorkflowRecord(workflowId);
+      const status = record.status;
 
-      // Only add to history if status changed
-      if (status.status !== lastStatus) {
-        statusHistory.push(status);
-        console.log(
-          `Status transition: ${lastStatus || 'START'} → ${status.status}`
-        );
-        lastStatus = status.status;
+      if (status !== lastStatus) {
+        console.log(`Status transition: ${lastStatus || 'START'} → ${status}`);
+        lastStatus = status;
       }
 
-      // Check if workflow failed - fail immediately, don't continue polling
-      if (status.status === 'FAILED') {
-        console.error(`Workflow failed with status: FAILED`);
-        if (status.error) {
-          console.error(`Failure reason: ${status.error}`);
-        }
-        throw new Error(`Workflow failed: ${status.error || 'Unknown error'}`);
+      if (status === 'FAILED') {
+        throw new Error(`Workflow failed: ${record.error || 'Unknown error'}`);
       }
 
-      // Check if workflow completed successfully
-      if (status.status === expectedFinalStatus) {
-        console.log(
-          `Workflow completed with expected status: ${expectedFinalStatus}`
-        );
-        return statusHistory;
+      if (status === expectedFinalStatus) {
+        return record;
       }
 
       attempts++;
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
     } catch (error) {
-      // Re-throw workflow failure errors immediately - don't treat as polling errors
       if (
         error instanceof Error &&
         error.message.includes('Workflow failed:')
@@ -359,7 +335,7 @@ async function pollWorkflowUntilComplete(
 }
 
 function validateStatusTransitions(
-  statusHistory: WorkflowStatus[],
+  statusHistory: { status: string }[],
   expectedTransitions: string[]
 ): void {
   const actualStatuses = statusHistory.map((s) => s.status);
@@ -367,7 +343,6 @@ function validateStatusTransitions(
   console.log('Expected transitions:', expectedTransitions);
   console.log('Actual transitions:', actualStatuses);
 
-  // Require exact match - same length and same statuses in same order
   expect(actualStatuses).toEqual(expectedTransitions);
 }
 
@@ -433,10 +408,7 @@ describe('Workflow Integration Tests', () => {
       const { workflowId } = await startWorkflow(workflowParams);
 
       // Poll until completion
-      const statusHistory = await pollWorkflowUntilComplete(
-        workflowId,
-        'SUCCEEDED'
-      );
+      const record = await pollWorkflowUntilComplete(workflowId, 'SUCCEEDED');
 
       // Validate status transitions
       const expectedTransitions = [
@@ -449,20 +421,21 @@ describe('Workflow Integration Tests', () => {
         'CONVERTING_TO_SPEECH',
         'SUCCEEDED',
       ];
-      validateStatusTransitions(statusHistory, expectedTransitions);
+      validateStatusTransitions(record.statusHistory, expectedTransitions);
 
       // Validate final status details
-      const finalStatus = statusHistory[statusHistory.length - 1]!;
+      const finalStatus =
+        record.statusHistory[record.statusHistory.length - 1]!;
       expect(finalStatus.status).toBe('SUCCEEDED');
-      expect(finalStatus.parameters).toMatchObject({
+      expect(record.parameters).toMatchObject({
         doTranslate: true,
         doSpeech: true,
         targetLanguage: 'es',
       });
-      expect(finalStatus.s3Paths).toHaveProperty('originalFile');
-      expect(finalStatus.s3Paths).toHaveProperty('formattedText');
-      expect(finalStatus.s3Paths).toHaveProperty('translatedText');
-      expect(finalStatus.s3Paths).toHaveProperty('audioFile');
+      expect(record.s3Paths).toHaveProperty('originalFile');
+      expect(record.s3Paths).toHaveProperty('formattedText');
+      expect(record.s3Paths).toHaveProperty('translatedText');
+      expect(record.s3Paths).toHaveProperty('audioFile');
     },
     300000
   ); // 5 minute timeout
@@ -482,10 +455,7 @@ describe('Workflow Integration Tests', () => {
       const { workflowId } = await startWorkflow(workflowParams);
 
       // Poll until completion - when doSpeech=false, translate-text function sets status to 'SUCCEEDED'
-      const statusHistory = await pollWorkflowUntilComplete(
-        workflowId,
-        'SUCCEEDED'
-      );
+      const record = await pollWorkflowUntilComplete(workflowId, 'SUCCEEDED');
 
       // Validate status transitions
       const expectedTransitions = [
@@ -496,20 +466,21 @@ describe('Workflow Integration Tests', () => {
         'TRANSLATING',
         'SUCCEEDED',
       ];
-      validateStatusTransitions(statusHistory, expectedTransitions);
+      validateStatusTransitions(record.statusHistory, expectedTransitions);
 
       // Validate final status details - should be 'SUCCEEDED' when doSpeech=false
-      const finalStatus = statusHistory[statusHistory.length - 1]!;
+      const finalStatus =
+        record.statusHistory[record.statusHistory.length - 1]!;
       expect(finalStatus.status).toBe('SUCCEEDED');
-      expect(finalStatus.parameters).toMatchObject({
+      expect(record.parameters).toMatchObject({
         doTranslate: true,
         doSpeech: false,
         targetLanguage: 'fr',
       });
-      expect(finalStatus.s3Paths).toHaveProperty('originalFile');
-      expect(finalStatus.s3Paths).toHaveProperty('formattedText');
-      expect(finalStatus.s3Paths).toHaveProperty('translatedText');
-      expect(finalStatus.s3Paths).not.toHaveProperty('audioFile');
+      expect(record.s3Paths).toHaveProperty('originalFile');
+      expect(record.s3Paths).toHaveProperty('formattedText');
+      expect(record.s3Paths).toHaveProperty('translatedText');
+      expect(record.s3Paths).not.toHaveProperty('audioFile');
     },
     300000
   );
@@ -528,10 +499,7 @@ describe('Workflow Integration Tests', () => {
       const { workflowId } = await startWorkflow(workflowParams);
 
       // Poll until completion
-      const statusHistory = await pollWorkflowUntilComplete(
-        workflowId,
-        'SUCCEEDED'
-      );
+      const record = await pollWorkflowUntilComplete(workflowId, 'SUCCEEDED');
 
       // Validate status transitions
       const expectedTransitions = [
@@ -542,19 +510,20 @@ describe('Workflow Integration Tests', () => {
         'CONVERTING_TO_SPEECH',
         'SUCCEEDED',
       ];
-      validateStatusTransitions(statusHistory, expectedTransitions);
+      validateStatusTransitions(record.statusHistory, expectedTransitions);
 
       // Validate final status details
-      const finalStatus = statusHistory[statusHistory.length - 1]!;
+      const finalStatus =
+        record.statusHistory[record.statusHistory.length - 1]!;
       expect(finalStatus.status).toBe('SUCCEEDED');
-      expect(finalStatus.parameters).toMatchObject({
+      expect(record.parameters).toMatchObject({
         doTranslate: false,
         doSpeech: true,
       });
-      expect(finalStatus.s3Paths).toHaveProperty('originalFile');
-      expect(finalStatus.s3Paths).toHaveProperty('formattedText');
-      expect(finalStatus.s3Paths).not.toHaveProperty('translatedText');
-      expect(finalStatus.s3Paths).toHaveProperty('audioFile');
+      expect(record.s3Paths).toHaveProperty('originalFile');
+      expect(record.s3Paths).toHaveProperty('formattedText');
+      expect(record.s3Paths).not.toHaveProperty('translatedText');
+      expect(record.s3Paths).toHaveProperty('audioFile');
     },
     300000
   );
@@ -573,10 +542,7 @@ describe('Workflow Integration Tests', () => {
       const { workflowId } = await startWorkflow(workflowParams);
 
       // Poll until completion - when doTranslate=false AND doSpeech=false, format-text function sets status to 'SUCCEEDED'
-      const statusHistory = await pollWorkflowUntilComplete(
-        workflowId,
-        'SUCCEEDED'
-      );
+      const record = await pollWorkflowUntilComplete(workflowId, 'SUCCEEDED');
 
       // Validate status transitions
       const expectedTransitions = [
@@ -585,19 +551,20 @@ describe('Workflow Integration Tests', () => {
         'FORMATTING_TEXT',
         'SUCCEEDED',
       ];
-      validateStatusTransitions(statusHistory, expectedTransitions);
+      validateStatusTransitions(record.statusHistory, expectedTransitions);
 
       // Validate final status details - should be 'SUCCEEDED' when doTranslate=false AND doSpeech=false
-      const finalStatus = statusHistory[statusHistory.length - 1]!;
+      const finalStatus =
+        record.statusHistory[record.statusHistory.length - 1]!;
       expect(finalStatus.status).toBe('SUCCEEDED');
-      expect(finalStatus.parameters).toMatchObject({
+      expect(record.parameters).toMatchObject({
         doTranslate: false,
         doSpeech: false,
       });
-      expect(finalStatus.s3Paths).toHaveProperty('originalFile');
-      expect(finalStatus.s3Paths).toHaveProperty('formattedText');
-      expect(finalStatus.s3Paths).not.toHaveProperty('translatedText');
-      expect(finalStatus.s3Paths).not.toHaveProperty('audioFile');
+      expect(record.s3Paths).toHaveProperty('originalFile');
+      expect(record.s3Paths).toHaveProperty('formattedText');
+      expect(record.s3Paths).not.toHaveProperty('translatedText');
+      expect(record.s3Paths).not.toHaveProperty('audioFile');
     },
     300000
   );

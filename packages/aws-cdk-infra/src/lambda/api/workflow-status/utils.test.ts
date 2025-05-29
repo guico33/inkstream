@@ -40,6 +40,7 @@ import {
   handleError,
   StepFunctionsExecutionDetails,
 } from './utils';
+import { WorkflowRecord } from '../../../utils/workflow-state';
 
 describe('workflow-status utility functions', () => {
   beforeEach(() => {
@@ -160,9 +161,16 @@ describe('workflow-status utility functions', () => {
   });
 
   describe('combineWorkflowStatus', () => {
-    const mockWorkflowRecord = {
+    const mockWorkflowRecord: WorkflowRecord = {
+      userId: 'user-123',
       workflowId: 'wf-123',
-      status: 'RUNNING',
+      status: 'STARTING',
+      statusHistory: [
+        {
+          status: 'STARTING',
+          timestamp: '2024-01-01T00:00:00.000Z',
+        },
+      ],
       parameters: { doTranslate: true, targetLanguage: 'es' },
       s3Paths: { originalFile: 'test.pdf' },
       createdAt: '2024-01-01T00:00:00.000Z',
@@ -173,15 +181,7 @@ describe('workflow-status utility functions', () => {
     it('returns base status when execution details are null', () => {
       const result = combineWorkflowStatus(mockWorkflowRecord, null);
 
-      expect(result).toEqual({
-        workflowId: 'wf-123',
-        status: 'RUNNING',
-        parameters: { doTranslate: true, targetLanguage: 'es' },
-        s3Paths: { originalFile: 'test.pdf' },
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:30:00.000Z',
-        error: undefined,
-      });
+      expect(result).toEqual(mockWorkflowRecord);
     });
 
     it('combines workflow record with execution details when available', () => {
@@ -199,12 +199,7 @@ describe('workflow-status utility functions', () => {
       );
 
       expect(result).toEqual({
-        workflowId: 'wf-123',
-        status: 'RUNNING',
-        parameters: { doTranslate: true, targetLanguage: 'es' },
-        s3Paths: { originalFile: 'test.pdf' },
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:30:00.000Z',
+        ...mockWorkflowRecord,
         error: undefined,
         execution: {
           status: 'SUCCEEDED',
@@ -217,7 +212,7 @@ describe('workflow-status utility functions', () => {
     });
 
     it('prefers Step Functions error details when execution has error', () => {
-      const workflowWithError = {
+      const workflowWithError: WorkflowRecord = {
         ...mockWorkflowRecord,
         status: 'FAILED',
         error: 'DynamoDB error',
@@ -234,12 +229,7 @@ describe('workflow-status utility functions', () => {
       const result = combineWorkflowStatus(workflowWithError, executionDetails);
 
       expect(result).toEqual({
-        workflowId: 'wf-123',
-        status: 'FAILED',
-        parameters: { doTranslate: true, targetLanguage: 'es' },
-        s3Paths: { originalFile: 'test.pdf' },
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:30:00.000Z',
+        ...workflowWithError,
         error: 'ValidationError', // Overridden by Step Functions error
         cause: 'Input validation failed',
         execution: {
@@ -253,24 +243,23 @@ describe('workflow-status utility functions', () => {
     });
 
     it('handles empty parameters and s3Paths', () => {
-      const workflowWithEmptyFields = {
+      const workflowWithEmptyFields: WorkflowRecord = {
+        userId: 'user-123',
         workflowId: 'wf-123',
         status: 'STARTING',
+        statusHistory: [
+          {
+            status: 'STARTING',
+            timestamp: '2024-01-01T00:00:00.000Z',
+          },
+        ],
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
       const result = combineWorkflowStatus(workflowWithEmptyFields, null);
 
-      expect(result).toEqual({
-        workflowId: 'wf-123',
-        status: 'STARTING',
-        parameters: {},
-        s3Paths: {},
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-        error: undefined,
-      });
+      expect(result).toEqual(workflowWithEmptyFields);
     });
   });
 

@@ -22,6 +22,12 @@ const baseRecord: WorkflowRecord = {
   },
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z',
+  statusHistory: [
+    {
+      status: 'STARTING',
+      timestamp: '2024-01-01T00:00:00.000Z',
+    },
+  ],
 };
 
 let sendSpy: any;
