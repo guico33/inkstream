@@ -2,6 +2,7 @@ import {
   createContext,
   type ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -315,5 +316,12 @@ export function FileProcessingProvider({
   );
 }
 
-// Export the context for use in the separate hook file
-export { FileProcessingContext };
+export function useFileProcessing() {
+  const context = useContext(FileProcessingContext);
+  if (!context) {
+    throw new Error(
+      'useFileProcessing must be used within a FileProcessingProvider'
+    );
+  }
+  return context;
+}
