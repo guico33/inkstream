@@ -9,7 +9,7 @@ export interface WorkflowStepLambdasProps {
   bedrockModelId?: string;
   textractJobTokensTableName: string;
   userWorkflowsTableName: string;
-  openaiApiKeySecretName?: string;
+  openaiApiKeySecretArn?: string;
 }
 
 export class WorkflowStepLambdas extends Construct {
@@ -101,8 +101,8 @@ export class WorkflowStepLambdas extends Construct {
         BEDROCK_MODEL_ID:
           props.bedrockModelId || 'anthropic.claude-3-haiku-20240307-v1:0',
         // OpenAI configuration - use Secrets Manager for security
-        ...(props.openaiApiKeySecretName && {
-          OPENAI_API_KEY_SECRET_NAME: props.openaiApiKeySecretName,
+        ...(props.openaiApiKeySecretArn && {
+          OPENAI_API_KEY_SECRET_ARN: props.openaiApiKeySecretArn,
         }),
         OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
         // Common configuration
@@ -145,8 +145,8 @@ export class WorkflowStepLambdas extends Construct {
         CLAUDE_MODEL_ID:
           props.bedrockModelId || 'anthropic.claude-3-haiku-20240307-v1:0',
         // OpenAI configuration - use Secrets Manager for security
-        ...(props.openaiApiKeySecretName && {
-          OPENAI_API_KEY_SECRET_NAME: props.openaiApiKeySecretName,
+        ...(props.openaiApiKeySecretArn && {
+          OPENAI_API_KEY_SECRET_ARN: props.openaiApiKeySecretArn,
         }),
         OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
         // Common configuration

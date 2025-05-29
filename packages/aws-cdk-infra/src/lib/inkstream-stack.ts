@@ -21,7 +21,7 @@ export class InkstreamStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     requireEnvVars([
       'GOOGLE_CLIENT_ID',
-      'GOOGLE_CLIENT_SECRET_SECRET_NAME',
+      'GOOGLE_CLIENT_SECRET_SECRET_ARN',
       'AWS_ACCOUNT_ID',
       'AWS_REGION',
       'AI_PROVIDER',
@@ -32,9 +32,8 @@ export class InkstreamStack extends cdk.Stack {
     const secrets = new SecretsConstruct(this, 'Secrets', {
       envName: 'dev',
       appName: 'inkstream',
-      openaiApiKeySecretName: process.env.OPENAI_API_KEY_SECRET_NAME,
-      googleClientSecretSecretName:
-        process.env.GOOGLE_CLIENT_SECRET_SECRET_NAME!,
+      openaiApiKeySecretArn: process.env.OPENAI_API_KEY_SECRET_ARN,
+      googleClientSecretSecretArn: process.env.GOOGLE_CLIENT_SECRET_SECRET_ARN!,
     });
 
     // Cognito User Pool and Client
@@ -53,7 +52,7 @@ export class InkstreamStack extends cdk.Stack {
       bedrockModelId: process.env.CLAUDE_MODEL_ID, // Pass the environment variable here
       textractJobTokensTableName: storage.textractJobTokensTable.tableName,
       userWorkflowsTableName: storage.userWorkflowsTable.tableName,
-      openaiApiKeySecretName: secrets.getOpenAIApiKeySecretName(),
+      openaiApiKeySecretArn: secrets.getOpenAIApiKeySecretArn(),
     });
 
     // Now that stepLambdas is created, set the S3 event notification
@@ -104,10 +103,11 @@ export class InkstreamStack extends cdk.Stack {
     storage.userWorkflowsTable.grantWriteData(stepLambdas.translateTextFn);
     storage.userWorkflowsTable.grantWriteData(stepLambdas.convertToSpeechFn);
 
-    // Grant Secrets Manager read permissions to AI workflow lambdas
-    secrets.grantSecretRead(stepLambdas.formatTextFn);
-    secrets.grantSecretRead(stepLambdas.translateTextFn);
+    // Grant Secrets Manager read permissions to AI workflow lambdas (OpenAI only)
+    secrets.grantOpenAISecretRead(stepLambdas.formatTextFn);
+    secrets.grantOpenAISecretRead(stepLambdas.translateTextFn);
 
+    console.log('building API Gateway...');
     // API Gateway
     const api = new ApiGatewayConstruct(this, 'ApiGateway', {
       startWorkflowFn: controlLambdas.startWorkflowFn,

@@ -21,7 +21,7 @@ CLAUDE_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
 Uses OpenAI GPT models via AWS Secrets Manager:
 ```bash
 AI_PROVIDER=openai
-OPENAI_API_KEY_SECRET_NAME=inkstream/dev/openai-api-key
+OPENAI_API_KEY_SECRET_ARN=arn:aws:secretsmanager:eu-west-3:560756474135:secret:inkstream/dev/openai/api-key-xxxxxx
 OPENAI_MODEL=gpt-4o-mini
 ```
 
@@ -83,11 +83,10 @@ aws secretsmanager create-secret \
    ```bash
    # Google OAuth (required)
    GOOGLE_CLIENT_ID=your-google-client-id
-   GOOGLE_CLIENT_SECRET_SECRET_NAME=inkstream/dev/google-client-secret
-   
+   GOOGLE_CLIENT_SECRET_SECRET_ARN=arn:aws:secretsmanager:eu-west-3:560756474135:secret:inkstream/dev/google-client-secret-xxxxxx
    # OpenAI (optional, only if using OpenAI provider)
-   OPENAI_API_KEY_SECRET_NAME=inkstream/dev/openai-api-key
-   
+   OPENAI_API_KEY_SECRET_ARN=arn:aws:secretsmanager:eu-west-3:560756474135:secret:inkstream/dev/openai/api-key-xxxxxx
+
    # AWS Configuration
    AWS_ACCOUNT_ID=123456789012
    AWS_REGION=us-east-1

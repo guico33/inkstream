@@ -101,7 +101,8 @@ describe('AIProviderFactory', () => {
 
       const env: AIProviderEnvironment = {
         AI_PROVIDER: 'openai',
-        OPENAI_API_KEY_SECRET_NAME: 'openai-secret',
+        OPENAI_API_KEY_SECRET_ARN:
+          'arn:aws:secretsmanager:eu-west-3:560756474135:secret:inkstream/dev/openai/api-key-xxxxxx',
         OPENAI_MODEL: 'gpt-4',
         OPENAI_ORGANIZATION: 'test-org',
         OPENAI_TEMPERATURE: '0.2',
@@ -126,7 +127,7 @@ describe('AIProviderFactory', () => {
       const apiKey = await config?.apiKeyFetcher!();
       expect(apiKey).toBe(mockApiKey);
       expect(MockedSecretsManager.getSecret).toHaveBeenCalledWith(
-        'openai-secret'
+        'arn:aws:secretsmanager:eu-west-3:560756474135:secret:inkstream/dev/openai/api-key-xxxxxx'
       );
     });
 
@@ -135,7 +136,8 @@ describe('AIProviderFactory', () => {
 
       const env: AIProviderEnvironment = {
         AI_PROVIDER: 'openai',
-        OPENAI_API_KEY_SECRET_NAME: 'openai-secret',
+        OPENAI_API_KEY_SECRET_ARN:
+          'arn:aws:secretsmanager:eu-west-3:560756474135:secret:inkstream/dev/openai/api-key-xxxxxx',
       };
 
       await AIProviderFactory.createFromEnvironmentAsync(env);
@@ -165,7 +167,7 @@ describe('AIProviderFactory', () => {
       await expect(
         AIProviderFactory.createFromEnvironmentAsync(env)
       ).rejects.toThrow(
-        'OpenAI configuration is required. Set OPENAI_API_KEY_SECRET_NAME environment variable.'
+        'OpenAI configuration is required. Set OPENAI_API_KEY_SECRET_ARN environment variable.'
       );
     });
 
@@ -199,7 +201,8 @@ describe('AIProviderFactory', () => {
       MockedSecretsManager.getSecret.mockResolvedValue('test-api-key');
 
       process.env.AI_PROVIDER = 'openai';
-      process.env.OPENAI_API_KEY_SECRET_NAME = 'openai-secret';
+      process.env.OPENAI_API_KEY_SECRET_ARN =
+        'arn:aws:secretsmanager:eu-west-3:560756474135:secret:inkstream/dev/openai/api-key-xxxxxx';
       process.env.OPENAI_MODEL = 'gpt-4';
 
       await getAiProvider();

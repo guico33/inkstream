@@ -15,7 +15,7 @@ export type AIProviderEnvironment = {
   BEDROCK_REGION?: string;
   BEDROCK_TEMPERATURE?: string;
   BEDROCK_MAX_TOKENS?: string;
-  OPENAI_API_KEY_SECRET_NAME?: string; // Secrets Manager secret name for API key
+  OPENAI_API_KEY_SECRET_ARN?: string; // Secrets Manager secret ARN for API key
   OPENAI_MODEL?: string;
   OPENAI_ORGANIZATION?: string;
   OPENAI_TEMPERATURE?: string;
@@ -64,9 +64,9 @@ export class AIProviderFactory {
           maxTokens: parseInt(env.BEDROCK_MAX_TOKENS || '6000', 10),
         });
       case 'openai':
-        if (!env.OPENAI_API_KEY_SECRET_NAME) {
+        if (!env.OPENAI_API_KEY_SECRET_ARN) {
           throw new Error(
-            'OpenAI configuration is required. Set OPENAI_API_KEY_SECRET_NAME environment variable.'
+            'OpenAI configuration is required. Set OPENAI_API_KEY_SECRET_ARN environment variable.'
           );
         }
 
@@ -77,7 +77,7 @@ export class AIProviderFactory {
           temperature: parseFloat(env.OPENAI_TEMPERATURE || '0.1'),
           maxTokens: parseInt(env.OPENAI_MAX_TOKENS || '4000', 10),
           apiKeyFetcher: () =>
-            SecretsManager.getSecret(env.OPENAI_API_KEY_SECRET_NAME!),
+            SecretsManager.getSecret(env.OPENAI_API_KEY_SECRET_ARN!),
         };
 
         return new OpenAIProvider(openaiConfig);

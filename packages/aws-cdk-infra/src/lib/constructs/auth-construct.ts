@@ -90,8 +90,8 @@ export class AuthConstruct extends Construct {
           cognito.OAuthScope.PROFILE,
         ],
         callbackUrls: [
-          'http://localhost:5174/login', // Local development (must match frontend redirect_uri)
-          'https://your-domain.com/login', // Production (update as needed)
+          'http://localhost:5174/auth/callback', // Local development (must match frontend redirect_uri)
+          'https://your-domain.com/auth/callback', // Production (update as needed)
         ],
         logoutUrls: [
           'http://localhost:5174', // Local development
@@ -109,7 +109,7 @@ export class AuthConstruct extends Construct {
     // Use the secret passed from SecretsConstruct
     const googleProvider = new cognito.UserPoolIdentityProviderGoogle(
       this,
-      'Google',
+      'GoogleProvider',
       {
         userPool: this.userPool,
         clientId: props.googleClientId,
@@ -123,6 +123,7 @@ export class AuthConstruct extends Construct {
         },
       }
     );
+
     this.userPoolClient.node.addDependency(googleProvider);
 
     console.log('Google OAuth provider configured with Secrets Manager');

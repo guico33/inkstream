@@ -14,14 +14,14 @@ export interface SecretsConstructProps {
   appName?: string;
 
   /**
-   * OpenAI API Key secret name (manually created in AWS Secrets Manager)
+   * OpenAI API Key secret ARN (manually created in AWS Secrets Manager)
    */
-  openaiApiKeySecretName?: string;
+  openaiApiKeySecretArn?: string;
 
   /**
-   * Google Client Secret secret name (manually created in AWS Secrets Manager) - required
+   * Google Client Secret secret ARN (manually created in AWS Secrets Manager) - required
    */
-  googleClientSecretSecretName: string;
+  googleClientSecretSecretArn: string;
 }
 
 export interface SecretResource {
@@ -52,29 +52,41 @@ export class SecretsConstruct extends Construct {
     this.secretPrefix = `${appName}/${props.envName}`;
 
     // Reference existing OpenAI API Key secret if provided
-    if (props.openaiApiKeySecretName) {
+    if (props.openaiApiKeySecretArn) {
       console.log(
-        `Referencing existing OpenAI API Key secret: ${props.openaiApiKeySecretName}`
+        `Referencing existing OpenAI API Key secret: ${props.openaiApiKeySecretArn}`
       );
-      this.openaiApiKeySecret = secretsmanager.Secret.fromSecretNameV2(
+      this.openaiApiKeySecret = secretsmanager.Secret.fromSecretCompleteArn(
         this,
         'OpenAIApiKeySecret',
-        props.openaiApiKeySecretName
+        props.openaiApiKeySecretArn
+      );
+      console.log(
+        `OpenAI API Key secret ARN: ${this.openaiApiKeySecret.secretArn}`
+      );
+      console.log(
+        `OpenAI API Key secret name: ${this.openaiApiKeySecret.secretName}`
       );
     } else {
       console.warn(
-        'OpenAI API Key secret name not provided. OpenAI functionality will not be available.'
+        'OpenAI API Key secret ARN not provided. OpenAI functionality will not be available.'
       );
     }
 
     // Reference existing Google Client Secret (required)
     console.log(
-      `Referencing existing Google Client Secret: ${props.googleClientSecretSecretName}`
+      `Referencing existing Google Client Secret: ${props.googleClientSecretSecretArn}`
     );
-    this.googleClientSecretSecret = secretsmanager.Secret.fromSecretNameV2(
+    this.googleClientSecretSecret = secretsmanager.Secret.fromSecretCompleteArn(
       this,
       'GoogleClientSecretSecret',
-      props.googleClientSecretSecretName
+      props.googleClientSecretSecretArn
+    );
+    console.log(
+      `Google Client Secret ARN: ${this.googleClientSecretSecret.secretArn}`
+    );
+    console.log(
+      `Google Client Secret name: ${this.googleClientSecretSecret.secretName}`
     );
   }
 
@@ -84,19 +96,6 @@ export class SecretsConstruct extends Construct {
    */
   getOpenAIApiKeySecretArn(): string | undefined {
     return this.openaiApiKeySecret?.secretArn;
-  }
-
-  /**
-   * Get the secret name for OpenAI API key
-   * Returns undefined if the secret was not provided
-   */
-  getOpenAIApiKeySecretName(): string | undefined {
-    if (!this.openaiApiKeySecret) {
-      return undefined;
-    }
-    // Extract the secret name from the ISecret object
-    // For secrets created with fromSecretNameV2, we need to get the name back
-    return this.openaiApiKeySecret.secretName;
   }
 
   /**
@@ -158,6 +157,21 @@ export class SecretsConstruct extends Construct {
       grantee,
       actions: ['secretsmanager:GetSecretValue'],
       resourceArns: resources,
+    });
+  }
+
+  /**
+   * Grant read access only to the OpenAI API key secret
+   */
+  grantOpenAISecretRead(grantee: cdk.aws_iam.IGrantable): cdk.aws_iam.Grant {
+    if (this.openaiApiKeySecret) {
+      return this.openaiApiKeySecret.grantRead(grantee);
+    }
+    // Return a no-op grant when OpenAI secret is not available
+    return cdk.aws_iam.Grant.addToPrincipal({
+      grantee,
+      actions: [],
+      resourceArns: [],
     });
   }
 
