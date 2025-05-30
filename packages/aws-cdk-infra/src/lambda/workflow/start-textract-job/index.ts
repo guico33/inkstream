@@ -11,7 +11,7 @@ import {
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { updateWorkflowStatus } from '../../../utils/workflow-state';
-import { WorkflowCommonState } from '../../../types/workflow';
+import { WorkflowCommonState } from '@inkstream/shared';
 import { ValidationError } from '../../../errors';
 
 const textract = new TextractClient({});

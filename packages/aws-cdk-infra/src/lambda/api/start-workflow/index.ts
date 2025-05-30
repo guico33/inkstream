@@ -6,7 +6,7 @@ import {
 } from '@aws-sdk/client-sfn';
 import { z } from 'zod';
 import { createWorkflow } from '../../../utils/workflow-state';
-import { WorkflowCommonState } from '../../../types/workflow';
+import { WorkflowCommonState } from '@inkstream/shared';
 import { ValidationError, ExternalServiceError } from '../../../errors';
 
 // Zod schema for environment variables validation

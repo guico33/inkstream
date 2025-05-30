@@ -17,7 +17,7 @@ import { POLLING_INTERVAL } from '../constants';
 import type {
   StartWorkflowResponse,
   WorkflowStatusResponse,
-} from '../types/api-types'; // Combined import
+} from '@inkstream/shared'; // Combined import
 import type { ProcessingStatus } from '../types/file-processing-types'; // Added import
 
 interface FileProcessingState {
@@ -83,28 +83,14 @@ export function FileProcessingProvider({
   );
 
   const pollWorkflowStatus = useCallback(
-    async (executionArn: string, idToken: string) => {
-      if (!idToken) {
-        console.warn(
-          '[FileProcessingContext] No idToken provided for polling attempt.'
-        );
-        clearPolling();
-        setState((prev) => ({
-          ...prev,
-          processingStatus: 'workflow_failed', // Treat as a failure of the process
-          errorMessage:
-            'Authentication token missing during status check. Please try again or sign in.',
-        }));
-        return;
-      }
+    async (workflowId: string) => {
       try {
         console.log(
           '[FileProcessingContext] Polling for status of:',
-          executionArn
+          workflowId
         );
         const statusResponse = await getInkstreamWorkflowStatus({
-          executionArn,
-          idToken: idToken,
+          workflowId,
         });
 
         setState((prev) => ({
@@ -113,7 +99,7 @@ export function FileProcessingProvider({
           errorMessage: null, // Clear previous error on successful poll
         }));
 
-        switch (statusResponse.status) {
+        switch (statusResponse.execution?.status) {
           case 'RUNNING':
             setState((prev) => ({
               ...prev,
@@ -128,7 +114,7 @@ export function FileProcessingProvider({
             }));
             console.log(
               '[FileProcessingContext] Workflow succeeded:',
-              statusResponse.output
+              statusResponse.s3Paths // Use s3Paths instead of output
             );
             break;
           case 'FAILED':
@@ -238,9 +224,10 @@ export function FileProcessingProvider({
       }));
 
       const workflowStartResult = await startInkstreamWorkflow({
-        bucket: s3UploadResult.bucket,
-        key: s3UploadResult.key,
-        idToken: idToken,
+        filename: s3UploadResult.key, // Use key as filename
+        doTranslate: false, // TODO: Get from workflow options
+        doSpeech: false, // TODO: Get from workflow options
+        targetLanguage: 'english', // TODO: Get from workflow options
       });
 
       setState((prev) => ({
@@ -254,22 +241,18 @@ export function FileProcessingProvider({
         workflowStartResult
       );
 
-      if (workflowStartResult.executionArn) {
-        const arn = workflowStartResult.executionArn;
-        const token = idToken; // Capture token at this point for the polling session
+      if (workflowStartResult.workflowId) {
+        const workflowId = workflowStartResult.workflowId;
 
         // Initial immediate poll
-        pollWorkflowStatus(arn, token);
+        pollWorkflowStatus(workflowId);
 
         pollingIntervalRef.current = setInterval(() => {
-          // It's generally better to get the freshest token if possible,
-          // but for simplicity in this iteration, we use the token captured at the start of this process.
-          // If token expiration becomes an issue during long polling sessions, this needs refinement.
-          pollWorkflowStatus(arn, token);
+          pollWorkflowStatus(workflowId);
         }, POLLING_INTERVAL);
       } else {
         console.error(
-          '[FileProcessingContext] No execution ARN or idToken to start polling.'
+          '[FileProcessingContext] No workflow ID or idToken to start polling.'
         );
         setState((prev) => ({
           ...prev,

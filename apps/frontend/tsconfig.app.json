@@ -26,7 +26,8 @@
     /* shadcn */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@inkstream/shared": ["../../packages/shared/src/index.ts"]
     }
   },
   "include": ["src"]

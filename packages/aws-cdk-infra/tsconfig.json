@@ -17,6 +17,10 @@
     "noImplicitThis": true,
     "types": ["node"],
     "moduleResolution": "node16",
+    "baseUrl": ".",
+    "paths": {
+      "@inkstream/shared": ["../shared/src/index.ts"]
+    }
   },
   "include": ["src/**/*.ts", "test-workflow/**/*.ts", "bin/**/*.ts"]
 }

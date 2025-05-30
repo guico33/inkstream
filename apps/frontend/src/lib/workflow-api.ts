@@ -1,38 +1,50 @@
-// apps/frontend/src/lib/workflow-api.ts
-import { ENV } from './constants'; // Updated import path for ENV
 import type {
+  GetWorkflowStatusParams,
   StartWorkflowParams,
   StartWorkflowResponse,
-  GetWorkflowStatusParams,
   WorkflowStatusResponse,
-} from './types/api-types'; // Updated import path for API types
+} from '@inkstream/shared';
+import { ENV } from './constants'; // Updated import path for ENV
 
 /**
  * Calls the backend API to start the Inkstream Step Functions workflow.
  */
 export async function startInkstreamWorkflow({
-  bucket,
-  key,
-  idToken,
-}: StartWorkflowParams): Promise<StartWorkflowResponse> {
-  // Ensure ENV.API_ENDPOINT_URL is defined in your env.ts and includes the base URL of your API Gateway
-  const endpoint = `${ENV.API_ENDPOINT_URL}/workflow/start`; // Changed path
+  filename,
+  doTranslate = false,
+  doSpeech = false,
+  targetLanguage = 'english',
+}: Omit<StartWorkflowParams, 'idToken'> & {
+  idToken?: string;
+}): Promise<StartWorkflowResponse> {
+  const endpoint = `${ENV.API_ENDPOINT_URL}/workflow/start`;
 
-  console.log('[WorkflowAPI] Starting workflow for S3 object:', {
-    bucket,
-    key,
+  console.log('[WorkflowAPI] Starting workflow for file:', {
+    filename,
+    doTranslate,
+    doSpeech,
+    targetLanguage,
   });
+
+  // Get the current ID token for authentication
+  const { authService } = await import('./auth/auth-service');
+  const idToken = await authService.getIdToken();
+
+  if (!idToken) {
+    throw new Error('User not authenticated');
+  }
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // Assuming your API Gateway authorizer uses Bearer token
       Authorization: `Bearer ${idToken}`,
     },
     body: JSON.stringify({
-      bucket, // The S3 bucket name
-      key, // The S3 object key
+      filename,
+      doTranslate,
+      doSpeech,
+      targetLanguage,
     }),
   });
 
@@ -59,15 +71,22 @@ export async function startInkstreamWorkflow({
  * Calls the backend API to get the status of a Step Functions workflow execution.
  */
 export async function getInkstreamWorkflowStatus({
-  executionArn,
-  idToken,
+  workflowId,
 }: GetWorkflowStatusParams): Promise<WorkflowStatusResponse> {
   const endpoint = `${ENV.API_ENDPOINT_URL}/workflow/status`; // Changed path
 
-  console.log('[WorkflowAPI] Getting status for execution:', executionArn);
+  console.log('[WorkflowAPI] Getting status for workflow:', workflowId);
+
+  // Get the current ID token for authentication
+  const { authService } = await import('./auth/auth-service');
+  const idToken = await authService.getIdToken();
+
+  if (!idToken) {
+    throw new Error('User not authenticated');
+  }
 
   const response = await fetch(
-    `${endpoint}?executionArn=${encodeURIComponent(executionArn)}`,
+    `${endpoint}?workflowId=${encodeURIComponent(workflowId)}`,
     {
       method: 'GET',
       headers: {

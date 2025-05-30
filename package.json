@@ -3,12 +3,13 @@
   "private": true,
   "workspaces": [
     "apps/frontend",
-    "packages/aws-cdk-infra"
+    "packages/aws-cdk-infra",
+    "packages/shared"
   ],
   "scripts": {
     "dev:frontend": "npm --workspace apps/frontend run dev",
     "build:frontend": "npm --workspace apps/frontend run build",
-    "dev:infra": "npm --workspace packages/aws-cdk-infra run cdk:synth:dev",
-    "deploy:infra": "npm --workspace packages/aws-cdk-infra run cdk:deploy:dev"
+    "deploy:infra:dev": "npm --workspace packages/aws-cdk-infra run cdk:deploy:dev",
+    "build:shared": "npm --workspace packages/shared run build"
   }
 }

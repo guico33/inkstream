@@ -135,9 +135,9 @@ export function S3FileUpload() {
           }`}
         >
           <p className={messageColor}>{statusMessage}</p>
-          {workflowData?.executionArn && (
+          {workflowData?.workflowId && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 break-all">
-              Execution ARN: {workflowData.executionArn}
+              Workflow ID: {workflowData.workflowId}
             </p>
           )}
         </div>

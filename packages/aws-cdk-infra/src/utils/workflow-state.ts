@@ -16,47 +16,8 @@ import {
 import { QueryCommand } from 'dynamodb-toolbox/table/actions/query';
 import { anyOf, boolean, list } from 'dynamodb-toolbox';
 
-export type WorkflowStatus =
-  | 'STARTING'
-  | 'EXTRACTING_TEXT'
-  | 'FORMATTING_TEXT'
-  | 'TRANSLATING'
-  | 'CONVERTING_TO_SPEECH'
-  | 'TEXT_FORMATTING_COMPLETE'
-  | 'TRANSLATION_COMPLETE'
-  | 'SUCCEEDED'
-  | 'FAILED';
-
-export interface WorkflowParameters {
-  doTranslate?: boolean;
-  doSpeech?: boolean;
-  targetLanguage?: string;
-}
-
-export interface WorkflowS3Paths {
-  originalFile: string;
-  formattedText?: string;
-  translatedText?: string;
-  audioFile?: string;
-}
-
-export interface WorkflowStatusHistoryEntry {
-  status: WorkflowStatus;
-  timestamp: string;
-  error?: string;
-}
-
-export interface WorkflowRecord {
-  userId: string;
-  workflowId: string;
-  status: WorkflowStatus;
-  statusHistory: WorkflowStatusHistoryEntry[];
-  parameters?: WorkflowParameters;
-  s3Paths?: WorkflowS3Paths;
-  createdAt?: string;
-  updatedAt?: string;
-  error?: string;
-}
+// Import types from shared package
+import type { WorkflowStatus, WorkflowRecord } from '@inkstream/shared';
 
 const documentClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 

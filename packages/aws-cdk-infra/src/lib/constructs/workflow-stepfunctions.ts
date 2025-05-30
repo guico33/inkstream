@@ -3,7 +3,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { Construct } from 'constructs';
-import { WorkflowCommonState } from '../../types/workflow';
+import { WorkflowCommonState } from '@inkstream/shared';
 
 export interface WorkflowStepFunctionsProps {
   formatTextFn: lambda.IFunction;

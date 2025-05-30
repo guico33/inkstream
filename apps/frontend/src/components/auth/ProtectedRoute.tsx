@@ -2,7 +2,7 @@
 // Replaces manual auth checks in components
 
 import { Navigate, useLocation } from 'react-router';
-import { useAuth } from '../lib/auth/use-auth';
+import { useAuth } from '@/lib/contexts/auth-context';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;

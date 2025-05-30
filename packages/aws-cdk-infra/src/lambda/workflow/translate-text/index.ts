@@ -1,6 +1,6 @@
 import { Handler } from 'aws-lambda';
 import { z } from 'zod';
-import { WorkflowCommonState } from '../../../types/workflow';
+import { WorkflowCommonState } from '@inkstream/shared';
 import {
   generateUserS3Key,
   getTextFromS3,

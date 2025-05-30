@@ -9,7 +9,7 @@ import {
 import { generateUserS3Key, saveTextToS3 } from '../../../utils/s3-utils';
 import { updateWorkflowStatus } from '../../../utils/workflow-state';
 import { extractTextFromTextractS3 } from './utils';
-import { WorkflowCommonState } from '../../../types/workflow';
+import { WorkflowCommonState } from '@inkstream/shared';
 import {
   ValidationError,
   S3Error,

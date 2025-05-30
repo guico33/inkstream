@@ -9,7 +9,7 @@ import {
   getErrorMessage,
 } from '../../../utils/error-utils';
 import { textToSpeech } from './utils';
-import { WorkflowCommonState } from '../../../types/workflow';
+import { WorkflowCommonState } from '@inkstream/shared';
 import { updateWorkflowStatus } from '../../../utils/workflow-state';
 import {
   ValidationError,
