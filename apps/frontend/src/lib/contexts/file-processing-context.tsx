@@ -224,7 +224,7 @@ export function FileProcessingProvider({
       }));
 
       const workflowStartResult = await startInkstreamWorkflow({
-        filename: s3UploadResult.key, // Use key as filename
+        filename: s3UploadResult.filename, // Use key as filename
         doTranslate: false, // TODO: Get from workflow options
         doSpeech: false, // TODO: Get from workflow options
         targetLanguage: 'english', // TODO: Get from workflow options

@@ -187,9 +187,10 @@ export class AuthConstruct extends Construct {
         effect: cdk.aws_iam.Effect.ALLOW,
         actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
         resources: [
+          // Allow access to all user folders for downloading processed files
           `arn:aws:s3:::dev-inkstream-storage-${
             cdk.Stack.of(this).account
-          }/users/\${aws:PrincipalTag/sub}/uploads/*`,
+          }/users/\${aws:PrincipalTag/sub}/*`,
         ],
       })
     );

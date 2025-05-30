@@ -10,6 +10,7 @@ import { Progress } from './ui/progress';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { useFileProcessing } from '@/lib/contexts/file-processing-context'; // Import the context hook
 import { getWorkflowDisplayInfo } from '@/lib/display'; // Import the new display function
+import { FileDownload } from './FileDownload'; // Import the new download component
 
 export function S3FileUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -142,6 +143,13 @@ export function S3FileUpload() {
           )}
         </div>
       )}
+
+      {/* Show download component when workflow is completed successfully */}
+      {processingStatus === 'workflow_succeeded' &&
+        workflowStatusDetails &&
+        workflowStatusDetails.status === 'SUCCEEDED' && (
+          <FileDownload workflowStatus={workflowStatusDetails} />
+        )}
     </div>
   );
 }
