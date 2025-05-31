@@ -568,4 +568,78 @@ describe('Workflow Integration Tests', () => {
     },
     300000
   );
+
+  // This test runs last to verify that all completed workflows can be retrieved
+  // Note: Using 'it' instead of 'testRunner' to ensure this always runs sequentially,
+  // even when other tests are running concurrently
+  it('should retrieve all completed workflows from user-workflows endpoint', async () => {
+    console.log(
+      'Testing user-workflows endpoint to retrieve all completed workflows...'
+    );
+
+    // Call the user-workflows endpoint
+    const userWorkflowsUrl = `${API_GATEWAY_URL}/user-workflows`;
+    const response = await httpRequest(
+      userWorkflowsUrl,
+      'GET',
+      undefined,
+      AUTH_TOKEN
+    );
+
+    // Validate response structure
+    expect(Array.isArray(response)).toBe(true);
+    console.log(
+      `Retrieved ${response.length} workflows from user-workflows endpoint`
+    );
+
+    // Should have exactly 4 workflows (one from each test)
+    expect(response).toHaveLength(4);
+
+    // Validate that all workflows belong to our test user
+    response.forEach((workflow: any) => {
+      expect(workflow.userId).toBe(USER_ID);
+      expect(workflow).toHaveProperty('workflowId');
+      expect(workflow).toHaveProperty('status');
+      expect(workflow).toHaveProperty('parameters');
+      expect(workflow).toHaveProperty('s3Paths');
+      expect(workflow).toHaveProperty('createdAt');
+      expect(workflow).toHaveProperty('updatedAt');
+      expect(workflow).toHaveProperty('statusHistory');
+
+      // All workflows should be in SUCCEEDED status
+      expect(workflow.status).toBe('SUCCEEDED');
+    });
+
+    // Validate that we have the expected workflow configurations
+    const workflowConfigs = response.map((w: any) => ({
+      doTranslate: w.parameters.doTranslate,
+      doSpeech: w.parameters.doSpeech,
+      targetLanguage: w.parameters.targetLanguage,
+    }));
+
+    // Should contain all 4 different configurations from our tests
+    const expectedConfigs = [
+      { doTranslate: true, doSpeech: true, targetLanguage: 'es' }, // Full workflow
+      { doTranslate: true, doSpeech: false, targetLanguage: 'fr' }, // Translation only
+      { doTranslate: false, doSpeech: true }, // Speech only
+      { doTranslate: false, doSpeech: false }, // Formatting only
+    ];
+
+    // Check that each expected config exists in the response
+    expectedConfigs.forEach((expectedConfig) => {
+      const matchingWorkflow = workflowConfigs.find(
+        (config: any) =>
+          config.doTranslate === expectedConfig.doTranslate &&
+          config.doSpeech === expectedConfig.doSpeech &&
+          (expectedConfig.targetLanguage === undefined ||
+            config.targetLanguage === expectedConfig.targetLanguage)
+      );
+      expect(matchingWorkflow).toBeDefined();
+    });
+
+    console.log(
+      '✅ user-workflows endpoint successfully returned all 4 completed workflows'
+    );
+    console.log('Workflow configurations found:', workflowConfigs);
+  }, 60000); // 1 minute timeout
 });

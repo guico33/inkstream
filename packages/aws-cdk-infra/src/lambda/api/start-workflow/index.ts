@@ -7,7 +7,13 @@ import {
 import { z } from 'zod';
 import { createWorkflow } from '../../../utils/workflow-state';
 import { WorkflowCommonState } from '@inkstream/shared';
-import { ValidationError, ExternalServiceError } from '../../../errors';
+import { ExternalServiceError } from '../../../errors';
+import {
+  validateRequestBody,
+  createSuccessResponse,
+  handleError,
+} from '../../../utils/api-utils';
+import { extractUserId } from 'src/utils/auth-utils';
 
 // Zod schema for environment variables validation
 const EnvironmentSchema = z.object({
@@ -43,8 +49,6 @@ const WorkflowInputSchema = z.object({
   targetLanguage: z.string().optional().default('english'),
 });
 
-type WorkflowInput = z.infer<typeof WorkflowInputSchema>;
-
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
@@ -55,7 +59,7 @@ export const handler = async (
 
   try {
     // Validate and parse request body
-    const requestBody = validateRequestBody(event.body);
+    const requestBody = validateRequestBody(event.body, WorkflowInputSchema);
 
     // Validate and extract user ID from JWT claims
     const userId = extractUserId(event);
@@ -87,63 +91,15 @@ export const handler = async (
       fileKey
     );
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        message: 'Workflow started successfully',
-        workflowId,
-      }),
-    };
+    return createSuccessResponse({
+      message: 'Workflow started successfully',
+      workflowId,
+    });
   } catch (error: unknown) {
     console.error('Error starting workflow:', error);
     return handleError(error);
   }
 };
-
-/**
- * Validates and parses the request body
- */
-function validateRequestBody(body: string | null): WorkflowInput {
-  if (!body) {
-    throw new ValidationError('Request body is required');
-  }
-
-  let parsedBody: unknown;
-  try {
-    parsedBody = JSON.parse(body);
-  } catch {
-    throw new ValidationError(
-      'Invalid request body format - must be valid JSON'
-    );
-  }
-
-  try {
-    return WorkflowInputSchema.parse(parsedBody);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      const errorMessages = error.errors.map(
-        (err) => `${err.path.join('.')}: ${err.message}`
-      );
-      throw new ValidationError(
-        `Invalid request body: ${errorMessages.join(', ')}`
-      );
-    }
-    throw new ValidationError('Invalid request body');
-  }
-}
-
-/**
- * Extracts and validates user ID from JWT claims
- */
-function extractUserId(event: APIGatewayProxyEvent): string {
-  const userId = event.requestContext?.authorizer?.jwt?.claims?.sub;
-
-  if (!userId || typeof userId !== 'string' || userId.length === 0) {
-    throw new ValidationError('Invalid or missing userId in JWT claims');
-  }
-
-  return userId;
-}
 
 /**
  * Starts Step Functions execution and returns the workflow ID
@@ -227,52 +183,4 @@ async function createWorkflowRecord(
       error
     );
   }
-}
-
-/**
- * Handles different error types and returns appropriate HTTP responses
- */
-function handleError(error: unknown): APIGatewayProxyResult {
-  if (error instanceof ValidationError) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({
-        message: 'Validation error',
-        error: error.message,
-      }),
-    };
-  }
-
-  if (error instanceof z.ZodError) {
-    const errorMessages = error.errors.map(
-      (err) => `${err.path.join('.')}: ${err.message}`
-    );
-    return {
-      statusCode: 400,
-      body: JSON.stringify({
-        message: 'Environment configuration error',
-        error: errorMessages.join(', '),
-      }),
-    };
-  }
-
-  if (error instanceof ExternalServiceError) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        message: 'Failed to start workflow',
-        error: error.message,
-      }),
-    };
-  }
-
-  // Generic error handling
-  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-  return {
-    statusCode: 500,
-    body: JSON.stringify({
-      message: 'Failed to start workflow',
-      error: errorMessage,
-    }),
-  };
 }

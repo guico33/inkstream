@@ -9,7 +9,7 @@ import {
   vitest,
 } from 'vitest';
 import * as workflowStateUtils from '../../../utils/workflow-state';
-import { WorkflowRecord } from '../../../utils/workflow-state';
+import { WorkflowRecord } from '@inkstream/shared';
 
 describe('workflow-status Lambda handler', () => {
   let handler: any;
@@ -68,6 +68,12 @@ describe('workflow-status Lambda handler', () => {
     userId: 'user-123',
     workflowId: 'wf-123',
     status: 'SUCCEEDED',
+    statusHistory: [
+      {
+        status: 'SUCCEEDED',
+        timestamp: '2024-01-01T01:00:00.000Z',
+      },
+    ],
     parameters: {
       doTranslate: true,
       doSpeech: false,
@@ -169,7 +175,7 @@ describe('workflow-status Lambda handler', () => {
 
     expect(result.statusCode).toBe(500);
     const body = JSON.parse(result.body);
-    expect(body.message).toBe('Failed to get workflow status');
+    expect(body.message).toBe('Internal server error');
     expect(body.error).toContain('Failed to retrieve workflow from DynamoDB');
   });
 

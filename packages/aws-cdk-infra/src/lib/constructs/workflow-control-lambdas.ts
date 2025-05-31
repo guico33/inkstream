@@ -13,6 +13,7 @@ export interface WorkflowControlLambdasProps {
 export class WorkflowControlLambdas extends Construct {
   public readonly startWorkflowFn: lambda.IFunction;
   public readonly workflowStatusFn: lambda.IFunction;
+  public readonly userWorkflowsFn: lambda.IFunction;
 
   constructor(
     scope: Construct,
@@ -38,6 +39,17 @@ export class WorkflowControlLambdas extends Construct {
       entry: path.join(__dirname, '../../lambda/api/workflow-status/index.ts'),
       handler: 'handler',
       description: 'Get the status of a workflow execution',
+      runtime: lambda.Runtime.NODEJS_18_X,
+      timeout: cdk.Duration.seconds(10),
+      environment: {
+        USER_WORKFLOWS_TABLE: props.userWorkflowsTableName,
+      },
+    });
+
+    this.userWorkflowsFn = new NodejsFunction(this, 'UserWorkflowsFunction', {
+      entry: path.join(__dirname, '../../lambda/api/user-workflows/index.ts'),
+      handler: 'handler',
+      description: 'Get all workflows for a user',
       runtime: lambda.Runtime.NODEJS_18_X,
       timeout: cdk.Duration.seconds(10),
       environment: {

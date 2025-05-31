@@ -8,6 +8,7 @@ import * as apigwv2_integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations
 export interface ApiGatewayConstructProps {
   startWorkflowFn: lambda.IFunction;
   workflowStatusFn: lambda.IFunction;
+  userWorkflowsFn: lambda.IFunction;
   userPool: cognito.IUserPool;
   userPoolClientId: string;
 }
@@ -76,6 +77,16 @@ export class ApiGatewayConstruct extends Construct {
       integration: new apigwv2_integrations.HttpLambdaIntegration(
         'WorkflowStatusIntegration',
         props.workflowStatusFn
+      ),
+      authorizer: customAuthorizer,
+    });
+
+    this.httpApi.addRoutes({
+      path: '/user-workflows',
+      methods: [apigwv2.HttpMethod.GET],
+      integration: new apigwv2_integrations.HttpLambdaIntegration(
+        'UserWorkflowsIntegration',
+        props.userWorkflowsFn
       ),
       authorizer: customAuthorizer,
     });

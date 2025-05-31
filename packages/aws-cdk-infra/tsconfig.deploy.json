@@ -1,27 +1,35 @@
 {
-  // add stricter rules to the tsconfig
   "compilerOptions": {
     "target": "ES2020",
-    "module": "ESNext",
+    "module": "CommonJS",
+    "moduleResolution": "node",
     "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noImplicitThis": true,
     "types": ["node"],
-    "moduleResolution": "bundler",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
       "@inkstream/shared": ["../shared/src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test-workflow/**/*.ts", "bin/**/*.ts"]
+  "include": ["src/**/*.ts", "bin/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "cdk.out",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
 }

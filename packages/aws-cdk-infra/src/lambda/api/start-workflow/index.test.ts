@@ -63,7 +63,7 @@ describe('start-workflow Lambda handler', () => {
     const result = await handler(event);
     expect(result.statusCode).toBe(500);
     const body = JSON.parse(result.body);
-    expect(body.message).toMatch(/Failed to start workflow/);
+    expect(body.message).toBe('Internal server error');
   });
 
   it('calls createWorkflow with correct arguments', async () => {
@@ -196,7 +196,7 @@ describe('start-workflow Lambda handler', () => {
     const result = await handler(event);
     expect(result.statusCode).toBe(500);
     const body = JSON.parse(result.body);
-    expect(body.message).toBe('Failed to start workflow');
+    expect(body.message).toBe('Internal server error');
     expect(body.error).toContain(
       'Failed to create workflow record in DynamoDB'
     );

@@ -4,10 +4,10 @@ import {
   getStepFunctionsExecutionDetails,
   combineWorkflowStatus,
   extractWorkflowId,
-  extractUserId,
   getWorkflowFromDatabase,
-  handleError,
 } from './utils';
+import { extractUserId } from 'src/utils/auth-utils';
+import { handleError } from 'src/utils/api-utils';
 
 // Zod schema for environment variables validation
 const EnvironmentSchema = z.object({
@@ -46,6 +46,9 @@ export const handler = async (
     if (!workflowRecord) {
       return {
         statusCode: 404,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           message: 'Workflow not found',
           workflowId,
@@ -64,6 +67,9 @@ export const handler = async (
     // Return comprehensive workflow status
     return {
       statusCode: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(status),
     };
   } catch (error: unknown) {

@@ -95,6 +95,7 @@ export class InkstreamStack extends cdk.Stack {
     // Grant permissions to the workflow state table for the Lambda functions
     storage.userWorkflowsTable.grantWriteData(controlLambdas.startWorkflowFn);
     storage.userWorkflowsTable.grantReadData(controlLambdas.workflowStatusFn); // Added missing read permission for workflow-status Lambda
+    storage.userWorkflowsTable.grantReadData(controlLambdas.userWorkflowsFn); // Grant read permissions for user-workflows Lambda
     storage.userWorkflowsTable.grantReadData(stepLambdas.startTextractJobFn);
 
     // Grant DynamoDB write permissions to step lambdas for workflow status updates
@@ -112,6 +113,7 @@ export class InkstreamStack extends cdk.Stack {
     const api = new ApiGatewayConstruct(this, 'ApiGateway', {
       startWorkflowFn: controlLambdas.startWorkflowFn,
       workflowStatusFn: controlLambdas.workflowStatusFn,
+      userWorkflowsFn: controlLambdas.userWorkflowsFn,
       userPool: auth.userPool,
       userPoolClientId: auth.userPoolClient.userPoolClientId, // Pass userPoolClientId here
     });

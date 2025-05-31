@@ -1,23 +1,21 @@
 // --- DynamoDB Toolbox Workflow State Utilities ---
 
-import { Table } from 'dynamodb-toolbox/table';
-import { Entity } from 'dynamodb-toolbox/entity';
-import { item } from 'dynamodb-toolbox/schema/item';
-import { string } from 'dynamodb-toolbox/schema/string';
-import { map } from 'dynamodb-toolbox/schema/map';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import type { WorkflowRecord, WorkflowStatus } from '@inkstream/shared';
+import { anyOf, boolean, list } from 'dynamodb-toolbox';
+import { Entity } from 'dynamodb-toolbox/entity';
 import { GetItemCommand } from 'dynamodb-toolbox/entity/actions/get';
 import { PutItemCommand } from 'dynamodb-toolbox/entity/actions/put';
 import {
-  UpdateItemCommand,
   $append,
+  UpdateItemCommand,
 } from 'dynamodb-toolbox/entity/actions/update';
+import { item } from 'dynamodb-toolbox/schema/item';
+import { map } from 'dynamodb-toolbox/schema/map';
+import { string } from 'dynamodb-toolbox/schema/string';
+import { Table } from 'dynamodb-toolbox/table';
 import { QueryCommand } from 'dynamodb-toolbox/table/actions/query';
-import { anyOf, boolean, list } from 'dynamodb-toolbox';
-
-// Import types from shared package
-import type { WorkflowStatus, WorkflowRecord } from '@inkstream/shared';
 
 const documentClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 

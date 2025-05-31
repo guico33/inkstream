@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { APIGatewayProxyEvent } from 'aws-lambda';
-import { z } from 'zod';
-import { ValidationError, ExternalServiceError } from '../../../errors';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ExternalServiceError, ValidationError } from '../../../errors';
 
 // Use vi.hoisted to ensure mocks are available before any imports
 const { mockSfnSend, mockDescribeExecutionCommand, mockGetWorkflow } =
@@ -31,16 +30,14 @@ vi.mock('../../../utils/workflow-state', () => ({
 }));
 
 import { DescribeExecutionCommand } from '@aws-sdk/client-sfn';
+import { WorkflowRecord } from '@inkstream/shared';
 import {
-  getStepFunctionsExecutionDetails,
   combineWorkflowStatus,
   extractWorkflowId,
-  extractUserId,
+  getStepFunctionsExecutionDetails,
   getWorkflowFromDatabase,
-  handleError,
   StepFunctionsExecutionDetails,
 } from './utils';
-import { WorkflowRecord } from '../../../utils/workflow-state';
 
 describe('workflow-status utility functions', () => {
   beforeEach(() => {
@@ -348,144 +345,6 @@ describe('workflow-status utility functions', () => {
     });
   });
 
-  describe('extractUserId', () => {
-    it('extracts userId from valid JWT claims', () => {
-      const event: Partial<APIGatewayProxyEvent> = {
-        requestContext: {
-          authorizer: {
-            jwt: {
-              claims: {
-                sub: 'user-123',
-              },
-            },
-          },
-        } as any,
-      };
-
-      const result = extractUserId(event as APIGatewayProxyEvent);
-      expect(result).toBe('user-123');
-    });
-
-    it('throws ValidationError when requestContext is missing', () => {
-      const event: Partial<APIGatewayProxyEvent> = {};
-
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        ValidationError
-      );
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        'Invalid or missing userId in JWT claims'
-      );
-    });
-
-    it('throws ValidationError when authorizer is missing', () => {
-      const event: Partial<APIGatewayProxyEvent> = {
-        requestContext: {} as any,
-      };
-
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        ValidationError
-      );
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        'Invalid or missing userId in JWT claims'
-      );
-    });
-
-    it('throws ValidationError when jwt is missing', () => {
-      const event: Partial<APIGatewayProxyEvent> = {
-        requestContext: {
-          authorizer: {},
-        } as any,
-      };
-
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        ValidationError
-      );
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        'Invalid or missing userId in JWT claims'
-      );
-    });
-
-    it('throws ValidationError when claims is missing', () => {
-      const event: Partial<APIGatewayProxyEvent> = {
-        requestContext: {
-          authorizer: {
-            jwt: {},
-          },
-        } as any,
-      };
-
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        ValidationError
-      );
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        'Invalid or missing userId in JWT claims'
-      );
-    });
-
-    it('throws ValidationError when sub is missing', () => {
-      const event: Partial<APIGatewayProxyEvent> = {
-        requestContext: {
-          authorizer: {
-            jwt: {
-              claims: {
-                other: 'value',
-              },
-            },
-          },
-        } as any,
-      };
-
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        ValidationError
-      );
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        'Invalid or missing userId in JWT claims'
-      );
-    });
-
-    it('throws ValidationError when sub is not a string', () => {
-      const event: Partial<APIGatewayProxyEvent> = {
-        requestContext: {
-          authorizer: {
-            jwt: {
-              claims: {
-                sub: 123,
-              },
-            },
-          },
-        } as any,
-      };
-
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        ValidationError
-      );
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        'Invalid or missing userId in JWT claims'
-      );
-    });
-
-    it('throws ValidationError when sub is empty string', () => {
-      const event: Partial<APIGatewayProxyEvent> = {
-        requestContext: {
-          authorizer: {
-            jwt: {
-              claims: {
-                sub: '',
-              },
-            },
-          },
-        } as any,
-      };
-
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        ValidationError
-      );
-      expect(() => extractUserId(event as APIGatewayProxyEvent)).toThrow(
-        'Invalid or missing userId in JWT claims'
-      );
-    });
-  });
-
   describe('getWorkflowFromDatabase', () => {
     it('returns workflow record when found', async () => {
       const mockWorkflow = {
@@ -561,134 +420,6 @@ describe('workflow-status utility functions', () => {
           '[DynamoDB] Failed to retrieve workflow from DynamoDB: string error'
         );
       }
-    });
-  });
-
-  describe('handleError', () => {
-    it('handles ValidationError with 400 status', () => {
-      const error = new ValidationError('Invalid input parameter');
-
-      const result = handleError(error);
-
-      expect(result).toEqual({
-        statusCode: 400,
-        body: JSON.stringify({
-          message: 'Validation error',
-          error: 'Invalid input parameter',
-        }),
-      });
-    });
-
-    it('handles ZodError with 400 status and formatted messages', () => {
-      const zodError = new z.ZodError([
-        {
-          code: 'invalid_type',
-          expected: 'string',
-          received: 'number',
-          path: ['workflowId'],
-          message: 'Expected string, received number',
-        },
-        {
-          code: 'too_small',
-          minimum: 1,
-          type: 'string',
-          inclusive: true,
-          exact: false,
-          path: ['userId'],
-          message: 'String must contain at least 1 character(s)',
-        },
-      ]);
-
-      const result = handleError(zodError);
-
-      expect(result).toEqual({
-        statusCode: 400,
-        body: JSON.stringify({
-          message: 'Environment configuration error',
-          error:
-            'workflowId: Expected string, received number, userId: String must contain at least 1 character(s)',
-        }),
-      });
-    });
-
-    it('handles ExternalServiceError with 500 status', () => {
-      const error = new ExternalServiceError(
-        'DynamoDB operation failed',
-        'DynamoDB'
-      );
-
-      const result = handleError(error);
-
-      expect(result).toEqual({
-        statusCode: 500,
-        body: JSON.stringify({
-          message: 'Failed to get workflow status',
-          error: '[DynamoDB] DynamoDB operation failed',
-        }),
-      });
-    });
-
-    it('handles generic Error with 500 status', () => {
-      const error = new Error('Unexpected error occurred');
-
-      const result = handleError(error);
-
-      expect(result).toEqual({
-        statusCode: 500,
-        body: JSON.stringify({
-          message: 'Failed to get workflow status',
-          error: 'Unexpected error occurred',
-        }),
-      });
-    });
-
-    it('handles non-Error exceptions with 500 status', () => {
-      const error = 'String error';
-
-      const result = handleError(error);
-
-      expect(result).toEqual({
-        statusCode: 500,
-        body: JSON.stringify({
-          message: 'Failed to get workflow status',
-          error: 'Unknown error',
-        }),
-      });
-    });
-
-    it('handles null/undefined errors', () => {
-      const result1 = handleError(null);
-      const result2 = handleError(undefined);
-
-      expect(result1).toEqual({
-        statusCode: 500,
-        body: JSON.stringify({
-          message: 'Failed to get workflow status',
-          error: 'Unknown error',
-        }),
-      });
-
-      expect(result2).toEqual({
-        statusCode: 500,
-        body: JSON.stringify({
-          message: 'Failed to get workflow status',
-          error: 'Unknown error',
-        }),
-      });
-    });
-
-    it('handles object errors without message', () => {
-      const error = { code: 'SOME_ERROR', details: 'Complex error object' };
-
-      const result = handleError(error);
-
-      expect(result).toEqual({
-        statusCode: 500,
-        body: JSON.stringify({
-          message: 'Failed to get workflow status',
-          error: 'Unknown error',
-        }),
-      });
     });
   });
 });
