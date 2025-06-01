@@ -9,7 +9,8 @@ export type WorkflowStatus =
   | 'TEXT_FORMATTING_COMPLETE'
   | 'TRANSLATION_COMPLETE'
   | 'SUCCEEDED'
-  | 'FAILED';
+  | 'FAILED'
+  | 'TIMED_OUT';
 
 export interface WorkflowParameters {
   doTranslate?: boolean;

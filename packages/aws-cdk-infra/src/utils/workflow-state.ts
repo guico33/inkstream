@@ -28,6 +28,7 @@ const statusSchema = anyOf(
   string().enum('TEXT_FORMATTING_COMPLETE'),
   string().enum('TRANSLATION_COMPLETE'),
   string().enum('SUCCEEDED'),
+  string().enum('TIMED_OUT'),
   string().enum('FAILED')
 ).required();
 
@@ -122,6 +123,7 @@ export async function updateWorkflowStatus(
           status: newStatus,
           timestamp: now,
           error: updates?.error,
+          ...(updates || {}),
         },
       ]),
       ...(updates || {}),

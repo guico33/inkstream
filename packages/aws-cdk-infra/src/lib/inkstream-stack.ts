@@ -7,6 +7,7 @@ import { SecretsConstruct } from './constructs/secrets-construct';
 import { WorkflowControlLambdas } from './constructs/workflow-control-lambdas';
 import { WorkflowStepLambdas } from './constructs/workflow-step-lambdas';
 import { WorkflowStepFunctions } from './constructs/workflow-stepfunctions';
+import { WorkflowEvents } from './constructs/workflow-events';
 
 function requireEnvVars(vars: string[]) {
   const missing = vars.filter((v) => !process.env[v]);
@@ -88,6 +89,12 @@ export class InkstreamStack extends cdk.Stack {
       }
     );
 
+    // EventBridge rules and lambdas for workflow state changes
+    const workflowEvents = new WorkflowEvents(this, 'WorkflowEvents', {
+      userWorkflowsTableName: storage.userWorkflowsTable.tableName,
+      stateMachineArn: stateMachine.stateMachineArn,
+    });
+
     // Grant permissions to the state machine to invoke the Lambda functions
     stateMachine.grantStartExecution(controlLambdas.startWorkflowFn);
     stateMachine.grantRead(controlLambdas.workflowFn);
@@ -103,6 +110,11 @@ export class InkstreamStack extends cdk.Stack {
     storage.userWorkflowsTable.grantWriteData(stepLambdas.formatTextFn);
     storage.userWorkflowsTable.grantWriteData(stepLambdas.translateTextFn);
     storage.userWorkflowsTable.grantWriteData(stepLambdas.convertToSpeechFn);
+
+    // Grant DynamoDB write permissions to workflow events lambda for status updates
+    storage.userWorkflowsTable.grantWriteData(
+      workflowEvents.workflowStateChangeFn
+    );
 
     // Grant Secrets Manager read permissions to AI workflow lambdas (OpenAI only)
     secrets.grantOpenAISecretRead(stepLambdas.formatTextFn);

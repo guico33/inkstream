@@ -13,6 +13,7 @@ import {
   AdminGetUserCommand,
   InitiateAuthCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
+import { SFNClient, StopExecutionCommand } from '@aws-sdk/client-sfn';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
@@ -51,6 +52,7 @@ const USER_POOL_ID = process.env.USER_POOL_ID;
 const CLIENT_ID = process.env.USER_POOL_WEB_CLIENT_ID;
 const TEST_USERNAME = process.env.TEST_USERNAME;
 const TEST_PASSWORD = process.env.TEST_PASSWORD;
+const STATE_MACHINE_ARN = process.env.STATE_MACHINE_ARN;
 
 // These will be set during test setup
 let AUTH_TOKEN: string;
@@ -63,15 +65,17 @@ if (
   !USER_POOL_ID ||
   !CLIENT_ID ||
   !TEST_USERNAME ||
-  !TEST_PASSWORD
+  !TEST_PASSWORD ||
+  !STATE_MACHINE_ARN
 ) {
   throw new Error(
-    'Missing required environment variables: API_GATEWAY_URL, BUCKET_NAME, AWS_REGION, USER_POOL_ID, USER_POOL_WEB_CLIENT_ID, TEST_USERNAME, TEST_PASSWORD'
+    'Missing required environment variables: API_GATEWAY_URL, BUCKET_NAME, AWS_REGION, USER_POOL_ID, USER_POOL_WEB_CLIENT_ID, TEST_USERNAME, TEST_PASSWORD, STATE_MACHINE_ARN'
   );
 }
 
 const s3Client = new S3Client({ region: AWS_REGION });
 const cognitoClient = new CognitoIdentityProviderClient({ region: AWS_REGION });
+const sfnClient = new SFNClient({ region: AWS_REGION });
 
 // Test PDF file path
 const TEST_PDF_PATH = path.join(__dirname, '..', 'test-files', 'sample.pdf');
@@ -277,6 +281,24 @@ async function getWorkflowRecord(workflowId: string): Promise<any> {
   return response;
 }
 
+async function stopStepFunctionsExecution(workflowId: string): Promise<void> {
+  console.log(`Stopping Step Functions execution: ${workflowId}`);
+
+  try {
+    await sfnClient.send(
+      new StopExecutionCommand({
+        executionArn: workflowId,
+        error: 'TestAbort',
+        cause: 'Manually aborted for integration testing',
+      })
+    );
+    console.log(`Successfully stopped execution: ${workflowId}`);
+  } catch (error) {
+    console.error('Failed to stop execution:', error);
+    throw error;
+  }
+}
+
 async function pollWorkflowUntilComplete(
   workflowId: string,
   expectedFinalStatus: string,
@@ -369,6 +391,7 @@ describe('Workflow Integration Tests', () => {
       'translation-only-sample.pdf',
       'speech-only-sample.pdf',
       'formatting-only-sample.pdf',
+      'abort-test-sample.pdf', // For abort test
     ];
 
     for (const fileName of testScenarios) {
@@ -569,6 +592,85 @@ describe('Workflow Integration Tests', () => {
     300000
   );
 
+  testRunner.only(
+    'should handle aborted workflow correctly via EventBridge',
+    async () => {
+      const fileKey = uploadedFiles[4]!; // Use abort-test file
+      const workflowParams: WorkflowParams = {
+        filename: path.basename(fileKey),
+        doTranslate: true, // Use a longer workflow so we have time to abort
+        doSpeech: true,
+        targetLanguage: 'fr',
+      };
+
+      // Start workflow
+      const { workflowId } = await startWorkflow(workflowParams);
+      console.log(`Started workflow ${workflowId} for abort test`);
+
+      // Wait a moment for the workflow to actually start processing
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // 5 seconds
+
+      // Manually abort the Step Functions execution
+      await stopStepFunctionsExecution(workflowId);
+      console.log(`Aborted Step Functions execution: ${workflowId}`);
+
+      // Poll to verify the status gets updated to FAILED via our EventBridge handler
+      // The EventBridge event may take a few seconds to trigger our Lambda
+      console.log('Polling for workflow status to be updated to FAILED...');
+
+      let attempts = 0;
+      const maxAttempts = 20; // 1 minute max at 3s interval
+      let finalRecord: any;
+
+      while (attempts < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 3000)); // Wait 3 seconds
+
+        try {
+          const record = await getWorkflowRecord(workflowId);
+          console.log(
+            `Attempt ${attempts + 1}: Current status = ${record.status}`
+          );
+
+          if (record.status === 'FAILED') {
+            finalRecord = record;
+            break;
+          }
+
+          attempts++;
+        } catch (error) {
+          console.log(`Polling attempt ${attempts + 1} failed:`, error);
+          attempts++;
+        }
+      }
+
+      if (!finalRecord) {
+        throw new Error(
+          `Workflow status was not updated to FAILED within ${
+            maxAttempts * 3
+          } seconds`
+        );
+      }
+
+      // Validate the final record
+      expect(finalRecord.status).toBe('FAILED');
+      expect(finalRecord.cause).toBe(
+        'Manually aborted for integration testing'
+      );
+      expect(finalRecord.error).toBe('TestAbort');
+
+      // Validate the status history includes the abort error
+      const statusHistory = finalRecord.statusHistory;
+      const finalStatusEntry = statusHistory[statusHistory.length - 1];
+      expect(finalStatusEntry.status).toBe('FAILED');
+      expect(finalStatusEntry.error).toBe('Workflow aborted');
+
+      console.log(
+        '✅ Abort test completed successfully - workflow status updated to FAILED via EventBridge'
+      );
+    },
+    180000 // 3 minute timeout for abort test
+  );
+
   // This test runs last to verify that all completed workflows can be retrieved
   // Note: Using 'it' instead of 'testRunner' to ensure this always runs sequentially,
   // even when other tests are running concurrently
@@ -592,8 +694,8 @@ describe('Workflow Integration Tests', () => {
       `Retrieved ${response.length} workflows from user-workflows endpoint`
     );
 
-    // Should have exactly 4 workflows (one from each test)
-    expect(response).toHaveLength(4);
+    // Should have exactly 5 workflows (4 successful + 1 aborted)
+    expect(response).toHaveLength(5);
 
     // Validate that all workflows belong to our test user
     response.forEach((workflow: any) => {
@@ -606,18 +708,31 @@ describe('Workflow Integration Tests', () => {
       expect(workflow).toHaveProperty('updatedAt');
       expect(workflow).toHaveProperty('statusHistory');
 
-      // All workflows should be in SUCCEEDED status
-      expect(workflow.status).toBe('SUCCEEDED');
+      // Status should be either SUCCEEDED or FAILED (for aborted workflow)
+      expect(['SUCCEEDED', 'FAILED']).toContain(workflow.status);
     });
 
-    // Validate that we have the expected workflow configurations
-    const workflowConfigs = response.map((w: any) => ({
+    // Count successful vs failed workflows
+    const successfulWorkflows = response.filter(
+      (w: any) => w.status === 'SUCCEEDED'
+    );
+    const failedWorkflows = response.filter((w: any) => w.status === 'FAILED');
+
+    expect(successfulWorkflows).toHaveLength(4); // 4 completed workflows
+    expect(failedWorkflows).toHaveLength(1); // 1 aborted workflow
+
+    // Validate the aborted workflow has the correct error
+    const abortedWorkflow = failedWorkflows[0];
+    expect(abortedWorkflow.error).toBe('Workflow aborted');
+
+    // Validate that we have the expected workflow configurations (only for successful workflows)
+    const workflowConfigs = successfulWorkflows.map((w: any) => ({
       doTranslate: w.parameters.doTranslate,
       doSpeech: w.parameters.doSpeech,
       targetLanguage: w.parameters.targetLanguage,
     }));
 
-    // Should contain all 4 different configurations from our tests
+    // Should contain all 4 different configurations from our successful tests
     const expectedConfigs = [
       { doTranslate: true, doSpeech: true, targetLanguage: 'es' }, // Full workflow
       { doTranslate: true, doSpeech: false, targetLanguage: 'fr' }, // Translation only
@@ -638,8 +753,9 @@ describe('Workflow Integration Tests', () => {
     });
 
     console.log(
-      '✅ user-workflows endpoint successfully returned all 4 completed workflows'
+      '✅ user-workflows endpoint successfully returned all 5 workflows (4 completed + 1 aborted)'
     );
-    console.log('Workflow configurations found:', workflowConfigs);
+    console.log('Successful workflow configurations found:', workflowConfigs);
+    console.log('Aborted workflow error:', abortedWorkflow.error);
   }, 60000); // 1 minute timeout
 });
