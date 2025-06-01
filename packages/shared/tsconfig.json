@@ -6,7 +6,7 @@
     "declarationMap": true,
     "emitDeclarationOnly": false,
     "composite": true,
-    "module": "CommonJS",
+    "module": "ESNext",
     "moduleResolution": "node",
     "target": "ES2020"
   },
