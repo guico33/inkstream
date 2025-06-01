@@ -58,5 +58,22 @@ export class StorageConstruct extends Construct {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
     });
+
+    // Add Global Secondary Index for efficient timestamp-based queries
+    // GSI for creation time queries
+    this.userWorkflowsTable.addGlobalSecondaryIndex({
+      indexName: 'CreatedAtIndex',
+      partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL, // Include all attributes
+    });
+
+    // GSI for last modified time queries
+    this.userWorkflowsTable.addGlobalSecondaryIndex({
+      indexName: 'UpdatedAtIndex',
+      partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'updatedAt', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL, // Include all attributes
+    });
   }
 }

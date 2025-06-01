@@ -56,8 +56,6 @@ const workflowItemSchema = item({
     translatedText: string().optional(),
     audioFile: string().optional(),
   }).optional(),
-  createdAt: string().optional(),
-  updatedAt: string().optional(),
   error: string().optional(),
 });
 
@@ -69,6 +67,18 @@ const getWorkflowTableAndEntity = (tableName: string) => {
     name: tableName,
     partitionKey: { name: 'userId', type: 'string' },
     sortKey: { name: 'workflowId', type: 'string' },
+    indexes: {
+      CreatedAtIndex: {
+        type: 'global',
+        partitionKey: { name: 'userId', type: 'string' },
+        sortKey: { name: 'createdAt', type: 'string' },
+      },
+      UpdatedAtIndex: {
+        type: 'global',
+        partitionKey: { name: 'userId', type: 'string' },
+        sortKey: { name: 'updatedAt', type: 'string' },
+      },
+    },
     documentClient,
   });
 
@@ -76,6 +86,16 @@ const getWorkflowTableAndEntity = (tableName: string) => {
     name: 'WORKFLOW',
     table: workflowTable,
     schema: workflowItemSchema,
+    timestamps: {
+      created: {
+        name: 'createdAt',
+        savedAs: 'createdAt',
+      },
+      modified: {
+        name: 'updatedAt',
+        savedAs: 'updatedAt',
+      },
+    },
   });
   return { workflowEntity, workflowTable };
 };
@@ -88,15 +108,7 @@ export async function createWorkflow(
   record: WorkflowRecord
 ): Promise<void> {
   const { workflowEntity } = getWorkflowTableAndEntity(tableName);
-  const now = new Date().toISOString();
-  await workflowEntity
-    .build(PutItemCommand)
-    .item({
-      ...record,
-      createdAt: record.createdAt || now,
-      updatedAt: record.updatedAt || now,
-    })
-    .send();
+  await workflowEntity.build(PutItemCommand).item(record).send();
 }
 
 /**
@@ -117,7 +129,7 @@ export async function updateWorkflowStatus(
       userId,
       workflowId,
       status: newStatus,
-      updatedAt: now,
+      // updatedAt is automatically managed by DynamoDB-Toolbox
       statusHistory: $append([
         {
           status: newStatus,
@@ -161,6 +173,45 @@ export async function listWorkflows(
     .entities(workflowEntity)
     .query({ partition: userId })
     .options({ reverse: true })
+    .send();
+  return Items;
+}
+
+/**
+ * List workflows for a user, sorted by creation date.
+ * This uses the createdAtIndex to ensure efficient querying.
+ */
+
+export async function listWorkflowsByCreatedAt(
+  tableName: string,
+  userId: string
+): Promise<WorkflowRecord[] | undefined> {
+  const { workflowTable, workflowEntity } =
+    getWorkflowTableAndEntity(tableName);
+  const { Items } = await workflowTable
+    .build(QueryCommand)
+    .entities(workflowEntity)
+    .query({ index: 'CreatedAtIndex', partition: userId })
+    .options({ maxPages: Infinity, reverse: true })
+    .send();
+  return Items;
+}
+
+/**
+ * List workflows for a user, sorted by last modified date.
+ * This uses the UpdatedAtIndex to ensure efficient querying.
+ */
+export async function listWorkflowsByUpdatedAt(
+  tableName: string,
+  userId: string
+): Promise<WorkflowRecord[] | undefined> {
+  const { workflowTable, workflowEntity } =
+    getWorkflowTableAndEntity(tableName);
+  const { Items } = await workflowTable
+    .build(QueryCommand)
+    .entities(workflowEntity)
+    .query({ index: 'UpdatedAtIndex', partition: userId })
+    .options({ maxPages: Infinity, reverse: true })
     .send();
   return Items;
 }
