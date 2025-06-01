@@ -1,6 +1,12 @@
 import { defineConfig } from 'vitest/config';
+import { resolve } from 'path';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@inkstream/shared': resolve(__dirname, '../shared/src/index.ts'),
+    },
+  },
   test: {
     globals: true,
     environment: 'node', // or 'jsdom' if you test browser-like environments
