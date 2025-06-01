@@ -592,7 +592,7 @@ describe('Workflow Integration Tests', () => {
     300000
   );
 
-  testRunner.only(
+  testRunner(
     'should handle aborted workflow correctly via EventBridge',
     async () => {
       const fileKey = uploadedFiles[4]!; // Use abort-test file
@@ -671,91 +671,308 @@ describe('Workflow Integration Tests', () => {
     180000 // 3 minute timeout for abort test
   );
 
-  // This test runs last to verify that all completed workflows can be retrieved
-  // Note: Using 'it' instead of 'testRunner' to ensure this always runs sequentially,
+  // Test the user-workflows endpoint with various pagination and sorting options
+  // Note: Using 'describe' and 'it' instead of 'testRunner' to ensure this always runs sequentially,
   // even when other tests are running concurrently
-  it('should retrieve all completed workflows from user-workflows endpoint', async () => {
-    console.log(
-      'Testing user-workflows endpoint to retrieve all completed workflows...'
-    );
-
-    // Call the user-workflows endpoint
-    const userWorkflowsUrl = `${API_GATEWAY_URL}/user-workflows`;
-    const response = await httpRequest(
-      userWorkflowsUrl,
-      'GET',
-      undefined,
-      AUTH_TOKEN
-    );
-
-    // Validate response structure
-    expect(Array.isArray(response)).toBe(true);
-    console.log(
-      `Retrieved ${response.length} workflows from user-workflows endpoint`
-    );
-
-    // Should have exactly 5 workflows (4 successful + 1 aborted)
-    expect(response).toHaveLength(5);
-
-    // Validate that all workflows belong to our test user
-    response.forEach((workflow: any) => {
-      expect(workflow.userId).toBe(USER_ID);
-      expect(workflow).toHaveProperty('workflowId');
-      expect(workflow).toHaveProperty('status');
-      expect(workflow).toHaveProperty('parameters');
-      expect(workflow).toHaveProperty('s3Paths');
-      expect(workflow).toHaveProperty('createdAt');
-      expect(workflow).toHaveProperty('updatedAt');
-      expect(workflow).toHaveProperty('statusHistory');
-
-      // Status should be either SUCCEEDED or FAILED (for aborted workflow)
-      expect(['SUCCEEDED', 'FAILED']).toContain(workflow.status);
-    });
-
-    // Count successful vs failed workflows
-    const successfulWorkflows = response.filter(
-      (w: any) => w.status === 'SUCCEEDED'
-    );
-    const failedWorkflows = response.filter((w: any) => w.status === 'FAILED');
-
-    expect(successfulWorkflows).toHaveLength(4); // 4 completed workflows
-    expect(failedWorkflows).toHaveLength(1); // 1 aborted workflow
-
-    // Validate the aborted workflow has the correct error
-    const abortedWorkflow = failedWorkflows[0];
-    expect(abortedWorkflow.error).toBe('Workflow aborted');
-
-    // Validate that we have the expected workflow configurations (only for successful workflows)
-    const workflowConfigs = successfulWorkflows.map((w: any) => ({
-      doTranslate: w.parameters.doTranslate,
-      doSpeech: w.parameters.doSpeech,
-      targetLanguage: w.parameters.targetLanguage,
-    }));
-
-    // Should contain all 4 different configurations from our successful tests
-    const expectedConfigs = [
-      { doTranslate: true, doSpeech: true, targetLanguage: 'es' }, // Full workflow
-      { doTranslate: true, doSpeech: false, targetLanguage: 'fr' }, // Translation only
-      { doTranslate: false, doSpeech: true }, // Speech only
-      { doTranslate: false, doSpeech: false }, // Formatting only
-    ];
-
-    // Check that each expected config exists in the response
-    expectedConfigs.forEach((expectedConfig) => {
-      const matchingWorkflow = workflowConfigs.find(
-        (config: any) =>
-          config.doTranslate === expectedConfig.doTranslate &&
-          config.doSpeech === expectedConfig.doSpeech &&
-          (expectedConfig.targetLanguage === undefined ||
-            config.targetLanguage === expectedConfig.targetLanguage)
+  describe('user-workflows endpoint tests', () => {
+    it('should retrieve all workflows without pagination parameters', async () => {
+      console.log(
+        'Testing user-workflows endpoint to retrieve all completed workflows...'
       );
-      expect(matchingWorkflow).toBeDefined();
-    });
 
-    console.log(
-      '✅ user-workflows endpoint successfully returned all 5 workflows (4 completed + 1 aborted)'
-    );
-    console.log('Successful workflow configurations found:', workflowConfigs);
-    console.log('Aborted workflow error:', abortedWorkflow.error);
-  }, 60000); // 1 minute timeout
+      // Call the user-workflows endpoint without any query parameters
+      const userWorkflowsUrl = `${API_GATEWAY_URL}/user-workflows`;
+      const response = await httpRequest(
+        userWorkflowsUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+
+      // Validate response structure for paginated format
+      expect(response).toHaveProperty('items');
+      expect(Array.isArray(response.items)).toBe(true);
+      console.log(
+        `Retrieved ${response.items.length} workflows from user-workflows endpoint`
+      );
+
+      // Should have exactly 5 workflows (4 successful + 1 aborted)
+      expect(response.items).toHaveLength(5);
+
+      // Validate that all workflows belong to our test user
+      response.items.forEach((workflow: any) => {
+        expect(workflow.userId).toBe(USER_ID);
+        expect(workflow).toHaveProperty('workflowId');
+        expect(workflow).toHaveProperty('status');
+        expect(workflow).toHaveProperty('parameters');
+        expect(workflow).toHaveProperty('s3Paths');
+        expect(workflow).toHaveProperty('createdAt');
+        expect(workflow).toHaveProperty('updatedAt');
+        expect(workflow).toHaveProperty('statusHistory');
+
+        // Status should be either SUCCEEDED or FAILED (for aborted workflow)
+        expect(['SUCCEEDED', 'FAILED']).toContain(workflow.status);
+      });
+
+      // Count successful vs failed workflows
+      const successfulWorkflows = response.items.filter(
+        (w: any) => w.status === 'SUCCEEDED'
+      );
+      const failedWorkflows = response.items.filter(
+        (w: any) => w.status === 'FAILED'
+      );
+
+      expect(successfulWorkflows).toHaveLength(4); // 4 completed workflows
+      expect(failedWorkflows).toHaveLength(1); // 1 aborted workflow
+
+      // Validate the aborted workflow has the correct error
+      const abortedWorkflow = failedWorkflows[0];
+      expect(abortedWorkflow.error).toBe('Workflow aborted');
+
+      // Validate that we have the expected workflow configurations (only for successful workflows)
+      const workflowConfigs = successfulWorkflows.map((w: any) => ({
+        doTranslate: w.parameters.doTranslate,
+        doSpeech: w.parameters.doSpeech,
+        targetLanguage: w.parameters.targetLanguage,
+      }));
+
+      // Should contain all 4 different configurations from our successful tests
+      const expectedConfigs = [
+        { doTranslate: true, doSpeech: true, targetLanguage: 'es' }, // Full workflow
+        { doTranslate: true, doSpeech: false, targetLanguage: 'fr' }, // Translation only
+        { doTranslate: false, doSpeech: true }, // Speech only
+        { doTranslate: false, doSpeech: false }, // Formatting only
+      ];
+
+      // Check that each expected config exists in the response
+      expectedConfigs.forEach((expectedConfig) => {
+        const matchingWorkflow = workflowConfigs.find(
+          (config: any) =>
+            config.doTranslate === expectedConfig.doTranslate &&
+            config.doSpeech === expectedConfig.doSpeech &&
+            (expectedConfig.targetLanguage === undefined ||
+              config.targetLanguage === expectedConfig.targetLanguage)
+        );
+        expect(matchingWorkflow).toBeDefined();
+      });
+
+      console.log(
+        '✅ user-workflows endpoint successfully returned all 5 workflows (4 completed + 1 aborted)'
+      );
+      console.log('Successful workflow configurations found:', workflowConfigs);
+      console.log('Aborted workflow error:', abortedWorkflow.error);
+    }, 60000);
+
+    it('should support pagination with limit parameter', async () => {
+      console.log('Testing user-workflows endpoint with pagination...');
+
+      // Test with limit=2 to get first page
+      const firstPageUrl = `${API_GATEWAY_URL}/user-workflows?limit=2`;
+      const firstPageResponse = await httpRequest(
+        firstPageUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+
+      // Validate first page response
+      expect(firstPageResponse).toHaveProperty('items');
+      expect(Array.isArray(firstPageResponse.items)).toBe(true);
+      expect(firstPageResponse.items).toHaveLength(2);
+      expect(firstPageResponse).toHaveProperty('nextToken');
+      expect(typeof firstPageResponse.nextToken).toBe('string');
+
+      console.log(
+        `First page: ${firstPageResponse.items.length} workflows, nextToken: ${
+          firstPageResponse.nextToken ? 'present' : 'none'
+        }`
+      );
+
+      // Test with nextToken to get second page
+      const secondPageUrl = `${API_GATEWAY_URL}/user-workflows?limit=2&nextToken=${encodeURIComponent(
+        firstPageResponse.nextToken
+      )}`;
+      const secondPageResponse = await httpRequest(
+        secondPageUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+
+      // Validate second page response
+      expect(secondPageResponse).toHaveProperty('items');
+      expect(Array.isArray(secondPageResponse.items)).toBe(true);
+      expect(secondPageResponse.items).toHaveLength(2);
+      expect(secondPageResponse).toHaveProperty('nextToken');
+
+      console.log(
+        `Second page: ${
+          secondPageResponse.items.length
+        } workflows, nextToken: ${
+          secondPageResponse.nextToken ? 'present' : 'none'
+        }`
+      );
+
+      // Get final page
+      const thirdPageUrl = `${API_GATEWAY_URL}/user-workflows?limit=2&nextToken=${encodeURIComponent(
+        secondPageResponse.nextToken
+      )}`;
+      const thirdPageResponse = await httpRequest(
+        thirdPageUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+
+      // Validate final page response
+      expect(thirdPageResponse).toHaveProperty('items');
+      expect(Array.isArray(thirdPageResponse.items)).toBe(true);
+      expect(thirdPageResponse.items).toHaveLength(1); // Only 1 remaining workflow
+      expect(thirdPageResponse.nextToken).toBeUndefined(); // No more pages
+
+      console.log(
+        `Third page: ${thirdPageResponse.items.length} workflows, nextToken: ${
+          thirdPageResponse.nextToken ? 'present' : 'none'
+        }`
+      );
+
+      // Validate that all workflow IDs are unique across pages
+      const allWorkflowIds = [
+        ...firstPageResponse.items.map((w: any) => w.workflowId),
+        ...secondPageResponse.items.map((w: any) => w.workflowId),
+        ...thirdPageResponse.items.map((w: any) => w.workflowId),
+      ];
+      const uniqueWorkflowIds = new Set(allWorkflowIds);
+      expect(uniqueWorkflowIds.size).toBe(5); // Should have 5 unique workflows
+
+      console.log('✅ Pagination test completed successfully');
+    }, 60000);
+
+    it('should support sorting by createdAt', async () => {
+      console.log('Testing user-workflows endpoint with sortBy=createdAt...');
+
+      const sortByCreatedUrl = `${API_GATEWAY_URL}/user-workflows?sortBy=createdAt`;
+      const response = await httpRequest(
+        sortByCreatedUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+
+      // Validate response structure
+      expect(response).toHaveProperty('items');
+      expect(Array.isArray(response.items)).toBe(true);
+      expect(response.items).toHaveLength(5);
+
+      // Validate that workflows are sorted by createdAt (most recent first)
+      const createdAtDates = response.items.map((w: any) =>
+        new Date(w.createdAt).getTime()
+      );
+      const sortedDates = [...createdAtDates].sort((a, b) => b - a); // Sort descending
+      expect(createdAtDates).toEqual(sortedDates);
+
+      console.log('✅ Sort by createdAt test completed successfully');
+      console.log(
+        'Created dates (most recent first):',
+        response.items.map((w: any) => w.createdAt)
+      );
+    }, 60000);
+
+    it('should support sorting by updatedAt (default)', async () => {
+      console.log('Testing user-workflows endpoint with sortBy=updatedAt...');
+
+      const sortByUpdatedUrl = `${API_GATEWAY_URL}/user-workflows?sortBy=updatedAt`;
+      const response = await httpRequest(
+        sortByUpdatedUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+
+      // Validate response structure
+      expect(response).toHaveProperty('items');
+      expect(Array.isArray(response.items)).toBe(true);
+      expect(response.items).toHaveLength(5);
+
+      // Validate that workflows are sorted by updatedAt (most recent first)
+      const updatedAtDates = response.items.map((w: any) =>
+        new Date(w.updatedAt).getTime()
+      );
+      const sortedDates = [...updatedAtDates].sort((a, b) => b - a); // Sort descending
+      expect(updatedAtDates).toEqual(sortedDates);
+
+      console.log('✅ Sort by updatedAt test completed successfully');
+      console.log(
+        'Updated dates (most recent first):',
+        response.items.map((w: any) => w.updatedAt)
+      );
+    }, 60000);
+
+    it('should combine pagination and sorting parameters', async () => {
+      console.log(
+        'Testing user-workflows endpoint with both pagination and sorting...'
+      );
+
+      // Test sorting by createdAt with pagination
+      const paginatedSortUrl = `${API_GATEWAY_URL}/user-workflows?sortBy=createdAt&limit=3`;
+      const response = await httpRequest(
+        paginatedSortUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+
+      // Validate response structure
+      expect(response).toHaveProperty('items');
+      expect(Array.isArray(response.items)).toBe(true);
+      expect(response.items).toHaveLength(3);
+      expect(response).toHaveProperty('nextToken');
+
+      // Validate that the 3 workflows are sorted by createdAt
+      const createdAtDates = response.items.map((w: any) =>
+        new Date(w.createdAt).getTime()
+      );
+      const sortedDates = [...createdAtDates].sort((a, b) => b - a); // Sort descending
+      expect(createdAtDates).toEqual(sortedDates);
+
+      console.log(
+        '✅ Combined pagination and sorting test completed successfully'
+      );
+      console.log(
+        `Returned ${
+          response.items.length
+        } workflows sorted by createdAt with nextToken: ${
+          response.nextToken ? 'present' : 'none'
+        }`
+      );
+    }, 60000);
+
+    it('should handle invalid query parameters gracefully', async () => {
+      console.log('Testing user-workflows endpoint with invalid parameters...');
+
+      // Test invalid sortBy parameter
+      const invalidSortUrl = `${API_GATEWAY_URL}/user-workflows?sortBy=invalidSort`;
+      try {
+        await httpRequest(invalidSortUrl, 'GET', undefined, AUTH_TOKEN);
+        // If we reach here, the test failed because it should have thrown an error
+        expect(true).toBe(false);
+      } catch (error: any) {
+        expect(error.message).toContain('400'); // Should return 400 Bad Request
+        console.log('✅ Invalid sortBy parameter correctly rejected');
+      }
+
+      // Test invalid limit parameter (too large)
+      const invalidLimitUrl = `${API_GATEWAY_URL}/user-workflows?limit=1000`;
+      try {
+        await httpRequest(invalidLimitUrl, 'GET', undefined, AUTH_TOKEN);
+        // If we reach here, the test failed because it should have thrown an error
+        expect(true).toBe(false);
+      } catch (error: any) {
+        expect(error.message).toContain('400'); // Should return 400 Bad Request
+        console.log('✅ Invalid limit parameter correctly rejected');
+      }
+
+      console.log('✅ Invalid parameter handling test completed successfully');
+    }, 60000);
+  });
 });

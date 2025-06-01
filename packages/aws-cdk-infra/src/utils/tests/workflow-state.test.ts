@@ -105,10 +105,51 @@ describe('workflow-state DynamoDB utilities', () => {
     ];
     sendSpy.mockResolvedValueOnce({ Items: items });
     const result = await listWorkflows(TABLE_NAME, userId);
-    expect(result).toEqual([
+    expect(result.items).toEqual([
       expect.objectContaining({ workflowId: 'wf-1' }),
       expect.objectContaining({ workflowId: 'wf-2' }),
     ]);
+    expect(result.nextToken).toBeUndefined();
+  });
+
+  it('listWorkflows returns empty array when no items found', async () => {
+    sendSpy.mockResolvedValueOnce({ Items: [] });
+    const result = await listWorkflows(TABLE_NAME, userId);
+    expect(result.items).toEqual([]);
+    expect(result.nextToken).toBeUndefined();
+  });
+
+  it('listWorkflows supports pagination with limit and nextToken', async () => {
+    const lastEvaluatedKey = { userId: 'user-1', workflowId: 'wf-1' };
+    sendSpy.mockResolvedValueOnce({
+      Items: [{ ...baseRecord, _et: 'WORKFLOW' }],
+      LastEvaluatedKey: lastEvaluatedKey,
+    });
+
+    const nextToken = Buffer.from(JSON.stringify(lastEvaluatedKey)).toString(
+      'base64'
+    );
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      limit: 10,
+      nextToken: nextToken,
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.nextToken).toBeDefined();
+
+    // Verify the query was called with correct pagination parameters
+    const callArg = sendSpy.mock.calls[0]?.[0] as any;
+    expect(callArg.input.Limit).toBe(10);
+    expect(callArg.input.ExclusiveStartKey).toEqual(lastEvaluatedKey);
+  });
+
+  it('listWorkflows handles DynamoDB errors gracefully', async () => {
+    const error = new Error('DynamoDB connection failed');
+    sendSpy.mockRejectedValueOnce(error);
+
+    await expect(listWorkflows(TABLE_NAME, userId)).rejects.toThrow(
+      'DynamoDB connection failed'
+    );
   });
 
   it('listWorkflowsByCreatedAt returns items sorted by creation date', async () => {
@@ -141,7 +182,7 @@ describe('workflow-state DynamoDB utilities', () => {
     sendSpy.mockResolvedValueOnce({ Items: items });
     const result = await listWorkflowsByCreatedAt(TABLE_NAME, userId);
 
-    expect(result).toEqual([
+    expect(result.items).toEqual([
       expect.objectContaining({
         workflowId: 'wf-1',
         createdAt: '2024-01-03T00:00:00.000Z',
@@ -155,6 +196,7 @@ describe('workflow-state DynamoDB utilities', () => {
         createdAt: '2024-01-01T00:00:00.000Z',
       }),
     ]);
+    expect(result.nextToken).toBeUndefined();
 
     // Verify the query was called with correct parameters
     expect(sendSpy).toHaveBeenCalledTimes(1);
@@ -169,7 +211,8 @@ describe('workflow-state DynamoDB utilities', () => {
   it('listWorkflowsByCreatedAt returns empty array when no items found', async () => {
     sendSpy.mockResolvedValueOnce({ Items: [] });
     const result = await listWorkflowsByCreatedAt(TABLE_NAME, userId);
-    expect(result).toEqual([]);
+    expect(result.items).toEqual([]);
+    expect(result.nextToken).toBeUndefined();
   });
 
   it('listWorkflowsByUpdatedAt returns items sorted by last modified date', async () => {
@@ -202,7 +245,7 @@ describe('workflow-state DynamoDB utilities', () => {
     sendSpy.mockResolvedValueOnce({ Items: items });
     const result = await listWorkflowsByUpdatedAt(TABLE_NAME, userId);
 
-    expect(result).toEqual([
+    expect(result.items).toEqual([
       expect.objectContaining({
         workflowId: 'wf-1',
         updatedAt: '2024-01-03T00:00:00.000Z',
@@ -216,6 +259,7 @@ describe('workflow-state DynamoDB utilities', () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       }),
     ]);
+    expect(result.nextToken).toBeUndefined();
 
     // Verify the query was called with correct parameters
     expect(sendSpy).toHaveBeenCalledTimes(1);
@@ -230,7 +274,10 @@ describe('workflow-state DynamoDB utilities', () => {
   it('listWorkflowsByUpdatedAt returns empty array when no items found', async () => {
     sendSpy.mockResolvedValueOnce({ Items: [] });
     const result = await listWorkflowsByUpdatedAt(TABLE_NAME, userId);
-    expect(result).toEqual([]);
+    expect(result).toEqual({
+      items: [],
+      nextToken: undefined,
+    });
   });
 
   it('listWorkflowsByCreatedAt handles DynamoDB errors gracefully', async () => {
@@ -291,5 +338,174 @@ describe('workflow-state DynamoDB utilities', () => {
     expect(callArg.input.ScanIndexForward).toBe(false);
     // Verify maxPages option for complete results
     expect(callArg.input.Limit).toBeUndefined(); // Should query all pages
+  });
+
+  // Pagination tests for listWorkflowsByCreatedAt
+  it('listWorkflowsByCreatedAt supports pagination with limit', async () => {
+    const mockItems = [
+      {
+        ...baseRecord,
+        workflowId: 'wf-1',
+        createdAt: '2024-01-03T00:00:00.000Z',
+      },
+      {
+        ...baseRecord,
+        workflowId: 'wf-2',
+        createdAt: '2024-01-02T00:00:00.000Z',
+      },
+    ];
+    const mockLastEvaluatedKey = {
+      userId: 'user-1',
+      createdAt: '2024-01-02T00:00:00.000Z',
+    };
+
+    sendSpy.mockResolvedValueOnce({
+      Items: mockItems,
+      LastEvaluatedKey: mockLastEvaluatedKey,
+    });
+
+    const result = await listWorkflowsByCreatedAt(TABLE_NAME, userId, {
+      limit: 2,
+    });
+
+    expect(result.items).toHaveLength(2);
+    expect(result.nextToken).toBeDefined();
+    expect(result.nextToken).toBe(
+      Buffer.from(JSON.stringify(mockLastEvaluatedKey)).toString('base64')
+    );
+
+    // Verify limit was set in query options
+    const callArg = sendSpy.mock.calls[0]?.[0] as any;
+    expect(callArg.input.Limit).toBe(2);
+  });
+
+  it('listWorkflowsByCreatedAt supports pagination with nextToken', async () => {
+    const exclusiveStartKey = {
+      userId: 'user-1',
+      createdAt: '2024-01-02T00:00:00.000Z',
+    };
+    const nextToken = Buffer.from(JSON.stringify(exclusiveStartKey)).toString(
+      'base64'
+    );
+
+    sendSpy.mockResolvedValueOnce({ Items: [] });
+
+    await listWorkflowsByCreatedAt(TABLE_NAME, userId, { nextToken });
+
+    // Verify exclusiveStartKey was set in query options
+    const callArg = sendSpy.mock.calls[0]?.[0] as any;
+    expect(callArg.input.ExclusiveStartKey).toEqual(exclusiveStartKey);
+  });
+
+  it('listWorkflowsByCreatedAt handles pagination with both limit and nextToken', async () => {
+    const exclusiveStartKey = {
+      userId: 'user-1',
+      createdAt: '2024-01-02T00:00:00.000Z',
+    };
+    const nextToken = Buffer.from(JSON.stringify(exclusiveStartKey)).toString(
+      'base64'
+    );
+    const mockItems = [
+      {
+        ...baseRecord,
+        workflowId: 'wf-3',
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+
+    sendSpy.mockResolvedValueOnce({
+      Items: mockItems,
+      LastEvaluatedKey: undefined, // No more items
+    });
+
+    const result = await listWorkflowsByCreatedAt(TABLE_NAME, userId, {
+      limit: 1,
+      nextToken,
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.nextToken).toBeUndefined(); // No more pages
+
+    // Verify both limit and exclusiveStartKey were set
+    const callArg = sendSpy.mock.calls[0]?.[0] as any;
+    expect(callArg.input.Limit).toBe(1);
+    expect(callArg.input.ExclusiveStartKey).toEqual(exclusiveStartKey);
+  });
+
+  // Pagination tests for listWorkflowsByUpdatedAt
+  it('listWorkflowsByUpdatedAt supports pagination with limit', async () => {
+    const mockItems = [
+      {
+        ...baseRecord,
+        workflowId: 'wf-1',
+        updatedAt: '2024-01-03T00:00:00.000Z',
+      },
+      {
+        ...baseRecord,
+        workflowId: 'wf-2',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+      },
+    ];
+    const mockLastEvaluatedKey = {
+      userId: 'user-1',
+      updatedAt: '2024-01-02T00:00:00.000Z',
+    };
+
+    sendSpy.mockResolvedValueOnce({
+      Items: mockItems,
+      LastEvaluatedKey: mockLastEvaluatedKey,
+    });
+
+    const result = await listWorkflowsByUpdatedAt(TABLE_NAME, userId, {
+      limit: 2,
+    });
+
+    expect(result.items).toHaveLength(2);
+    expect(result.nextToken).toBeDefined();
+    expect(result.nextToken).toBe(
+      Buffer.from(JSON.stringify(mockLastEvaluatedKey)).toString('base64')
+    );
+
+    // Verify limit was set in query options
+    const callArg = sendSpy.mock.calls[0]?.[0] as any;
+    expect(callArg.input.Limit).toBe(2);
+  });
+
+  it('listWorkflowsByUpdatedAt supports pagination with nextToken', async () => {
+    const exclusiveStartKey = {
+      userId: 'user-1',
+      updatedAt: '2024-01-02T00:00:00.000Z',
+    };
+    const nextToken = Buffer.from(JSON.stringify(exclusiveStartKey)).toString(
+      'base64'
+    );
+
+    sendSpy.mockResolvedValueOnce({ Items: [] });
+
+    await listWorkflowsByUpdatedAt(TABLE_NAME, userId, { nextToken });
+
+    // Verify exclusiveStartKey was set in query options
+    const callArg = sendSpy.mock.calls[0]?.[0] as any;
+    expect(callArg.input.ExclusiveStartKey).toEqual(exclusiveStartKey);
+  });
+
+  it('listWorkflowsByUpdatedAt handles edge case with invalid nextToken gracefully', async () => {
+    const invalidNextToken = 'invalid-base64-token';
+
+    await expect(
+      listWorkflowsByUpdatedAt(TABLE_NAME, userId, {
+        nextToken: invalidNextToken,
+      })
+    ).rejects.toThrow();
+  });
+
+  it('listWorkflowsByCreatedAt handles edge case with invalid nextToken gracefully', async () => {
+    const invalidNextToken = 'invalid-base64-token';
+
+    await expect(
+      listWorkflowsByCreatedAt(TABLE_NAME, userId, {
+        nextToken: invalidNextToken,
+      })
+    ).rejects.toThrow();
   });
 });

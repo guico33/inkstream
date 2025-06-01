@@ -68,39 +68,59 @@ describe('user-workflows Lambda handler', () => {
       },
     ];
 
-    vi.spyOn(workflowStateUtils, 'listWorkflows').mockResolvedValue(
-      mockWorkflows
-    );
+    vi.spyOn(workflowStateUtils, 'listWorkflowsByUpdatedAt').mockResolvedValue({
+      items: mockWorkflows,
+      nextToken: undefined,
+    });
 
     const result = await handler(mockEvent);
 
     expect(result.statusCode).toBe(200);
-    expect(JSON.parse(result.body)).toEqual(mockWorkflows);
+    expect(JSON.parse(result.body)).toEqual({
+      items: mockWorkflows,
+      nextToken: undefined,
+    });
     expect(result.headers).toMatchObject({
       'Content-Type': 'application/json',
     });
-    expect(workflowStateUtils.listWorkflows).toHaveBeenCalledWith(
+    expect(workflowStateUtils.listWorkflowsByUpdatedAt).toHaveBeenCalledWith(
       'test-user-workflows-table',
-      'test-user-123'
+      'test-user-123',
+      {
+        limit: undefined,
+        nextToken: undefined,
+      }
     );
   });
 
   it('should return empty array when user has no workflows', async () => {
-    vi.spyOn(workflowStateUtils, 'listWorkflows').mockResolvedValue([]);
+    vi.spyOn(workflowStateUtils, 'listWorkflowsByUpdatedAt').mockResolvedValue({
+      items: [],
+      nextToken: undefined,
+    });
 
     const result = await handler(mockEvent);
 
     expect(result.statusCode).toBe(200);
-    expect(JSON.parse(result.body)).toEqual([]);
+    expect(JSON.parse(result.body)).toEqual({
+      items: [],
+      nextToken: undefined,
+    });
   });
 
   it('should return empty array when listWorkflows returns undefined', async () => {
-    vi.spyOn(workflowStateUtils, 'listWorkflows').mockResolvedValue(undefined);
+    vi.spyOn(workflowStateUtils, 'listWorkflowsByUpdatedAt').mockResolvedValue({
+      items: [],
+      nextToken: undefined,
+    });
 
     const result = await handler(mockEvent);
 
     expect(result.statusCode).toBe(200);
-    expect(JSON.parse(result.body)).toEqual([]);
+    expect(JSON.parse(result.body)).toEqual({
+      items: [],
+      nextToken: undefined,
+    });
   });
 
   it('should handle missing user ID in JWT', async () => {
@@ -125,7 +145,7 @@ describe('user-workflows Lambda handler', () => {
   });
 
   it('should handle database errors', async () => {
-    vi.spyOn(workflowStateUtils, 'listWorkflows').mockRejectedValue(
+    vi.spyOn(workflowStateUtils, 'listWorkflowsByUpdatedAt').mockRejectedValue(
       new Error('Database connection failed')
     );
 
@@ -134,6 +154,168 @@ describe('user-workflows Lambda handler', () => {
     expect(result.statusCode).toBe(500);
     expect(JSON.parse(result.body)).toMatchObject({
       message: 'Internal server error',
+    });
+  });
+
+  it('should handle pagination with limit and nextToken', async () => {
+    const mockWorkflows: WorkflowRecord[] = [
+      {
+        userId: 'test-user-123',
+        workflowId: 'workflow-1',
+        status: 'SUCCEEDED',
+        statusHistory: [
+          { status: 'SUCCEEDED', timestamp: '2024-01-01T00:00:00Z' },
+        ],
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      },
+    ];
+
+    const eventWithPagination = {
+      ...mockEvent,
+      queryStringParameters: {
+        limit: '10',
+        nextToken: 'eyJsYXN0S2V5IjoidGVzdCJ9',
+      },
+    };
+
+    vi.spyOn(workflowStateUtils, 'listWorkflowsByUpdatedAt').mockResolvedValue({
+      items: mockWorkflows,
+      nextToken: 'eyJuZXh0S2V5IjoidGVzdCJ9',
+    });
+
+    const result = await handler(eventWithPagination);
+
+    expect(result.statusCode).toBe(200);
+    expect(JSON.parse(result.body)).toEqual({
+      items: mockWorkflows,
+      nextToken: 'eyJuZXh0S2V5IjoidGVzdCJ9',
+    });
+    expect(workflowStateUtils.listWorkflowsByUpdatedAt).toHaveBeenCalledWith(
+      'test-user-workflows-table',
+      'test-user-123',
+      {
+        limit: 10,
+        nextToken: 'eyJsYXN0S2V5IjoidGVzdCJ9',
+      }
+    );
+  });
+
+  it('should handle sortBy=createdAt parameter', async () => {
+    const mockWorkflows: WorkflowRecord[] = [
+      {
+        userId: 'test-user-123',
+        workflowId: 'workflow-1',
+        status: 'SUCCEEDED',
+        statusHistory: [
+          { status: 'SUCCEEDED', timestamp: '2024-01-01T00:00:00Z' },
+        ],
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      },
+    ];
+
+    const eventWithSortBy = {
+      ...mockEvent,
+      queryStringParameters: {
+        sortBy: 'createdAt',
+      },
+    };
+
+    vi.spyOn(workflowStateUtils, 'listWorkflowsByCreatedAt').mockResolvedValue({
+      items: mockWorkflows,
+      nextToken: undefined,
+    });
+
+    const result = await handler(eventWithSortBy);
+
+    expect(result.statusCode).toBe(200);
+    expect(JSON.parse(result.body)).toEqual({
+      items: mockWorkflows,
+      nextToken: undefined,
+    });
+    expect(workflowStateUtils.listWorkflowsByCreatedAt).toHaveBeenCalledWith(
+      'test-user-workflows-table',
+      'test-user-123',
+      {
+        limit: undefined,
+        nextToken: undefined,
+      }
+    );
+  });
+
+  it('should handle sortBy=updatedAt parameter explicitly', async () => {
+    const mockWorkflows: WorkflowRecord[] = [
+      {
+        userId: 'test-user-123',
+        workflowId: 'workflow-1',
+        status: 'SUCCEEDED',
+        statusHistory: [
+          { status: 'SUCCEEDED', timestamp: '2024-01-01T00:00:00Z' },
+        ],
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      },
+    ];
+
+    const eventWithSortBy = {
+      ...mockEvent,
+      queryStringParameters: {
+        sortBy: 'updatedAt',
+      },
+    };
+
+    vi.spyOn(workflowStateUtils, 'listWorkflowsByUpdatedAt').mockResolvedValue({
+      items: mockWorkflows,
+      nextToken: undefined,
+    });
+
+    const result = await handler(eventWithSortBy);
+
+    expect(result.statusCode).toBe(200);
+    expect(JSON.parse(result.body)).toEqual({
+      items: mockWorkflows,
+      nextToken: undefined,
+    });
+    expect(workflowStateUtils.listWorkflowsByUpdatedAt).toHaveBeenCalledWith(
+      'test-user-workflows-table',
+      'test-user-123',
+      {
+        limit: undefined,
+        nextToken: undefined,
+      }
+    );
+  });
+
+  it('should validate limit parameter bounds', async () => {
+    const eventWithInvalidLimit = {
+      ...mockEvent,
+      queryStringParameters: {
+        limit: '150', // Exceeds max of 100
+      },
+    };
+
+    const result = await handler(eventWithInvalidLimit);
+
+    expect(result.statusCode).toBe(400);
+    expect(JSON.parse(result.body)).toMatchObject({
+      message: 'Validation error',
+    });
+  });
+
+  it('should validate sortBy parameter values', async () => {
+    const eventWithInvalidSortBy = {
+      ...mockEvent,
+      queryStringParameters: {
+        sortBy: 'invalidSort',
+      },
+    };
+
+    const result = await handler(eventWithInvalidSortBy);
+
+    expect(result.statusCode).toBe(400);
+    expect(JSON.parse(result.body)).toMatchObject({
+      message: 'Validation error',
     });
   });
 });

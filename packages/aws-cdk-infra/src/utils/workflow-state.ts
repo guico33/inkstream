@@ -164,37 +164,104 @@ export async function getWorkflow(
  */
 export async function listWorkflows(
   tableName: string,
-  userId: string
-): Promise<WorkflowRecord[] | undefined> {
+  userId: string,
+  options?: {
+    limit?: number;
+    nextToken?: string;
+  }
+): Promise<{
+  items: WorkflowRecord[];
+  nextToken?: string;
+}> {
   const { workflowTable, workflowEntity } =
     getWorkflowTableAndEntity(tableName);
-  const { Items } = await workflowTable
+
+  const queryOptions: any = { reverse: true };
+
+  if (options?.limit) {
+    queryOptions.limit = options.limit;
+  } else {
+    // If no limit specified, get all items (backward compatibility)
+    queryOptions.maxPages = Infinity;
+  }
+
+  if (options?.nextToken) {
+    queryOptions.exclusiveStartKey = JSON.parse(
+      Buffer.from(options.nextToken, 'base64').toString('utf-8')
+    );
+  }
+
+  const { Items, LastEvaluatedKey } = await workflowTable
     .build(QueryCommand)
     .entities(workflowEntity)
     .query({ partition: userId })
-    .options({ reverse: true })
+    .options(queryOptions)
     .send();
-  return Items;
+
+  let nextToken: string | undefined;
+  if (LastEvaluatedKey) {
+    nextToken = Buffer.from(JSON.stringify(LastEvaluatedKey)).toString(
+      'base64'
+    );
+  }
+
+  return {
+    items: Items || [],
+    nextToken,
+  };
 }
 
 /**
  * List workflows for a user, sorted by creation date.
  * This uses the createdAtIndex to ensure efficient querying.
  */
-
 export async function listWorkflowsByCreatedAt(
   tableName: string,
-  userId: string
-): Promise<WorkflowRecord[] | undefined> {
+  userId: string,
+  options?: {
+    limit?: number;
+    nextToken?: string;
+  }
+): Promise<{
+  items: WorkflowRecord[];
+  nextToken?: string;
+}> {
   const { workflowTable, workflowEntity } =
     getWorkflowTableAndEntity(tableName);
-  const { Items } = await workflowTable
+
+  const queryOptions: any = { reverse: true };
+
+  if (options?.limit) {
+    queryOptions.limit = options.limit;
+  } else {
+    // If no limit specified, get all items (backward compatibility)
+    queryOptions.maxPages = Infinity;
+  }
+
+  if (options?.nextToken) {
+    queryOptions.exclusiveStartKey = JSON.parse(
+      Buffer.from(options.nextToken, 'base64').toString('utf-8')
+    );
+  }
+
+  const { Items, LastEvaluatedKey } = await workflowTable
     .build(QueryCommand)
     .entities(workflowEntity)
     .query({ index: 'CreatedAtIndex', partition: userId })
-    .options({ maxPages: Infinity, reverse: true })
+    .options(queryOptions)
     .send();
-  return Items;
+
+  let nextToken: string | undefined;
+  if (LastEvaluatedKey) {
+    nextToken = Buffer.from(JSON.stringify(LastEvaluatedKey)).toString(
+      'base64'
+    );
+  }
+
+  return {
+    items: Items || [],
+    nextToken,
+  };
 }
 
 /**
@@ -203,15 +270,49 @@ export async function listWorkflowsByCreatedAt(
  */
 export async function listWorkflowsByUpdatedAt(
   tableName: string,
-  userId: string
-): Promise<WorkflowRecord[] | undefined> {
+  userId: string,
+  options?: {
+    limit?: number;
+    nextToken?: string;
+  }
+): Promise<{
+  items: WorkflowRecord[];
+  nextToken?: string;
+}> {
   const { workflowTable, workflowEntity } =
     getWorkflowTableAndEntity(tableName);
-  const { Items } = await workflowTable
+
+  const queryOptions: any = { reverse: true };
+
+  if (options?.limit) {
+    queryOptions.limit = options.limit;
+  } else {
+    // If no limit specified, get all items (backward compatibility)
+    queryOptions.maxPages = Infinity;
+  }
+
+  if (options?.nextToken) {
+    queryOptions.exclusiveStartKey = JSON.parse(
+      Buffer.from(options.nextToken, 'base64').toString('utf-8')
+    );
+  }
+
+  const { Items, LastEvaluatedKey } = await workflowTable
     .build(QueryCommand)
     .entities(workflowEntity)
     .query({ index: 'UpdatedAtIndex', partition: userId })
-    .options({ maxPages: Infinity, reverse: true })
+    .options(queryOptions)
     .send();
-  return Items;
+
+  let nextToken: string | undefined;
+  if (LastEvaluatedKey) {
+    nextToken = Buffer.from(JSON.stringify(LastEvaluatedKey)).toString(
+      'base64'
+    );
+  }
+
+  return {
+    items: Items || [],
+    nextToken,
+  };
 }
