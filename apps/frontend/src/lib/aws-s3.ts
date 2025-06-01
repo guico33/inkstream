@@ -7,7 +7,7 @@ import {
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
 import { fromCognitoIdentityPool } from '@aws-sdk/credential-providers';
-import { authService } from './auth/auth-service';
+import { authService } from './auth-service';
 import { ENV } from './constants';
 import type { User } from './types/user-types';
 

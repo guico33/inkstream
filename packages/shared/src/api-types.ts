@@ -15,7 +15,7 @@ export interface StartWorkflowResponse {
 }
 
 // Workflow Status API - matches backend implementation
-export interface GetWorkflowStatusParams {
+export interface GetWorkflowParams {
   workflowId: string;
 }
 

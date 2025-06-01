@@ -10,7 +10,7 @@ import type { User } from './types/user-types';
 import {
   type StartWorkflowParams,
   type StartWorkflowResponse,
-  type GetWorkflowStatusParams,
+  type GetWorkflowParams,
   type WorkflowStatusResponse,
 } from '@inkstream/shared';
 
@@ -95,8 +95,8 @@ export class WorkflowApiService {
     return this.startWorkflow(workflowParams);
   }
 
-  async getWorkflowStatus(
-    params: GetWorkflowStatusParams
+  async getWorkflow(
+    params: GetWorkflowParams
   ): Promise<WorkflowStatusResponse> {
     const response: AxiosResponse<WorkflowStatusResponse> =
       await this.client.get(`${API_PATHS.WORKFLOW}/${params.workflowId}`);
@@ -121,7 +121,7 @@ export class WorkflowApiService {
     filename?: string
   ): Promise<void> {
     // Get workflow status to find result paths
-    const status = await this.getWorkflowStatus({ workflowId });
+    const status = await this.getWorkflow({ workflowId });
 
     if (!status.s3Paths) {
       throw new Error('No result files available for download');
@@ -157,7 +157,7 @@ export class WorkflowApiService {
 
   async downloadAllWorkflowResults(workflowId: string): Promise<void> {
     // Get workflow status to find result paths
-    const status = await this.getWorkflowStatus({ workflowId });
+    const status = await this.getWorkflow({ workflowId });
 
     if (!status.s3Paths) {
       throw new Error('No result files available for download');

@@ -1,6 +1,5 @@
 import AppRoutes from './AppRoutes';
 import { AuthProvider } from './lib/contexts/auth-context';
-import { FileProcessingProvider } from './lib/contexts/file-processing-context';
 import { BrowserRouter as Router } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/query-client';
@@ -10,12 +9,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <FileProcessingProvider>
-          <Router>
-            <AppRoutes />
-            <Toaster position="top-right" richColors />
-          </Router>
-        </FileProcessingProvider>
+        <Router>
+          <AppRoutes />
+          <Toaster position="top-right" richColors />
+        </Router>
       </AuthProvider>
     </QueryClientProvider>
   );

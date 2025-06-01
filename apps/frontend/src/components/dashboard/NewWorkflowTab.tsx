@@ -8,7 +8,7 @@ import { WorkflowParametersForm } from './WorkflowParametersForm';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useWorkflowApi } from '@/lib/api-service';
-import { type WorkflowFormData } from '@/types/dashboard';
+import { type WorkflowFormData } from '@/lib/types/form-types';
 
 export function NewWorkflowTab() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);

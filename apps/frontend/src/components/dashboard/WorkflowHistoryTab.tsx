@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useUserWorkflows } from '@/lib/hooks/use-workflow-queries';
 import { Download, History, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { WORKFLOW_STEP_NAMES } from '@inkstream/shared';
-import { type DashboardWorkflow } from '@/types/dashboard';
+import { type DashboardWorkflow } from '@/lib/types/form-types';
 
 export function WorkflowHistoryTab() {
   const {

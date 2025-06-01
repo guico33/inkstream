@@ -1,8 +1,8 @@
 // Centralized authentication service
 // Handles all auth operations: login, logout, token management, storage
 
-import type { User } from '../types/user-types';
-import { ENV } from '../constants';
+import type { User } from './types/user-types';
+import { ENV } from './constants';
 
 export interface AuthTokens {
   accessToken: string;

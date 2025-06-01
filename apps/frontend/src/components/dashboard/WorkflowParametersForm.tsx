@@ -21,7 +21,7 @@ import {
   DEFAULT_WORKFLOW_PARAMS,
   type SupportedLanguage,
 } from '@inkstream/shared';
-import { type WorkflowFormData } from '@/types/dashboard';
+import { type WorkflowFormData } from '@/lib/types/form-types';
 
 // Validation schema
 const workflowParametersSchema = z.object({

@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { User } from '../types/user-types';
-import { authService } from '../auth/auth-service';
+import { authService } from '../auth-service';
 
 interface AuthContextType {
   user: User | null;

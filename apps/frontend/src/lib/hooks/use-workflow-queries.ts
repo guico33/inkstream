@@ -57,7 +57,7 @@ export const useWorkflowStatus = (
 
   const query = useQuery({
     queryKey: workflowKeys.detail(workflowId || ''),
-    queryFn: () => apiService.getWorkflowStatus({ workflowId: workflowId! }),
+    queryFn: () => apiService.getWorkflow({ workflowId: workflowId! }),
     enabled: !!workflowId,
     refetchInterval: enablePolling ? WORKFLOW_POLLING_INTERVAL : false,
   });
