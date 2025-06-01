@@ -63,7 +63,7 @@ export class WorkflowStepFunctions extends Construct {
           taskToken: sfn.JsonPath.taskToken,
           ...COMMON_WORKFLOW_PARAMS,
         }),
-        timeout: cdk.Duration.minutes(20), // Textract jobs can take a while
+        timeout: cdk.Duration.minutes(30), // Textract jobs can take a while
       }
     );
 
@@ -204,7 +204,7 @@ export class WorkflowStepFunctions extends Construct {
 
     this.stateMachine = new sfn.StateMachine(this, 'ProcessingWorkflow', {
       definitionBody: sfn.DefinitionBody.fromChainable(definition),
-      timeout: cdk.Duration.minutes(15),
+      timeout: cdk.Duration.minutes(31), // Allow enough time for Textract jobs + other tasks
     });
   }
 }
