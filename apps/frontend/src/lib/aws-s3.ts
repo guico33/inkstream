@@ -99,7 +99,9 @@ class S3Service {
       // Determine filename
       const downloadFilename =
         filename ||
-        response.Metadata?.originalFilename ||
+        (response.Metadata?.originalFilename
+          ? decodeURIComponent(response.Metadata.originalFilename)
+          : undefined) ||
         key.split('/').pop() ||
         'download';
 
@@ -159,7 +161,9 @@ export async function uploadFileToS3({
 
   // Generate S3 key following the pattern: users/{userId}/uploads/{filename}
   const timestamp = Date.now();
-  const sanitizedFilename = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const sanitizedFilename = file.name
+    .replace(/[^a-zA-Z0-9.-]/g, '_')
+    .replace(/\s/g, '');
   const datedFilename = `${timestamp}-${sanitizedFilename}`;
   const key = `users/${user.sub}/uploads/${datedFilename}`;
 
@@ -177,7 +181,7 @@ export async function uploadFileToS3({
         ContentType: getMimeType(file.name),
         ContentLength: file.size,
         Metadata: {
-          originalFilename: file.name,
+          originalFilename: encodeURIComponent(file.name),
           uploadTimestamp: timestamp.toString(),
           userId: user.sub,
         },

@@ -73,7 +73,9 @@ export async function startInkstreamWorkflow({
 export async function getInkstreamWorkflowStatus({
   workflowId,
 }: GetWorkflowStatusParams): Promise<WorkflowStatusResponse> {
-  const endpoint = `${ENV.API_ENDPOINT_URL}/workflow/status`; // Changed path
+  const endpoint = `${ENV.API_ENDPOINT_URL}/workflow/${encodeURIComponent(
+    workflowId
+  )}`;
 
   console.log('[WorkflowAPI] Getting status for workflow:', workflowId);
 
@@ -85,15 +87,12 @@ export async function getInkstreamWorkflowStatus({
     throw new Error('User not authenticated');
   }
 
-  const response = await fetch(
-    `${endpoint}?workflowId=${encodeURIComponent(workflowId)}`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${idToken}`,
-      },
-    }
-  );
+  const response = await fetch(endpoint, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+    },
+  });
 
   if (!response.ok) {
     const errorBody = await response.text();

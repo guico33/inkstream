@@ -233,12 +233,16 @@ export class AuthService {
       this.clearStorage();
       this.notifyListeners();
 
-      // Redirect to Cognito logout
-      const logoutUrl = `${ENV.COGNITO_DOMAIN}/logout?client_id=${ENV.COGNITO_CLIENT_ID}&logout_uri=${window.location.origin}`;
-      window.location.href = logoutUrl;
+      // Note: External logout redirect will be handled by the component that calls this
+      // This allows React Router to handle navigation properly
     } catch (error) {
       this.handleAuthError(error);
     }
+  }
+
+  // Get Cognito logout URL (for use by components)
+  getCognitoLogoutUrl(): string {
+    return `${ENV.COGNITO_DOMAIN}/logout?client_id=${ENV.COGNITO_CLIENT_ID}&logout_uri=${window.location.origin}`;
   }
 
   // Storage operations

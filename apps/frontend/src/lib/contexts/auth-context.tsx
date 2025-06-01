@@ -20,6 +20,7 @@ interface AuthContextType {
   refreshTokens: () => Promise<void>;
   getIdToken: () => Promise<string | null>;
   getLoginUrl: () => string;
+  getCognitoLogoutUrl: () => string;
   exchangeCodeForTokens: (code: string) => Promise<void>;
 }
 
@@ -93,6 +94,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return authService.getLoginUrl();
   }, []);
 
+  const getCognitoLogoutUrl = useCallback(() => {
+    return authService.getCognitoLogoutUrl();
+  }, []);
+
   const exchangeCodeForTokens = useCallback(async (code: string) => {
     setIsLoading(true);
     try {
@@ -118,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshTokens,
         getIdToken,
         getLoginUrl,
+        getCognitoLogoutUrl,
         exchangeCodeForTokens,
       }}
     >
