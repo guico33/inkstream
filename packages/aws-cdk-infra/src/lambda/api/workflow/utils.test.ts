@@ -39,7 +39,7 @@ import {
   StepFunctionsExecutionDetails,
 } from './utils';
 
-describe('workflow-status utility functions', () => {
+describe('workflow utility functions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -261,9 +261,9 @@ describe('workflow-status utility functions', () => {
   });
 
   describe('extractWorkflowId', () => {
-    it('extracts workflowId from valid query parameters', () => {
+    it('extracts workflowId from valid path parameters', () => {
       const event: Partial<APIGatewayProxyEvent> = {
-        queryStringParameters: {
+        pathParameters: {
           workflowId: 'wf-123',
         },
       };
@@ -272,22 +272,22 @@ describe('workflow-status utility functions', () => {
       expect(result).toBe('wf-123');
     });
 
-    it('throws ValidationError when queryStringParameters is null', () => {
+    it('throws ValidationError when pathParameters is null', () => {
       const event: Partial<APIGatewayProxyEvent> = {
-        queryStringParameters: null,
+        pathParameters: null,
       };
 
       expect(() => extractWorkflowId(event as APIGatewayProxyEvent)).toThrow(
         ValidationError
       );
       expect(() => extractWorkflowId(event as APIGatewayProxyEvent)).toThrow(
-        'workflowId is required as query parameter'
+        'workflowId is required as path parameter'
       );
     });
 
     it('throws ValidationError when workflowId is missing', () => {
       const event: Partial<APIGatewayProxyEvent> = {
-        queryStringParameters: {
+        pathParameters: {
           otherParam: 'value',
         },
       };
@@ -296,13 +296,13 @@ describe('workflow-status utility functions', () => {
         ValidationError
       );
       expect(() => extractWorkflowId(event as APIGatewayProxyEvent)).toThrow(
-        'workflowId is required as query parameter'
+        'workflowId is required as path parameter'
       );
     });
 
     it('throws ValidationError when workflowId is empty string', () => {
       const event: Partial<APIGatewayProxyEvent> = {
-        queryStringParameters: {
+        pathParameters: {
           workflowId: '',
         },
       };
@@ -311,13 +311,13 @@ describe('workflow-status utility functions', () => {
         ValidationError
       );
       expect(() => extractWorkflowId(event as APIGatewayProxyEvent)).toThrow(
-        'Invalid query parameters: workflowId: workflowId cannot be empty'
+        'Invalid path parameters: workflowId: workflowId cannot be empty'
       );
     });
 
     it('throws ValidationError when workflowId is not a string', () => {
       const event: Partial<APIGatewayProxyEvent> = {
-        queryStringParameters: {
+        pathParameters: {
           workflowId: null as any,
         },
       };
@@ -328,9 +328,9 @@ describe('workflow-status utility functions', () => {
     });
 
     it('handles Zod validation errors with multiple error messages', () => {
-      // Create a spy on the QueryParametersSchema.parse method
+      // Create a spy on the PathParametersSchema.parse method
       const event: Partial<APIGatewayProxyEvent> = {
-        queryStringParameters: {
+        pathParameters: {
           workflowId: null as any,
         },
       };
@@ -340,7 +340,7 @@ describe('workflow-status utility functions', () => {
         ValidationError
       );
       expect(() => extractWorkflowId(event as APIGatewayProxyEvent)).toThrow(
-        'Invalid query parameters'
+        'Invalid path parameters'
       );
     });
   });

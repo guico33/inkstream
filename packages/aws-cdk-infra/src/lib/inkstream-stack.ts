@@ -90,11 +90,11 @@ export class InkstreamStack extends cdk.Stack {
 
     // Grant permissions to the state machine to invoke the Lambda functions
     stateMachine.grantStartExecution(controlLambdas.startWorkflowFn);
-    stateMachine.grantRead(controlLambdas.workflowStatusFn);
+    stateMachine.grantRead(controlLambdas.workflowFn);
 
     // Grant permissions to the workflow state table for the Lambda functions
     storage.userWorkflowsTable.grantWriteData(controlLambdas.startWorkflowFn);
-    storage.userWorkflowsTable.grantReadData(controlLambdas.workflowStatusFn); // Added missing read permission for workflow-status Lambda
+    storage.userWorkflowsTable.grantReadData(controlLambdas.workflowFn); // Added missing read permission for workflow Lambda
     storage.userWorkflowsTable.grantReadData(controlLambdas.userWorkflowsFn); // Grant read permissions for user-workflows Lambda
     storage.userWorkflowsTable.grantReadData(stepLambdas.startTextractJobFn);
 
@@ -112,7 +112,7 @@ export class InkstreamStack extends cdk.Stack {
     // API Gateway
     const api = new ApiGatewayConstruct(this, 'ApiGateway', {
       startWorkflowFn: controlLambdas.startWorkflowFn,
-      workflowStatusFn: controlLambdas.workflowStatusFn,
+      workflowStatusFn: controlLambdas.workflowFn,
       userWorkflowsFn: controlLambdas.userWorkflowsFn,
       userPool: auth.userPool,
       userPoolClientId: auth.userPoolClient.userPoolClientId, // Pass userPoolClientId here

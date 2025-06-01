@@ -11,7 +11,7 @@ import {
 import * as workflowStateUtils from '../../../utils/workflow-state';
 import { WorkflowRecord } from '@inkstream/shared';
 
-describe('workflow-status Lambda handler', () => {
+describe('workflow Lambda handler', () => {
   let handler: any;
 
   beforeAll(async () => {
@@ -48,7 +48,7 @@ describe('workflow-status Lambda handler', () => {
           },
         },
       },
-      queryStringParameters: {},
+      pathParameters: {},
     };
 
     // Only set userId if it's not null/undefined
@@ -58,7 +58,7 @@ describe('workflow-status Lambda handler', () => {
 
     // Only set workflowId if it's not null/undefined
     if (workflowId !== null && workflowId !== undefined) {
-      event.queryStringParameters.workflowId = workflowId;
+      event.pathParameters.workflowId = workflowId;
     }
 
     return event;
@@ -125,17 +125,17 @@ describe('workflow-status Lambda handler', () => {
     expect(body.workflowId).toBe('wf-123');
   });
 
-  it('returns 400 when workflowId is missing from query parameters', async () => {
+  it('returns 400 when workflowId is missing from path parameters', async () => {
     const event = createMockEvent({ workflowId: undefined });
     const result = await handler(event);
 
     expect(result.statusCode).toBe(400);
     const body = JSON.parse(result.body);
     expect(body.message).toBe('Validation error');
-    expect(body.error).toBe('workflowId is required as query parameter');
+    expect(body.error).toBe('workflowId is required as path parameter');
   });
 
-  it('returns 400 when workflowId is empty in query parameters', async () => {
+  it('returns 400 when workflowId is empty in path parameters', async () => {
     const event = createMockEvent({ workflowId: '' });
     const result = await handler(event);
 

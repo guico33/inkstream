@@ -9,9 +9,7 @@ import { ValidationError, ExternalServiceError } from '../errors';
  * Handles different error types and returns appropriate HTTP responses
  */
 export function handleError(error: unknown): APIGatewayProxyResult {
-  const headers = {
-    'Content-Type': 'application/json',
-  };
+  const headers = getCommonHeaders();
 
   if (error instanceof ValidationError) {
     return {
@@ -105,9 +103,37 @@ export function createSuccessResponse(
 ): APIGatewayProxyResult {
   return {
     statusCode,
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getCommonHeaders(),
     body: JSON.stringify(data),
+  };
+}
+
+/**
+ * Creates an error response with specified status code and message
+ */
+export function createErrorResponse(
+  statusCode: number,
+  message: string,
+  error?: string,
+  additionalData?: Record<string, unknown>
+): APIGatewayProxyResult {
+  return {
+    statusCode,
+    headers: getCommonHeaders(),
+    body: JSON.stringify({
+      message,
+      ...(error && { error }),
+      ...additionalData,
+    }),
+  };
+}
+
+export function getCommonHeaders(): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers':
+      'Content-Type, Authorization, X-Amz-Date, X-Api-Key, X-Amz-Security-Token',
   };
 }

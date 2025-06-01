@@ -4,10 +4,27 @@ import {
   handleError,
   validateRequestBody,
   createSuccessResponse,
+  createErrorResponse,
+  getCommonHeaders,
 } from '../api-utils';
 import { ValidationError, ExternalServiceError } from '../../errors';
 
 describe('API Utils', () => {
+  const expectedHeaders = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers':
+      'Content-Type, Authorization, X-Amz-Date, X-Api-Key, X-Amz-Security-Token',
+  };
+
+  describe('getCommonHeaders', () => {
+    it('returns correct CORS headers', () => {
+      const headers = getCommonHeaders();
+
+      expect(headers).toEqual(expectedHeaders);
+    });
+  });
   describe('handleError', () => {
     it('handles ValidationError with 400 status', () => {
       const error = new ValidationError('Invalid input data');
@@ -15,9 +32,7 @@ describe('API Utils', () => {
       const result = handleError(error);
 
       expect(result.statusCode).toBe(400);
-      expect(result.headers).toEqual({
-        'Content-Type': 'application/json',
-      });
+      expect(result.headers).toEqual(expectedHeaders);
       expect(JSON.parse(result.body)).toEqual({
         message: 'Validation error',
         error: 'Invalid input data',
@@ -40,9 +55,7 @@ describe('API Utils', () => {
       const result = handleError(zodError!);
 
       expect(result.statusCode).toBe(400);
-      expect(result.headers).toEqual({
-        'Content-Type': 'application/json',
-      });
+      expect(result.headers).toEqual(expectedHeaders);
 
       const body = JSON.parse(result.body);
       expect(body.message).toBe('Validation error');
@@ -59,9 +72,7 @@ describe('API Utils', () => {
       const result = handleError(error);
 
       expect(result.statusCode).toBe(500);
-      expect(result.headers).toEqual({
-        'Content-Type': 'application/json',
-      });
+      expect(result.headers).toEqual(expectedHeaders);
       expect(JSON.parse(result.body)).toEqual({
         message: 'Internal server error',
         error: '[DynamoDB] Database connection failed',
@@ -74,9 +85,7 @@ describe('API Utils', () => {
       const result = handleError(error);
 
       expect(result.statusCode).toBe(500);
-      expect(result.headers).toEqual({
-        'Content-Type': 'application/json',
-      });
+      expect(result.headers).toEqual(expectedHeaders);
       expect(JSON.parse(result.body)).toEqual({
         message: 'Internal server error',
         error: 'Unexpected error occurred',
@@ -89,9 +98,7 @@ describe('API Utils', () => {
       const result = handleError(error);
 
       expect(result.statusCode).toBe(500);
-      expect(result.headers).toEqual({
-        'Content-Type': 'application/json',
-      });
+      expect(result.headers).toEqual(expectedHeaders);
       expect(JSON.parse(result.body)).toEqual({
         message: 'Internal server error',
         error: 'Unknown error',
@@ -104,9 +111,7 @@ describe('API Utils', () => {
 
       for (const result of [result1, result2]) {
         expect(result.statusCode).toBe(500);
-        expect(result.headers).toEqual({
-          'Content-Type': 'application/json',
-        });
+        expect(result.headers).toEqual(expectedHeaders);
         expect(JSON.parse(result.body)).toEqual({
           message: 'Internal server error',
           error: 'Unknown error',
@@ -120,9 +125,7 @@ describe('API Utils', () => {
       const result = handleError(error);
 
       expect(result.statusCode).toBe(500);
-      expect(result.headers).toEqual({
-        'Content-Type': 'application/json',
-      });
+      expect(result.headers).toEqual(expectedHeaders);
       expect(JSON.parse(result.body)).toEqual({
         message: 'Internal server error',
         error: 'Unknown error',
@@ -327,9 +330,7 @@ describe('API Utils', () => {
 
       expect(result).toEqual({
         statusCode: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: expectedHeaders,
         body: JSON.stringify(data),
       });
     });
@@ -341,9 +342,7 @@ describe('API Utils', () => {
 
       expect(result).toEqual({
         statusCode: 201,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: expectedHeaders,
         body: JSON.stringify(data),
       });
     });
@@ -353,9 +352,7 @@ describe('API Utils', () => {
 
       expect(result).toEqual({
         statusCode: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: expectedHeaders,
         body: 'null',
       });
     });
@@ -370,9 +367,7 @@ describe('API Utils', () => {
 
       expect(result).toEqual({
         statusCode: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: expectedHeaders,
         body: JSON.stringify(data),
       });
     });
@@ -384,9 +379,7 @@ describe('API Utils', () => {
 
       expect(result).toEqual({
         statusCode: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: expectedHeaders,
         body: '"Simple string response"',
       });
     });
@@ -398,9 +391,7 @@ describe('API Utils', () => {
 
       expect(result).toEqual({
         statusCode: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: expectedHeaders,
         body: '42',
       });
     });
@@ -412,9 +403,7 @@ describe('API Utils', () => {
 
       expect(result).toEqual({
         statusCode: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: expectedHeaders,
         body: 'true',
       });
     });
@@ -443,15 +432,109 @@ describe('API Utils', () => {
 
       expect(result).toEqual({
         statusCode: 202,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: expectedHeaders,
         body: JSON.stringify(data),
       });
 
       // Verify the JSON is valid and can be parsed back
       const parsedBody = JSON.parse(result.body);
       expect(parsedBody).toEqual(data);
+    });
+  });
+
+  describe('createErrorResponse', () => {
+    it('creates error response with message only', () => {
+      const result = createErrorResponse(400, 'Bad Request');
+
+      expect(result).toEqual({
+        statusCode: 400,
+        headers: expectedHeaders,
+        body: JSON.stringify({ message: 'Bad Request' }),
+      });
+    });
+
+    it('creates error response with message and error details', () => {
+      const result = createErrorResponse(
+        500,
+        'Internal Server Error',
+        'Database connection failed'
+      );
+
+      expect(result).toEqual({
+        statusCode: 500,
+        headers: expectedHeaders,
+        body: JSON.stringify({
+          message: 'Internal Server Error',
+          error: 'Database connection failed',
+        }),
+      });
+    });
+
+    it('creates error response with additional data', () => {
+      const additionalData = {
+        requestId: 'req-123',
+        timestamp: '2024-01-01T00:00:00.000Z',
+      };
+
+      const result = createErrorResponse(
+        422,
+        'Validation Failed',
+        'Invalid field values',
+        additionalData
+      );
+
+      expect(result).toEqual({
+        statusCode: 422,
+        headers: expectedHeaders,
+        body: JSON.stringify({
+          message: 'Validation Failed',
+          error: 'Invalid field values',
+          requestId: 'req-123',
+          timestamp: '2024-01-01T00:00:00.000Z',
+        }),
+      });
+    });
+
+    it('creates error response with additional data but no error details', () => {
+      const additionalData = {
+        retryAfter: 30,
+        code: 'RATE_LIMITED',
+      };
+
+      const result = createErrorResponse(
+        429,
+        'Too Many Requests',
+        undefined,
+        additionalData
+      );
+
+      expect(result).toEqual({
+        statusCode: 429,
+        headers: expectedHeaders,
+        body: JSON.stringify({
+          message: 'Too Many Requests',
+          retryAfter: 30,
+          code: 'RATE_LIMITED',
+        }),
+      });
+    });
+
+    it('handles empty additional data object', () => {
+      const result = createErrorResponse(
+        404,
+        'Not Found',
+        'Resource not found',
+        {}
+      );
+
+      expect(result).toEqual({
+        statusCode: 404,
+        headers: expectedHeaders,
+        body: JSON.stringify({
+          message: 'Not Found',
+          error: 'Resource not found',
+        }),
+      });
     });
   });
 });

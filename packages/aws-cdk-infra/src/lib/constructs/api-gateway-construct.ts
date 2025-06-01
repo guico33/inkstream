@@ -72,10 +72,10 @@ export class ApiGatewayConstruct extends Construct {
     });
 
     this.httpApi.addRoutes({
-      path: '/workflow/status',
-      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+      path: '/workflow/{workflowId}',
+      methods: [apigwv2.HttpMethod.GET],
       integration: new apigwv2_integrations.HttpLambdaIntegration(
-        'WorkflowStatusIntegration',
+        'WorkflowIntegration',
         props.workflowStatusFn
       ),
       authorizer: customAuthorizer,

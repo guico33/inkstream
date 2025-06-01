@@ -12,8 +12,8 @@ import { WorkflowRecord } from '@inkstream/shared';
 // Initialize Step Functions client
 const sfnClient = new SFNClient({});
 
-// Zod schema for query parameters validation
-const QueryParametersSchema = z.object({
+// Zod schema for path parameters validation
+const PathParametersSchema = z.object({
   workflowId: z
     .string({ required_error: 'workflowId is required' })
     .min(1, 'workflowId cannot be empty'),
@@ -103,20 +103,15 @@ export function combineWorkflowStatus(
 }
 
 /**
- * Extracts workflowId from query parameters
+ * Extracts workflowId from path parameters
  */
 export function extractWorkflowId(event: APIGatewayProxyEvent): string {
-  if (
-    !event.queryStringParameters ||
-    !('workflowId' in event.queryStringParameters)
-  ) {
-    throw new ValidationError('workflowId is required as query parameter');
+  if (!event.pathParameters || !('workflowId' in event.pathParameters)) {
+    throw new ValidationError('workflowId is required as path parameter');
   }
 
   try {
-    const { workflowId } = QueryParametersSchema.parse(
-      event.queryStringParameters
-    );
+    const { workflowId } = PathParametersSchema.parse(event.pathParameters);
     return workflowId;
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -124,10 +119,10 @@ export function extractWorkflowId(event: APIGatewayProxyEvent): string {
         (err) => `${err.path.join('.')}: ${err.message}`
       );
       throw new ValidationError(
-        `Invalid query parameters: ${errorMessages.join(', ')}`
+        `Invalid path parameters: ${errorMessages.join(', ')}`
       );
     }
-    throw new ValidationError('Invalid query parameters');
+    throw new ValidationError('Invalid path parameters');
   }
 }
 

@@ -265,7 +265,7 @@ async function startWorkflow(
 }
 
 async function getWorkflowRecord(workflowId: string): Promise<any> {
-  const statusUrl = `${API_GATEWAY_URL}/workflow/status?workflowId=${encodeURIComponent(
+  const statusUrl = `${API_GATEWAY_URL}/workflow/${encodeURIComponent(
     workflowId
   )}`;
   const response = await httpRequest(statusUrl, 'GET', undefined, AUTH_TOKEN);

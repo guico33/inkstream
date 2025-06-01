@@ -12,7 +12,7 @@ export interface WorkflowControlLambdasProps {
 
 export class WorkflowControlLambdas extends Construct {
   public readonly startWorkflowFn: lambda.IFunction;
-  public readonly workflowStatusFn: lambda.IFunction;
+  public readonly workflowFn: lambda.IFunction;
   public readonly userWorkflowsFn: lambda.IFunction;
 
   constructor(
@@ -35,10 +35,10 @@ export class WorkflowControlLambdas extends Construct {
       },
     });
 
-    this.workflowStatusFn = new NodejsFunction(this, 'WorkflowStatusFunction', {
-      entry: path.join(__dirname, '../../lambda/api/workflow-status/index.ts'),
+    this.workflowFn = new NodejsFunction(this, 'WorkflowFunction', {
+      entry: path.join(__dirname, '../../lambda/api/workflow/index.ts'),
       handler: 'handler',
-      description: 'Get the status of a workflow execution',
+      description: 'Get the details of a workflow execution',
       runtime: lambda.Runtime.NODEJS_18_X,
       timeout: cdk.Duration.seconds(10),
       environment: {
