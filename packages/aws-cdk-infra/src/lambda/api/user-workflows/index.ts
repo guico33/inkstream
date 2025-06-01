@@ -1,11 +1,11 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
+import { listWorkflows } from '../../../utils/workflow-state';
 import {
-  listWorkflows,
-  listWorkflowsByCreatedAt,
-  listWorkflowsByUpdatedAt,
-} from '../../../utils/workflow-state';
-import { WorkflowRecord } from '@inkstream/shared';
+  WorkflowRecord,
+  WorkflowStatus,
+  workflowStatuses,
+} from '@inkstream/shared';
 import { handleError, createSuccessResponse } from '../../../utils/api-utils';
 import { ExternalServiceError } from '../../../errors';
 import { extractUserId } from 'src/utils/auth-utils';
@@ -24,6 +24,13 @@ const QueryParametersSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   nextToken: z.string().optional(),
   sortBy: z.enum(['createdAt', 'updatedAt']).optional().default('updatedAt'),
+  // one of the values in workflowStatuses
+  status: z
+    .enum(workflowStatuses, {
+      required_error: 'status must be one of the defined workflow statuses',
+      invalid_type_error: 'status must be a string',
+    })
+    .optional(),
 });
 
 // Validate environment variables
@@ -48,7 +55,7 @@ export const handler = async (
 
     console.log('Query parameters:', queryParams);
 
-    // Get workflows for this user from DynamoDB with pagination and sorting
+    // Get workflows for this user from DynamoDB with pagination, sorting, and filtering
     const result = await getUserWorkflowsFromDatabase(
       env.USER_WORKFLOWS_TABLE,
       userId,
@@ -66,7 +73,7 @@ export const handler = async (
 };
 
 /**
- * Retrieves workflow records for a user from DynamoDB with pagination and sorting
+ * Retrieves workflow records for a user from DynamoDB with pagination, sorting, and filtering
  */
 async function getUserWorkflowsFromDatabase(
   userWorkflowsTable: string,
@@ -75,31 +82,20 @@ async function getUserWorkflowsFromDatabase(
     limit?: number;
     nextToken?: string;
     sortBy: 'createdAt' | 'updatedAt';
+    status?: WorkflowStatus;
   }
 ): Promise<{
   items: WorkflowRecord[];
   nextToken?: string;
 }> {
   try {
-    // Choose the appropriate function based on sortBy parameter
-    switch (options.sortBy) {
-      case 'createdAt':
-        return await listWorkflowsByCreatedAt(userWorkflowsTable, userId, {
-          limit: options.limit,
-          nextToken: options.nextToken,
-        });
-      case 'updatedAt':
-        return await listWorkflowsByUpdatedAt(userWorkflowsTable, userId, {
-          limit: options.limit,
-          nextToken: options.nextToken,
-        });
-      default:
-        // Fallback to default listWorkflows (sorted by updatedAt)
-        return await listWorkflows(userWorkflowsTable, userId, {
-          limit: options.limit,
-          nextToken: options.nextToken,
-        });
-    }
+    // Use the unified listWorkflows function with all options
+    return await listWorkflows(userWorkflowsTable, userId, {
+      limit: options.limit,
+      nextToken: options.nextToken,
+      sortBy: options.sortBy,
+      filters: options.status ? { status: options.status } : undefined,
+    });
   } catch (error) {
     throw new ExternalServiceError(
       'Failed to retrieve user workflows from DynamoDB',

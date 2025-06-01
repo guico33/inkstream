@@ -86,3 +86,16 @@ export const OUTPUT_FILE_TYPES = {
     description: 'Text converted to speech audio',
   },
 } as const;
+
+export const workflowStatuses = [
+  'STARTING',
+  'EXTRACTING_TEXT',
+  'FORMATTING_TEXT',
+  'TRANSLATING',
+  'CONVERTING_TO_SPEECH',
+  'TEXT_FORMATTING_COMPLETE',
+  'TRANSLATION_COMPLETE',
+  'SUCCEEDED',
+  'FAILED',
+  'TIMED_OUT',
+] as const;

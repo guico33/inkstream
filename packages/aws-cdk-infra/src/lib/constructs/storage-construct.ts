@@ -75,5 +75,13 @@ export class StorageConstruct extends Construct {
       sortKey: { name: 'updatedAt', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL, // Include all attributes
     });
+
+    // GSI for status queries
+    this.userWorkflowsTable.addGlobalSecondaryIndex({
+      indexName: 'StatusIndex',
+      partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'status', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL, // Include all attributes
+    });
   }
 }

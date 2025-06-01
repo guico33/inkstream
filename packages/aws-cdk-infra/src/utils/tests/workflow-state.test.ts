@@ -5,8 +5,6 @@ import {
   getWorkflow,
   updateWorkflowStatus,
   listWorkflows,
-  listWorkflowsByCreatedAt,
-  listWorkflowsByUpdatedAt,
 } from '../workflow-state';
 import { WorkflowRecord } from '@inkstream/shared';
 
@@ -152,7 +150,7 @@ describe('workflow-state DynamoDB utilities', () => {
     );
   });
 
-  it('listWorkflowsByCreatedAt returns items sorted by creation date', async () => {
+  it('listWorkflows with sortBy=createdAt returns items sorted by creation date', async () => {
     const items = [
       {
         ...baseRecord,
@@ -180,7 +178,9 @@ describe('workflow-state DynamoDB utilities', () => {
       },
     ];
     sendSpy.mockResolvedValueOnce({ Items: items });
-    const result = await listWorkflowsByCreatedAt(TABLE_NAME, userId);
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      sortBy: 'createdAt',
+    });
 
     expect(result.items).toEqual([
       expect.objectContaining({
@@ -208,14 +208,16 @@ describe('workflow-state DynamoDB utilities', () => {
     expect(callArg.input.ScanIndexForward).toBe(false); // reverse order
   });
 
-  it('listWorkflowsByCreatedAt returns empty array when no items found', async () => {
+  it('listWorkflows with sortBy=createdAt returns empty array when no items found', async () => {
     sendSpy.mockResolvedValueOnce({ Items: [] });
-    const result = await listWorkflowsByCreatedAt(TABLE_NAME, userId);
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      sortBy: 'createdAt',
+    });
     expect(result.items).toEqual([]);
     expect(result.nextToken).toBeUndefined();
   });
 
-  it('listWorkflowsByUpdatedAt returns items sorted by last modified date', async () => {
+  it('listWorkflows with sortBy=updatedAt returns items sorted by last modified date', async () => {
     const items = [
       {
         ...baseRecord,
@@ -243,7 +245,9 @@ describe('workflow-state DynamoDB utilities', () => {
       },
     ];
     sendSpy.mockResolvedValueOnce({ Items: items });
-    const result = await listWorkflowsByUpdatedAt(TABLE_NAME, userId);
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      sortBy: 'updatedAt',
+    });
 
     expect(result.items).toEqual([
       expect.objectContaining({
@@ -271,36 +275,38 @@ describe('workflow-state DynamoDB utilities', () => {
     expect(callArg.input.ScanIndexForward).toBe(false); // reverse order
   });
 
-  it('listWorkflowsByUpdatedAt returns empty array when no items found', async () => {
+  it('listWorkflows with sortBy updatedAt returns empty array when no items found', async () => {
     sendSpy.mockResolvedValueOnce({ Items: [] });
-    const result = await listWorkflowsByUpdatedAt(TABLE_NAME, userId);
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      sortBy: 'updatedAt',
+    });
     expect(result).toEqual({
       items: [],
       nextToken: undefined,
     });
   });
 
-  it('listWorkflowsByCreatedAt handles DynamoDB errors gracefully', async () => {
+  it('listWorkflows with sortBy createdAt handles DynamoDB errors gracefully', async () => {
     const error = new Error('DynamoDB connection failed');
     sendSpy.mockRejectedValueOnce(error);
 
-    await expect(listWorkflowsByCreatedAt(TABLE_NAME, userId)).rejects.toThrow(
-      'DynamoDB connection failed'
-    );
+    await expect(
+      listWorkflows(TABLE_NAME, userId, { sortBy: 'createdAt' })
+    ).rejects.toThrow('DynamoDB connection failed');
   });
 
-  it('listWorkflowsByUpdatedAt handles DynamoDB errors gracefully', async () => {
+  it('listWorkflows with sortBy updatedAt handles DynamoDB errors gracefully', async () => {
     const error = new Error('DynamoDB connection failed');
     sendSpy.mockRejectedValueOnce(error);
 
-    await expect(listWorkflowsByUpdatedAt(TABLE_NAME, userId)).rejects.toThrow(
-      'DynamoDB connection failed'
-    );
+    await expect(
+      listWorkflows(TABLE_NAME, userId, { sortBy: 'updatedAt' })
+    ).rejects.toThrow('DynamoDB connection failed');
   });
 
-  it('listWorkflowsByCreatedAt queries the correct GSI with proper parameters', async () => {
+  it('listWorkflows with sortBy createdAt queries the correct GSI with proper parameters', async () => {
     sendSpy.mockResolvedValueOnce({ Items: [] });
-    await listWorkflowsByCreatedAt(TABLE_NAME, 'test-user-123');
+    await listWorkflows(TABLE_NAME, 'test-user-123', { sortBy: 'createdAt' });
 
     expect(sendSpy).toHaveBeenCalledTimes(1);
     const callArg = sendSpy.mock.calls[0]?.[0] as any;
@@ -319,9 +325,9 @@ describe('workflow-state DynamoDB utilities', () => {
     expect(callArg.input.Limit).toBeUndefined(); // Should query all pages
   });
 
-  it('listWorkflowsByUpdatedAt queries the correct GSI with proper parameters', async () => {
+  it('listWorkflows with sortBy updatedAt queries the correct GSI with proper parameters', async () => {
     sendSpy.mockResolvedValueOnce({ Items: [] });
-    await listWorkflowsByUpdatedAt(TABLE_NAME, 'test-user-456');
+    await listWorkflows(TABLE_NAME, 'test-user-456', { sortBy: 'updatedAt' });
 
     expect(sendSpy).toHaveBeenCalledTimes(1);
     const callArg = sendSpy.mock.calls[0]?.[0] as any;
@@ -340,8 +346,8 @@ describe('workflow-state DynamoDB utilities', () => {
     expect(callArg.input.Limit).toBeUndefined(); // Should query all pages
   });
 
-  // Pagination tests for listWorkflowsByCreatedAt
-  it('listWorkflowsByCreatedAt supports pagination with limit', async () => {
+  // Pagination tests for listWorkflows with sortBy createdAt
+  it('listWorkflows with sortBy createdAt supports pagination with limit', async () => {
     const mockItems = [
       {
         ...baseRecord,
@@ -364,7 +370,8 @@ describe('workflow-state DynamoDB utilities', () => {
       LastEvaluatedKey: mockLastEvaluatedKey,
     });
 
-    const result = await listWorkflowsByCreatedAt(TABLE_NAME, userId, {
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      sortBy: 'createdAt',
       limit: 2,
     });
 
@@ -379,7 +386,7 @@ describe('workflow-state DynamoDB utilities', () => {
     expect(callArg.input.Limit).toBe(2);
   });
 
-  it('listWorkflowsByCreatedAt supports pagination with nextToken', async () => {
+  it('listWorkflows with sortBy createdAt supports pagination with nextToken', async () => {
     const exclusiveStartKey = {
       userId: 'user-1',
       createdAt: '2024-01-02T00:00:00.000Z',
@@ -390,14 +397,14 @@ describe('workflow-state DynamoDB utilities', () => {
 
     sendSpy.mockResolvedValueOnce({ Items: [] });
 
-    await listWorkflowsByCreatedAt(TABLE_NAME, userId, { nextToken });
+    await listWorkflows(TABLE_NAME, userId, { sortBy: 'createdAt', nextToken });
 
     // Verify exclusiveStartKey was set in query options
     const callArg = sendSpy.mock.calls[0]?.[0] as any;
     expect(callArg.input.ExclusiveStartKey).toEqual(exclusiveStartKey);
   });
 
-  it('listWorkflowsByCreatedAt handles pagination with both limit and nextToken', async () => {
+  it('listWorkflows with sortBy createdAt handles pagination with both limit and nextToken', async () => {
     const exclusiveStartKey = {
       userId: 'user-1',
       createdAt: '2024-01-02T00:00:00.000Z',
@@ -418,7 +425,8 @@ describe('workflow-state DynamoDB utilities', () => {
       LastEvaluatedKey: undefined, // No more items
     });
 
-    const result = await listWorkflowsByCreatedAt(TABLE_NAME, userId, {
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      sortBy: 'createdAt',
       limit: 1,
       nextToken,
     });
@@ -432,8 +440,8 @@ describe('workflow-state DynamoDB utilities', () => {
     expect(callArg.input.ExclusiveStartKey).toEqual(exclusiveStartKey);
   });
 
-  // Pagination tests for listWorkflowsByUpdatedAt
-  it('listWorkflowsByUpdatedAt supports pagination with limit', async () => {
+  // Pagination tests for listWorkflows with sortBy updatedAt
+  it('listWorkflows with sortBy updatedAt supports pagination with limit', async () => {
     const mockItems = [
       {
         ...baseRecord,
@@ -456,7 +464,8 @@ describe('workflow-state DynamoDB utilities', () => {
       LastEvaluatedKey: mockLastEvaluatedKey,
     });
 
-    const result = await listWorkflowsByUpdatedAt(TABLE_NAME, userId, {
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      sortBy: 'updatedAt',
       limit: 2,
     });
 
@@ -471,7 +480,7 @@ describe('workflow-state DynamoDB utilities', () => {
     expect(callArg.input.Limit).toBe(2);
   });
 
-  it('listWorkflowsByUpdatedAt supports pagination with nextToken', async () => {
+  it('listWorkflows with sortBy updatedAt supports pagination with nextToken', async () => {
     const exclusiveStartKey = {
       userId: 'user-1',
       updatedAt: '2024-01-02T00:00:00.000Z',
@@ -482,30 +491,195 @@ describe('workflow-state DynamoDB utilities', () => {
 
     sendSpy.mockResolvedValueOnce({ Items: [] });
 
-    await listWorkflowsByUpdatedAt(TABLE_NAME, userId, { nextToken });
+    await listWorkflows(TABLE_NAME, userId, { sortBy: 'updatedAt', nextToken });
 
     // Verify exclusiveStartKey was set in query options
     const callArg = sendSpy.mock.calls[0]?.[0] as any;
     expect(callArg.input.ExclusiveStartKey).toEqual(exclusiveStartKey);
   });
 
-  it('listWorkflowsByUpdatedAt handles edge case with invalid nextToken gracefully', async () => {
+  it('listWorkflows with sortBy updatedAt handles edge case with invalid nextToken gracefully', async () => {
     const invalidNextToken = 'invalid-base64-token';
 
     await expect(
-      listWorkflowsByUpdatedAt(TABLE_NAME, userId, {
+      listWorkflows(TABLE_NAME, userId, {
+        sortBy: 'updatedAt',
         nextToken: invalidNextToken,
       })
     ).rejects.toThrow();
   });
 
-  it('listWorkflowsByCreatedAt handles edge case with invalid nextToken gracefully', async () => {
+  it('listWorkflows with sortBy createdAt handles edge case with invalid nextToken gracefully', async () => {
     const invalidNextToken = 'invalid-base64-token';
 
     await expect(
-      listWorkflowsByCreatedAt(TABLE_NAME, userId, {
+      listWorkflows(TABLE_NAME, userId, {
+        sortBy: 'createdAt',
         nextToken: invalidNextToken,
       })
     ).rejects.toThrow();
+  });
+
+  // Status filtering tests using StatusIndex GSI
+  it('listWorkflows with status filter uses StatusIndex GSI', async () => {
+    const mockItems = [
+      {
+        ...baseRecord,
+        workflowId: 'wf-1',
+        status: 'SUCCEEDED',
+        _et: 'WORKFLOW',
+        _ct: '2024-01-01T00:00:00.000Z',
+        _md: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        ...baseRecord,
+        workflowId: 'wf-2',
+        status: 'SUCCEEDED',
+        _et: 'WORKFLOW',
+        _ct: '2024-01-02T00:00:00.000Z',
+        _md: '2024-01-02T00:00:00.000Z',
+      },
+    ];
+    sendSpy.mockResolvedValueOnce({ Items: mockItems });
+
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      filters: { status: 'SUCCEEDED' },
+    });
+
+    expect(result.items).toHaveLength(2);
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        workflowId: 'wf-1',
+        status: 'SUCCEEDED',
+      }),
+      expect.objectContaining({
+        workflowId: 'wf-2',
+        status: 'SUCCEEDED',
+      }),
+    ]);
+
+    // Verify StatusIndex GSI was used
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    const callArg = sendSpy.mock.calls[0]?.[0] as any;
+    expect(callArg.input.IndexName).toBe('StatusIndex');
+    expect(callArg.input.KeyConditionExpression).toBe(
+      '(#c0_1 = :c0_1) AND (#c0_2 = :c0_2)'
+    );
+    expect(callArg.input.ExpressionAttributeNames['#c0_1']).toBe('userId');
+    expect(callArg.input.ExpressionAttributeNames['#c0_2']).toBe('status');
+    expect(callArg.input.ExpressionAttributeValues[':c0_1']).toBe(userId);
+    expect(callArg.input.ExpressionAttributeValues[':c0_2']).toBe('SUCCEEDED');
+  });
+
+  it('listWorkflows with status filter supports different statuses', async () => {
+    const mockItems = [
+      {
+        ...baseRecord,
+        workflowId: 'wf-1',
+        status: 'FAILED',
+        _et: 'WORKFLOW',
+        _ct: '2024-01-01T00:00:00.000Z',
+        _md: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    sendSpy.mockResolvedValueOnce({ Items: mockItems });
+
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      filters: { status: 'FAILED' },
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        workflowId: 'wf-1',
+        status: 'FAILED',
+      })
+    );
+
+    // Verify correct status filter was applied
+    const callArg = sendSpy.mock.calls[0]?.[0] as any;
+    expect(callArg.input.ExpressionAttributeValues[':c0_2']).toBe('FAILED');
+  });
+
+  it('listWorkflows with status filter supports pagination', async () => {
+    const mockItems = [
+      {
+        ...baseRecord,
+        workflowId: 'wf-1',
+        status: 'SUCCEEDED',
+        _et: 'WORKFLOW',
+        _ct: '2024-01-01T00:00:00.000Z',
+        _md: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const mockLastEvaluatedKey = {
+      userId: 'user-1',
+      status: 'SUCCEEDED',
+      workflowId: 'wf-1',
+    };
+
+    sendSpy.mockResolvedValueOnce({
+      Items: mockItems,
+      LastEvaluatedKey: mockLastEvaluatedKey,
+    });
+
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      filters: { status: 'SUCCEEDED' },
+      limit: 1,
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.nextToken).toBeDefined();
+    expect(result.nextToken).toBe(
+      Buffer.from(JSON.stringify(mockLastEvaluatedKey)).toString('base64')
+    );
+
+    // Verify limit was applied
+    const callArg = sendSpy.mock.calls[0]?.[0] as any;
+    expect(callArg.input.Limit).toBe(1);
+  });
+
+  it('listWorkflows with status filter returns empty array when no items found', async () => {
+    sendSpy.mockResolvedValueOnce({ Items: [] });
+
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      filters: { status: 'TIMED_OUT' },
+    });
+
+    expect(result).toEqual({
+      items: [],
+      nextToken: undefined,
+    });
+  });
+
+  it('listWorkflows with status filter handles DynamoDB errors gracefully', async () => {
+    const error = new Error('DynamoDB connection failed');
+    sendSpy.mockRejectedValueOnce(error);
+
+    await expect(
+      listWorkflows(TABLE_NAME, userId, {
+        filters: { status: 'SUCCEEDED' },
+      })
+    ).rejects.toThrow('DynamoDB connection failed');
+  });
+
+  it('listWorkflows without filters defaults to UpdatedAtIndex for sorting', async () => {
+    sendSpy.mockResolvedValueOnce({ Items: [] });
+
+    await listWorkflows(TABLE_NAME, userId);
+
+    // Verify it defaults to UpdatedAtIndex when no specific sorting or filtering is provided
+    const callArg = sendSpy.mock.calls[0]?.[0] as any;
+    expect(callArg.input.IndexName).toBe('UpdatedAtIndex');
+  });
+
+  it('listWorkflows with sortBy createdAt and no filters uses CreatedAtIndex', async () => {
+    sendSpy.mockResolvedValueOnce({ Items: [] });
+
+    await listWorkflows(TABLE_NAME, userId, { sortBy: 'createdAt' });
+
+    // Verify it uses CreatedAtIndex when sortBy is specified
+    const callArg = sendSpy.mock.calls[0]?.[0] as any;
+    expect(callArg.input.IndexName).toBe('CreatedAtIndex');
   });
 });

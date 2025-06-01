@@ -78,6 +78,11 @@ const getWorkflowTableAndEntity = (tableName: string) => {
         partitionKey: { name: 'userId', type: 'string' },
         sortKey: { name: 'updatedAt', type: 'string' },
       },
+      StatusIndex: {
+        type: 'global',
+        partitionKey: { name: 'userId', type: 'string' },
+        sortKey: { name: 'status', type: 'string' },
+      },
     },
     documentClient,
   });
@@ -160,7 +165,8 @@ export async function getWorkflow(
 }
 
 /**
- * List all workflows for a user, sorted by most recent.
+ * List workflows for a user,
+ * with optional pagination, sorting, and filtering.
  */
 export async function listWorkflows(
   tableName: string,
@@ -168,6 +174,10 @@ export async function listWorkflows(
   options?: {
     limit?: number;
     nextToken?: string;
+    sortBy?: 'createdAt' | 'updatedAt';
+    filters?: {
+      status?: WorkflowStatus;
+    };
   }
 ): Promise<{
   items: WorkflowRecord[];
@@ -191,65 +201,39 @@ export async function listWorkflows(
     );
   }
 
-  const { Items, LastEvaluatedKey } = await workflowTable
-    .build(QueryCommand)
-    .entities(workflowEntity)
-    .query({ partition: userId })
-    .options(queryOptions)
-    .send();
+  // Determine which index to use based on filtering and sorting preferences
+  let queryBuilder: any;
 
-  let nextToken: string | undefined;
-  if (LastEvaluatedKey) {
-    nextToken = Buffer.from(JSON.stringify(LastEvaluatedKey)).toString(
-      'base64'
-    );
-  }
-
-  return {
-    items: Items || [],
-    nextToken,
-  };
-}
-
-/**
- * List workflows for a user, sorted by creation date.
- * This uses the createdAtIndex to ensure efficient querying.
- */
-export async function listWorkflowsByCreatedAt(
-  tableName: string,
-  userId: string,
-  options?: {
-    limit?: number;
-    nextToken?: string;
-  }
-): Promise<{
-  items: WorkflowRecord[];
-  nextToken?: string;
-}> {
-  const { workflowTable, workflowEntity } =
-    getWorkflowTableAndEntity(tableName);
-
-  const queryOptions: any = { reverse: true };
-
-  if (options?.limit) {
-    queryOptions.limit = options.limit;
+  if (options?.filters?.status) {
+    // If filtering by status, use StatusIndex GSI for efficiency
+    queryBuilder = workflowTable
+      .build(QueryCommand)
+      .entities(workflowEntity)
+      .query({
+        index: 'StatusIndex',
+        partition: userId,
+        range: { eq: options.filters.status },
+      });
   } else {
-    // If no limit specified, get all items (backward compatibility)
-    queryOptions.maxPages = Infinity;
+    // No status filtering or multiple statuses, use the appropriate sorting index
+    const indexName =
+      options?.sortBy === 'createdAt'
+        ? ('CreatedAtIndex' as const)
+        : ('UpdatedAtIndex' as const);
+    queryBuilder = workflowTable
+      .build(QueryCommand)
+      .entities(workflowEntity)
+      .query({
+        index: indexName,
+        partition: userId,
+      });
   }
 
-  if (options?.nextToken) {
-    queryOptions.exclusiveStartKey = JSON.parse(
-      Buffer.from(options.nextToken, 'base64').toString('utf-8')
-    );
-  }
-
-  const { Items, LastEvaluatedKey } = await workflowTable
-    .build(QueryCommand)
-    .entities(workflowEntity)
-    .query({ index: 'CreatedAtIndex', partition: userId })
+  const { Items, LastEvaluatedKey } = await queryBuilder
     .options(queryOptions)
     .send();
+
+  const filteredItems = Items || [];
 
   let nextToken: string | undefined;
   if (LastEvaluatedKey) {
@@ -259,60 +243,7 @@ export async function listWorkflowsByCreatedAt(
   }
 
   return {
-    items: Items || [],
-    nextToken,
-  };
-}
-
-/**
- * List workflows for a user, sorted by last modified date.
- * This uses the UpdatedAtIndex to ensure efficient querying.
- */
-export async function listWorkflowsByUpdatedAt(
-  tableName: string,
-  userId: string,
-  options?: {
-    limit?: number;
-    nextToken?: string;
-  }
-): Promise<{
-  items: WorkflowRecord[];
-  nextToken?: string;
-}> {
-  const { workflowTable, workflowEntity } =
-    getWorkflowTableAndEntity(tableName);
-
-  const queryOptions: any = { reverse: true };
-
-  if (options?.limit) {
-    queryOptions.limit = options.limit;
-  } else {
-    // If no limit specified, get all items (backward compatibility)
-    queryOptions.maxPages = Infinity;
-  }
-
-  if (options?.nextToken) {
-    queryOptions.exclusiveStartKey = JSON.parse(
-      Buffer.from(options.nextToken, 'base64').toString('utf-8')
-    );
-  }
-
-  const { Items, LastEvaluatedKey } = await workflowTable
-    .build(QueryCommand)
-    .entities(workflowEntity)
-    .query({ index: 'UpdatedAtIndex', partition: userId })
-    .options(queryOptions)
-    .send();
-
-  let nextToken: string | undefined;
-  if (LastEvaluatedKey) {
-    nextToken = Buffer.from(JSON.stringify(LastEvaluatedKey)).toString(
-      'base64'
-    );
-  }
-
-  return {
-    items: Items || [],
+    items: filteredItems,
     nextToken,
   };
 }

@@ -1,16 +1,8 @@
 // Types related to workflow processing and state management
 
-export type WorkflowStatus =
-  | 'STARTING'
-  | 'EXTRACTING_TEXT'
-  | 'FORMATTING_TEXT'
-  | 'TRANSLATING'
-  | 'CONVERTING_TO_SPEECH'
-  | 'TEXT_FORMATTING_COMPLETE'
-  | 'TRANSLATION_COMPLETE'
-  | 'SUCCEEDED'
-  | 'FAILED'
-  | 'TIMED_OUT';
+import { workflowStatuses } from './constants';
+
+export type WorkflowStatus = (typeof workflowStatuses)[number];
 
 export interface WorkflowParameters {
   doTranslate?: boolean;
