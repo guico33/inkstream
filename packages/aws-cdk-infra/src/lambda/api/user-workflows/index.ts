@@ -1,6 +1,9 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
-import { listWorkflows } from '../../../utils/workflow-state';
+import {
+  listWorkflowsWithSorting,
+  listWorkflowsByStatus,
+} from '../../../utils/workflow-state';
 import {
   WorkflowRecord,
   WorkflowStatus,
@@ -20,18 +23,29 @@ const EnvironmentSchema = z.object({
 });
 
 // Zod schema for query parameters validation
-const QueryParametersSchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-  nextToken: z.string().optional(),
-  sortBy: z.enum(['createdAt', 'updatedAt']).optional().default('updatedAt'),
-  // one of the values in workflowStatuses
-  status: z
-    .enum(workflowStatuses, {
-      required_error: 'status must be one of the defined workflow statuses',
-      invalid_type_error: 'status must be a string',
-    })
-    .optional(),
-});
+const QueryParametersSchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+    nextToken: z.string().optional(),
+    sortBy: z.enum(['createdAt', 'updatedAt']).optional(),
+    // one of the values in workflowStatuses
+    status: z
+      .enum(workflowStatuses, {
+        required_error: 'status must be one of the defined workflow statuses',
+        invalid_type_error: 'status must be a string',
+      })
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      // Prevent sortBy and status from being used together
+      return !(data.sortBy && data.status);
+    },
+    {
+      message:
+        'sortBy parameter cannot be used with status filtering. Use either sortBy for sorting or status for filtering, but not both.',
+    }
+  );
 
 // Validate environment variables
 const env = EnvironmentSchema.parse(process.env);
@@ -81,7 +95,7 @@ async function getUserWorkflowsFromDatabase(
   options: {
     limit?: number;
     nextToken?: string;
-    sortBy: 'createdAt' | 'updatedAt';
+    sortBy?: 'createdAt' | 'updatedAt';
     status?: WorkflowStatus;
   }
 ): Promise<{
@@ -89,13 +103,26 @@ async function getUserWorkflowsFromDatabase(
   nextToken?: string;
 }> {
   try {
-    // Use the unified listWorkflows function with all options
-    return await listWorkflows(userWorkflowsTable, userId, {
-      limit: options.limit,
-      nextToken: options.nextToken,
-      sortBy: options.sortBy,
-      filters: options.status ? { status: options.status } : undefined,
-    });
+    // Use the appropriate function based on whether status filtering is needed
+    if (options.status) {
+      // Status filtering - use dedicated function
+      return await listWorkflowsByStatus(
+        userWorkflowsTable,
+        userId,
+        options.status,
+        {
+          limit: options.limit,
+          nextToken: options.nextToken,
+        }
+      );
+    } else {
+      // No status filtering - use sorting function with default sortBy
+      return await listWorkflowsWithSorting(userWorkflowsTable, userId, {
+        limit: options.limit,
+        nextToken: options.nextToken,
+        sortBy: options.sortBy || 'updatedAt',
+      });
+    }
   } catch (error) {
     throw new ExternalServiceError(
       'Failed to retrieve user workflows from DynamoDB',

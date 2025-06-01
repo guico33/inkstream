@@ -974,5 +974,160 @@ describe('Workflow Integration Tests', () => {
 
       console.log('✅ Invalid parameter handling test completed successfully');
     }, 60000);
+
+    it('should support filtering by status', async () => {
+      console.log('Testing user-workflows endpoint with status filtering...');
+
+      // Test filtering for successful workflows
+      const successfulUrl = `${API_GATEWAY_URL}/user-workflows?status=SUCCEEDED`;
+      const successfulResponse = await httpRequest(
+        successfulUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+
+      // Validate response structure
+      expect(successfulResponse).toHaveProperty('items');
+      expect(Array.isArray(successfulResponse.items)).toBe(true);
+      expect(successfulResponse.items).toHaveLength(4); // Should have 4 successful workflows
+
+      // Validate that all returned workflows have SUCCEEDED status
+      successfulResponse.items.forEach((workflow: any) => {
+        expect(workflow.status).toBe('SUCCEEDED');
+        expect(workflow.userId).toBe(USER_ID);
+      });
+
+      console.log(
+        `✅ SUCCEEDED filter returned ${successfulResponse.items.length} workflows`
+      );
+
+      // Test filtering for failed workflows
+      const failedUrl = `${API_GATEWAY_URL}/user-workflows?status=FAILED`;
+      const failedResponse = await httpRequest(
+        failedUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+
+      // Validate response structure
+      expect(failedResponse).toHaveProperty('items');
+      expect(Array.isArray(failedResponse.items)).toBe(true);
+      expect(failedResponse.items).toHaveLength(1); // Should have 1 failed (aborted) workflow
+
+      // Validate that all returned workflows have FAILED status
+      failedResponse.items.forEach((workflow: any) => {
+        expect(workflow.status).toBe('FAILED');
+        expect(workflow.userId).toBe(USER_ID);
+        expect(workflow.error).toBe('Workflow aborted'); // This is the aborted workflow
+      });
+
+      console.log(
+        `✅ FAILED filter returned ${failedResponse.items.length} workflows`
+      );
+
+      // Test filtering for a status that should return no results
+      const processingUrl = `${API_GATEWAY_URL}/user-workflows?status=EXTRACTING_TEXT`;
+      const processingResponse = await httpRequest(
+        processingUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+
+      // Should return empty array since all workflows are completed
+      expect(processingResponse).toHaveProperty('items');
+      expect(Array.isArray(processingResponse.items)).toBe(true);
+      expect(processingResponse.items).toHaveLength(0);
+
+      console.log(
+        `✅ EXTRACTING_TEXT filter returned ${processingResponse.items.length} workflows (as expected)`
+      );
+
+      // Test combining status filter with pagination
+      const paginatedStatusUrl = `${API_GATEWAY_URL}/user-workflows?status=SUCCEEDED&limit=2`;
+      const paginatedStatusResponse = await httpRequest(
+        paginatedStatusUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+
+      // Should return 2 successful workflows with pagination
+      expect(paginatedStatusResponse).toHaveProperty('items');
+      expect(Array.isArray(paginatedStatusResponse.items)).toBe(true);
+      expect(paginatedStatusResponse.items).toHaveLength(2);
+      expect(paginatedStatusResponse).toHaveProperty('nextToken');
+
+      // All returned workflows should be SUCCEEDED
+      paginatedStatusResponse.items.forEach((workflow: any) => {
+        expect(workflow.status).toBe('SUCCEEDED');
+      });
+
+      console.log(
+        `✅ Status filter with pagination returned ${paginatedStatusResponse.items.length} workflows with nextToken`
+      );
+
+      // Test that combining status filter with sorting is not allowed (should return 400 error)
+      const sortedStatusUrl = `${API_GATEWAY_URL}/user-workflows?status=SUCCEEDED&sortBy=createdAt`;
+      try {
+        await httpRequest(sortedStatusUrl, 'GET', undefined, AUTH_TOKEN);
+        // If we reach here, the test failed because it should have thrown an error
+        expect(true).toBe(false);
+      } catch (error: any) {
+        expect(error.message).toContain('400'); // Should return 400 Bad Request
+        console.log(
+          '✅ Status filter with sortBy parameter correctly rejected (400 error)'
+        );
+      }
+
+      console.log('✅ Status filtering test completed successfully');
+    }, 60000);
+
+    it('should handle invalid status parameter gracefully', async () => {
+      console.log(
+        'Testing user-workflows endpoint with invalid status parameter...'
+      );
+
+      // Test invalid status parameter
+      const invalidStatusUrl = `${API_GATEWAY_URL}/user-workflows?status=INVALID_STATUS`;
+      try {
+        await httpRequest(invalidStatusUrl, 'GET', undefined, AUTH_TOKEN);
+        // If we reach here, the test failed because it should have thrown an error
+        expect(true).toBe(false);
+      } catch (error: any) {
+        expect(error.message).toContain('400'); // Should return 400 Bad Request
+        console.log('✅ Invalid status parameter correctly rejected');
+      }
+
+      console.log(
+        '✅ Invalid status parameter handling test completed successfully'
+      );
+    }, 60000);
+
+    it('should reject using sortBy and status parameters together', async () => {
+      console.log(
+        'Testing user-workflows endpoint with both sortBy and status parameters (should be rejected)...'
+      );
+
+      // Test that using both sortBy and status parameters returns a 400 error
+      const bothParamsUrl = `${API_GATEWAY_URL}/user-workflows?sortBy=updatedAt&status=SUCCEEDED`;
+      try {
+        await httpRequest(bothParamsUrl, 'GET', undefined, AUTH_TOKEN);
+        // If we reach here, the test failed because it should have thrown an error
+        expect(true).toBe(false);
+      } catch (error: any) {
+        expect(error.message).toContain('400'); // Should return 400 Bad Request
+        expect(error.message).toContain(
+          'sortBy parameter cannot be used with status filtering'
+        );
+        console.log(
+          '✅ Combined sortBy and status parameters correctly rejected with proper error message'
+        );
+      }
+
+      console.log('✅ Parameter validation test completed successfully');
+    }, 60000);
   });
 });

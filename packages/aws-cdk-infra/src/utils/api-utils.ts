@@ -23,9 +23,10 @@ export function handleError(error: unknown): APIGatewayProxyResult {
   }
 
   if (error instanceof z.ZodError) {
-    const errorMessages = error.errors.map(
-      (err) => `${err.path.join('.')}: ${err.message}`
-    );
+    const errorMessages = error.errors.map((err) => {
+      const pathString = err.path.length > 0 ? err.path.join('.') : '';
+      return pathString ? `${pathString}: ${err.message}` : err.message;
+    });
     return {
       statusCode: 400,
       headers,

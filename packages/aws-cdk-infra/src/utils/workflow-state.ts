@@ -165,19 +165,16 @@ export async function getWorkflow(
 }
 
 /**
- * List workflows for a user,
- * with optional pagination, sorting, and filtering.
+ * List workflows for a user with sorting options.
+ * Supports pagination and sorting by createdAt or updatedAt.
  */
-export async function listWorkflows(
+export async function listWorkflowsWithSorting(
   tableName: string,
   userId: string,
   options?: {
     limit?: number;
     nextToken?: string;
     sortBy?: 'createdAt' | 'updatedAt';
-    filters?: {
-      status?: WorkflowStatus;
-    };
   }
 ): Promise<{
   items: WorkflowRecord[];
@@ -201,39 +198,25 @@ export async function listWorkflows(
     );
   }
 
-  // Determine which index to use based on filtering and sorting preferences
-  let queryBuilder: any;
+  // Use the appropriate sorting index
+  const indexName =
+    options?.sortBy === 'createdAt'
+      ? ('CreatedAtIndex' as const)
+      : ('UpdatedAtIndex' as const);
 
-  if (options?.filters?.status) {
-    // If filtering by status, use StatusIndex GSI for efficiency
-    queryBuilder = workflowTable
-      .build(QueryCommand)
-      .entities(workflowEntity)
-      .query({
-        index: 'StatusIndex',
-        partition: userId,
-        range: { eq: options.filters.status },
-      });
-  } else {
-    // No status filtering or multiple statuses, use the appropriate sorting index
-    const indexName =
-      options?.sortBy === 'createdAt'
-        ? ('CreatedAtIndex' as const)
-        : ('UpdatedAtIndex' as const);
-    queryBuilder = workflowTable
-      .build(QueryCommand)
-      .entities(workflowEntity)
-      .query({
-        index: indexName,
-        partition: userId,
-      });
-  }
+  const queryBuilder = workflowTable
+    .build(QueryCommand)
+    .entities(workflowEntity)
+    .query({
+      index: indexName,
+      partition: userId,
+    });
 
   const { Items, LastEvaluatedKey } = await queryBuilder
     .options(queryOptions)
     .send();
 
-  const filteredItems = Items || [];
+  const items = Items || [];
 
   let nextToken: string | undefined;
   if (LastEvaluatedKey) {
@@ -243,7 +226,104 @@ export async function listWorkflows(
   }
 
   return {
-    items: filteredItems,
+    items,
     nextToken,
   };
+}
+
+/**
+ * List workflows for a user filtered by status.
+ * Supports pagination but does not support custom sorting (sorted by status).
+ */
+export async function listWorkflowsByStatus(
+  tableName: string,
+  userId: string,
+  status: WorkflowStatus,
+  options?: {
+    limit?: number;
+    nextToken?: string;
+  }
+): Promise<{
+  items: WorkflowRecord[];
+  nextToken?: string;
+}> {
+  const { workflowTable, workflowEntity } =
+    getWorkflowTableAndEntity(tableName);
+
+  const queryOptions: any = { reverse: true };
+
+  if (options?.limit) {
+    queryOptions.limit = options.limit;
+  } else {
+    // If no limit specified, get all items (backward compatibility)
+    queryOptions.maxPages = Infinity;
+  }
+
+  if (options?.nextToken) {
+    queryOptions.exclusiveStartKey = JSON.parse(
+      Buffer.from(options.nextToken, 'base64').toString('utf-8')
+    );
+  }
+
+  // Use StatusIndex for efficient status filtering
+  const queryBuilder = workflowTable
+    .build(QueryCommand)
+    .entities(workflowEntity)
+    .query({
+      index: 'StatusIndex',
+      partition: userId,
+      range: { eq: status },
+    });
+
+  const { Items, LastEvaluatedKey } = await queryBuilder
+    .options(queryOptions)
+    .send();
+
+  const items = Items || [];
+
+  let nextToken: string | undefined;
+  if (LastEvaluatedKey) {
+    nextToken = Buffer.from(JSON.stringify(LastEvaluatedKey)).toString(
+      'base64'
+    );
+  }
+
+  return {
+    items,
+    nextToken,
+  };
+}
+
+/**
+ * @deprecated Use listWorkflowsWithSorting or listWorkflowsByStatus instead.
+ * This function will be removed in a future version.
+ */
+export async function listWorkflows(
+  tableName: string,
+  userId: string,
+  options?: {
+    limit?: number;
+    nextToken?: string;
+    sortBy?: 'createdAt' | 'updatedAt';
+    filters?: {
+      status?: WorkflowStatus;
+    };
+  }
+): Promise<{
+  items: WorkflowRecord[];
+  nextToken?: string;
+}> {
+  // For backward compatibility, delegate to the appropriate new function
+  if (options?.filters?.status) {
+    return listWorkflowsByStatus(tableName, userId, options.filters.status, {
+      limit: options?.limit,
+      nextToken: options?.nextToken,
+    });
+  } else {
+    return listWorkflowsWithSorting(tableName, userId, {
+      limit: options?.limit,
+      nextToken: options?.nextToken,
+      sortBy: options?.sortBy,
+    });
+  }
 }
