@@ -19,7 +19,7 @@ import { Download, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import {
   WORKFLOW_STEP_NAMES,
   type WorkflowStatus,
-  type WorkflowStatusResponse,
+  type WorkflowResponse,
 } from '@inkstream/shared';
 
 export function ActiveWorkflowsTab() {
@@ -104,7 +104,7 @@ export function ActiveWorkflowsTab() {
   );
 }
 
-function WorkflowCard({ workflow }: { workflow: WorkflowStatusResponse }) {
+function WorkflowCard({ workflow }: { workflow: WorkflowResponse }) {
   const downloadResult = useDownloadWorkflowResult();
 
   // Calculate progress percentage based on workflow status

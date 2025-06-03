@@ -19,7 +19,7 @@ export interface GetWorkflowParams {
   workflowId: string;
 }
 
-export interface WorkflowStatusResponse extends WorkflowRecord {
+export interface WorkflowResponse extends WorkflowRecord {
   // Additional fields that might be added by combineWorkflowStatus
   execution?: {
     status: string;

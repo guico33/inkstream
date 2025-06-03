@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWorkflowApi } from '../api-service';
 import {
   type StartWorkflowParams,
-  type WorkflowStatusResponse,
+  type WorkflowResponse,
   WORKFLOW_POLLING_INTERVAL,
 } from '@inkstream/shared';
 import { toast } from 'sonner';
@@ -49,7 +49,7 @@ export const useWorkflowStatus = (
   workflowId: string | undefined,
   options: {
     enablePolling?: boolean;
-    onStatusChange?: (status: WorkflowStatusResponse) => void;
+    onStatusChange?: (status: WorkflowResponse) => void;
   } = {}
 ) => {
   const apiService = useWorkflowApi();

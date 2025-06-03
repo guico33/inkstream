@@ -11,7 +11,7 @@ import {
   type StartWorkflowParams,
   type StartWorkflowResponse,
   type GetWorkflowParams,
-  type WorkflowStatusResponse,
+  type WorkflowResponse,
 } from '@inkstream/shared';
 
 // Extended params for file upload + workflow start
@@ -95,18 +95,18 @@ export class WorkflowApiService {
     return this.startWorkflow(workflowParams);
   }
 
-  async getWorkflow(
-    params: GetWorkflowParams
-  ): Promise<WorkflowStatusResponse> {
-    const response: AxiosResponse<WorkflowStatusResponse> =
-      await this.client.get(`${API_PATHS.WORKFLOW}/${params.workflowId}`);
+  async getWorkflow(params: GetWorkflowParams): Promise<WorkflowResponse> {
+    const response: AxiosResponse<WorkflowResponse> = await this.client.get(
+      `${API_PATHS.WORKFLOW}/${params.workflowId}`
+    );
     return response.data;
   }
 
-  async listUserWorkflows(): Promise<WorkflowStatusResponse[]> {
+  async listUserWorkflows(): Promise<WorkflowResponse[]> {
     console.log('API Service: Making request to /user-workflows');
-    const response: AxiosResponse<WorkflowStatusResponse[]> =
-      await this.client.get(API_PATHS.USER_WORKFLOWS);
+    const response: AxiosResponse<WorkflowResponse[]> = await this.client.get(
+      API_PATHS.USER_WORKFLOWS
+    );
     console.log(
       'API Service: Received response from /user-workflows:',
       response.data?.length || 0,
