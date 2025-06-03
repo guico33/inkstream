@@ -99,3 +99,9 @@ export const workflowStatuses = [
   'FAILED',
   'TIMED_OUT',
 ] as const;
+
+export const workflowStatusCategories = [
+  'active',
+  'completed',
+  'failed',
+] as const;

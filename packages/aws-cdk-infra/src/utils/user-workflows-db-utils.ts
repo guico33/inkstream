@@ -2,8 +2,17 @@
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import type { WorkflowRecord, WorkflowStatus } from '@inkstream/shared';
-import { anyOf, boolean, list } from 'dynamodb-toolbox';
+import type {
+  WorkflowRecord,
+  WorkflowStatus,
+  WorkflowStatusCategory,
+} from '@inkstream/shared';
+import {
+  getStatusCategory,
+  workflowStatusCategories,
+  workflowStatuses,
+} from '@inkstream/shared';
+import { boolean, list } from 'dynamodb-toolbox';
 import { Entity } from 'dynamodb-toolbox/entity';
 import { GetItemCommand } from 'dynamodb-toolbox/entity/actions/get';
 import { PutItemCommand } from 'dynamodb-toolbox/entity/actions/put';
@@ -19,18 +28,13 @@ import { QueryCommand } from 'dynamodb-toolbox/table/actions/query';
 
 const documentClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
-const statusSchema = anyOf(
-  string().enum('STARTING'),
-  string().enum('EXTRACTING_TEXT'),
-  string().enum('FORMATTING_TEXT'),
-  string().enum('TRANSLATING'),
-  string().enum('CONVERTING_TO_SPEECH'),
-  string().enum('TEXT_FORMATTING_COMPLETE'),
-  string().enum('TRANSLATION_COMPLETE'),
-  string().enum('SUCCEEDED'),
-  string().enum('TIMED_OUT'),
-  string().enum('FAILED')
-).required();
+const statusSchema = string()
+  .enum(...workflowStatuses)
+  .required();
+
+const statusCategorySchema = string()
+  .enum(...workflowStatusCategories)
+  .required();
 
 const statusHistoryEntrySchema = map({
   status: statusSchema,
@@ -44,6 +48,8 @@ const workflowItemSchema = item({
   userId: string().key(),
   workflowId: string().key(),
   status: statusSchema,
+  statusCategory: statusCategorySchema,
+  statusCategoryCreatedAt: string().required(),
   statusHistory: workflowStatusHistorySchema,
   parameters: map({
     doTranslate: boolean().optional(),
@@ -83,6 +89,11 @@ const getWorkflowTableAndEntity = (tableName: string) => {
         partitionKey: { name: 'userId', type: 'string' },
         sortKey: { name: 'status', type: 'string' },
       },
+      StatusCategoryCreatedAtIndex: {
+        type: 'global',
+        partitionKey: { name: 'userId', type: 'string' },
+        sortKey: { name: 'statusCategoryCreatedAt', type: 'string' },
+      },
     },
     documentClient,
   });
@@ -113,9 +124,15 @@ export async function createWorkflow(
   record: WorkflowRecord
 ): Promise<WorkflowRecord | undefined> {
   const { workflowEntity } = getWorkflowTableAndEntity(tableName);
+  const statusCategoryCreatedAt = `${record.statusCategory}#${
+    record.createdAt ?? new Date().toISOString()
+  }`;
   const { ToolboxItem } = await workflowEntity
     .build(PutItemCommand)
-    .item(record)
+    .item({
+      ...record,
+      statusCategoryCreatedAt,
+    })
     .send();
   return ToolboxItem;
 }
@@ -132,12 +149,16 @@ export async function updateWorkflowStatus(
 ): Promise<void> {
   const { workflowEntity } = getWorkflowTableAndEntity(tableName);
   const now = new Date().toISOString();
+  const statusCategory = getStatusCategory(newStatus);
+  const statusCategoryCreatedAt = `${statusCategory}#${now}`;
   await workflowEntity
     .build(UpdateItemCommand)
     .item({
       userId,
       workflowId,
       status: newStatus,
+      statusCategory,
+      statusCategoryCreatedAt,
       // updatedAt is automatically managed by DynamoDB-Toolbox
       statusHistory: $append([
         {
@@ -298,6 +319,56 @@ export async function listWorkflowsByStatus(
   };
 }
 
+/**
+ * List workflows for a user filtered by status category (active, completed, failed), sorted by createdAt (desc).
+ * Uses the StatusCategoryCreatedAtIndex for efficient queries.
+ */
+export async function listWorkflowsByStatusCategory(
+  tableName: string,
+  userId: string,
+  statusCategory: WorkflowStatusCategory,
+  options?: {
+    limit?: number;
+    nextToken?: string;
+  }
+): Promise<{
+  items: WorkflowRecord[];
+  nextToken?: string;
+}> {
+  const { workflowTable, workflowEntity } =
+    getWorkflowTableAndEntity(tableName);
+  const queryOptions: any = { reverse: true };
+  if (options?.limit) {
+    queryOptions.limit = options.limit;
+  } else {
+    queryOptions.maxPages = Infinity;
+  }
+  if (options?.nextToken) {
+    queryOptions.exclusiveStartKey = JSON.parse(
+      Buffer.from(options.nextToken, 'base64').toString('utf-8')
+    );
+  }
+  const queryBuilder = workflowTable
+    .build(QueryCommand)
+    .entities(workflowEntity)
+    .query({
+      index: 'StatusCategoryCreatedAtIndex',
+      partition: userId,
+      range: { beginsWith: `${statusCategory}#` },
+    });
+  const { Items, LastEvaluatedKey } = await queryBuilder
+    .options(queryOptions)
+    .send();
+  const items = Items || [];
+  let nextToken: string | undefined;
+  if (LastEvaluatedKey) {
+    nextToken = Buffer.from(JSON.stringify(LastEvaluatedKey)).toString(
+      'base64'
+    );
+  }
+  return { items, nextToken };
+}
+
 export async function listWorkflows(
   tableName: string,
   userId: string,
@@ -307,14 +378,25 @@ export async function listWorkflows(
     sortBy?: 'createdAt' | 'updatedAt';
     filters?: {
       status?: WorkflowStatus;
+      statusCategory?: WorkflowStatusCategory;
     };
   }
 ): Promise<{
   items: WorkflowRecord[];
   nextToken?: string;
 }> {
-  // For backward compatibility, delegate to the appropriate new function
-  if (options?.filters?.status) {
+  // Prefer statusCategory filtering if provided
+  if (options?.filters?.statusCategory) {
+    return listWorkflowsByStatusCategory(
+      tableName,
+      userId,
+      options.filters.statusCategory,
+      {
+        limit: options?.limit,
+        nextToken: options?.nextToken,
+      }
+    );
+  } else if (options?.filters?.status) {
     return listWorkflowsByStatus(tableName, userId, options.filters.status, {
       limit: options?.limit,
       nextToken: options?.nextToken,

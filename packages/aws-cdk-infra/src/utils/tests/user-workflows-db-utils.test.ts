@@ -15,6 +15,8 @@ const baseRecord: WorkflowRecord = {
   userId,
   workflowId,
   status: 'STARTING',
+  statusCategory: 'active',
+  statusCategoryCreatedAt: 'active#2024-01-01T00:00:00.000Z',
   parameters: { doTranslate: true, doSpeech: false, targetLanguage: 'fr' },
   s3Paths: {
     originalFile: 's3://bucket/original.txt',

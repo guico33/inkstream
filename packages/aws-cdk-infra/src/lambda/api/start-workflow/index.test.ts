@@ -61,6 +61,8 @@ describe('start-workflow Lambda handler', () => {
       userId: 'user',
       workflowId: 'arn:aws:states:...',
       status: 'STARTING',
+      statusCategory: 'active',
+      statusCategoryCreatedAt: 'active#2024-01-01T00:00:00.000Z',
       statusHistory: [
         {
           status: 'STARTING',

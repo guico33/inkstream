@@ -1,6 +1,6 @@
 // Types related to workflow processing and state management
 
-import { workflowStatuses } from './constants';
+import { workflowStatusCategories, workflowStatuses } from './constants';
 
 export type WorkflowStatus = (typeof workflowStatuses)[number];
 
@@ -27,6 +27,8 @@ export interface WorkflowRecord {
   userId: string;
   workflowId: string;
   status: WorkflowStatus;
+  statusCategory: WorkflowStatusCategory;
+  statusCategoryCreatedAt: string;
   statusHistory: WorkflowStatusHistoryEntry[];
   parameters?: WorkflowParameters;
   s3Paths?: WorkflowS3Paths;
@@ -45,3 +47,5 @@ export type WorkflowCommonState = {
   userId: string;
   timestamp: number;
 };
+
+export type WorkflowStatusCategory = (typeof workflowStatusCategories)[number];
