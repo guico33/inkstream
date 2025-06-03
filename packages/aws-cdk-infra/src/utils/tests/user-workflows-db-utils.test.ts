@@ -121,8 +121,12 @@ describe('user-workflows-table DynamoDB utilities', () => {
 
   it('listWorkflows supports pagination with limit and nextToken', async () => {
     const lastEvaluatedKey = { userId: 'user-1', workflowId: 'wf-1' };
+    // Mock a scenario where we get exactly the limit number of items and have LastEvaluatedKey
     sendSpy.mockResolvedValueOnce({
-      Items: [{ ...baseRecord, _et: 'WORKFLOW' }],
+      Items: [
+        { ...baseRecord, _et: 'WORKFLOW', workflowId: 'wf-1' },
+        { ...baseRecord, _et: 'WORKFLOW', workflowId: 'wf-2' },
+      ],
       LastEvaluatedKey: lastEvaluatedKey,
     });
 
@@ -130,17 +134,37 @@ describe('user-workflows-table DynamoDB utilities', () => {
       'base64'
     );
     const result = await listWorkflows(TABLE_NAME, userId, {
-      limit: 10,
+      limit: 2, // Set limit to match the number of items we're returning
       nextToken: nextToken,
     });
 
+    expect(result.items).toHaveLength(2);
+    expect(result.nextToken).toBeDefined(); // Should have nextToken since we got exactly limit items
+
+    // Verify the query was called with correct pagination parameters
+    const callArg = sendSpy.mock.calls[0]?.[0] as any;
+    expect(callArg.input.Limit).toBe(2);
+    expect(callArg.input.ExclusiveStartKey).toEqual(lastEvaluatedKey);
+  });
+
+  it('listWorkflows does not return nextToken when getting fewer items than limit', async () => {
+    const lastEvaluatedKey = { userId: 'user-1', workflowId: 'wf-1' };
+    // Mock a scenario where we get fewer items than the limit but still have LastEvaluatedKey
+    sendSpy.mockResolvedValueOnce({
+      Items: [{ ...baseRecord, _et: 'WORKFLOW' }],
+      LastEvaluatedKey: lastEvaluatedKey,
+    });
+
+    const result = await listWorkflows(TABLE_NAME, userId, {
+      limit: 10, // Request 10 items but only get 1
+    });
+
     expect(result.items).toHaveLength(1);
-    expect(result.nextToken).toBeDefined();
+    expect(result.nextToken).toBeUndefined(); // Should NOT have nextToken since we got fewer items than requested
 
     // Verify the query was called with correct pagination parameters
     const callArg = sendSpy.mock.calls[0]?.[0] as any;
     expect(callArg.input.Limit).toBe(10);
-    expect(callArg.input.ExclusiveStartKey).toEqual(lastEvaluatedKey);
   });
 
   it('listWorkflows handles DynamoDB errors gracefully', async () => {

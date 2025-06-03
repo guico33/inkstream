@@ -244,7 +244,8 @@ export async function listWorkflowsWithSorting(
   const items = Items || [];
 
   let nextToken: string | undefined;
-  if (LastEvaluatedKey) {
+  // Only return nextToken if we have a limit, got the full limit of items, and have LastEvaluatedKey
+  if (LastEvaluatedKey && options?.limit && items.length === options.limit) {
     nextToken = Buffer.from(JSON.stringify(LastEvaluatedKey)).toString(
       'base64'
     );
@@ -307,7 +308,8 @@ export async function listWorkflowsByStatus(
   const items = Items || [];
 
   let nextToken: string | undefined;
-  if (LastEvaluatedKey) {
+  // Only return nextToken if we have a limit, got the full limit of items, and have LastEvaluatedKey
+  if (LastEvaluatedKey && options?.limit && items.length === options.limit) {
     nextToken = Buffer.from(JSON.stringify(LastEvaluatedKey)).toString(
       'base64'
     );
@@ -361,11 +363,14 @@ export async function listWorkflowsByStatusCategory(
     .send();
   const items = Items || [];
   let nextToken: string | undefined;
-  if (LastEvaluatedKey) {
+
+  // Only return nextToken if we have a limit, got the full limit of items, and have LastEvaluatedKey
+  if (LastEvaluatedKey && options?.limit && items.length === options.limit) {
     nextToken = Buffer.from(JSON.stringify(LastEvaluatedKey)).toString(
       'base64'
     );
   }
+
   return { items, nextToken };
 }
 

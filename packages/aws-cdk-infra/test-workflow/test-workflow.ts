@@ -1120,7 +1120,7 @@ describe('Workflow Integration Tests', () => {
       } catch (error: any) {
         expect(error.message).toContain('400'); // Should return 400 Bad Request
         expect(error.message).toContain(
-          'sortBy parameter cannot be used with status filtering'
+          'Use only one of status or statusCategory, and do not use sortBy with either. Use sortBy only for unfiltered queries.'
         );
         console.log(
           '✅ Combined sortBy and status parameters correctly rejected with proper error message'
@@ -1128,6 +1128,155 @@ describe('Workflow Integration Tests', () => {
       }
 
       console.log('✅ Parameter validation test completed successfully');
+    }, 60000);
+
+    it('should support filtering by statusCategory', async () => {
+      console.log(
+        'Testing user-workflows endpoint with statusCategory filtering...'
+      );
+
+      // Test filtering for completed workflows (should match all SUCCEEDED workflows)
+      const completedUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=completed`;
+      const completedResponse = await httpRequest(
+        completedUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+      expect(completedResponse).toHaveProperty('items');
+      expect(Array.isArray(completedResponse.items)).toBe(true);
+      // Should have 4 completed (SUCCEEDED) workflows
+      expect(completedResponse.items).toHaveLength(4);
+      completedResponse.items.forEach((workflow: any) => {
+        expect(workflow.statusCategory).toBe('completed');
+        expect(workflow.userId).toBe(USER_ID);
+      });
+      console.log(
+        `✅ completed statusCategory returned ${completedResponse.items.length} workflows`
+      );
+
+      // Test filtering for failed workflows (should match the aborted workflow)
+      const failedUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=failed`;
+      const failedResponse = await httpRequest(
+        failedUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+      expect(failedResponse).toHaveProperty('items');
+      expect(Array.isArray(failedResponse.items)).toBe(true);
+      expect(failedResponse.items).toHaveLength(1);
+      failedResponse.items.forEach((workflow: any) => {
+        expect(workflow.statusCategory).toBe('failed');
+        expect(workflow.userId).toBe(USER_ID);
+        expect(workflow.status).toBe('FAILED');
+      });
+      console.log(
+        `✅ failed statusCategory returned ${failedResponse.items.length} workflows`
+      );
+
+      // Test filtering for active workflows (should be empty since all are completed/failed)
+      const activeUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=active`;
+      const activeResponse = await httpRequest(
+        activeUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+      expect(activeResponse).toHaveProperty('items');
+      expect(Array.isArray(activeResponse.items)).toBe(true);
+      expect(activeResponse.items).toHaveLength(0);
+      console.log(
+        `✅ active statusCategory returned 0 workflows (as expected)`
+      );
+
+      // Test pagination with statusCategory
+      const paginatedUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=completed&limit=2`;
+      const paginatedResponse = await httpRequest(
+        paginatedUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+      expect(paginatedResponse).toHaveProperty('items');
+      expect(Array.isArray(paginatedResponse.items)).toBe(true);
+      expect(paginatedResponse.items).toHaveLength(2);
+      expect(paginatedResponse).toHaveProperty('nextToken');
+      paginatedResponse.items.forEach((workflow: any) => {
+        expect(workflow.statusCategory).toBe('completed');
+      });
+      // Fetch next page
+      const nextPageUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=completed&limit=2&nextToken=${encodeURIComponent(
+        paginatedResponse.nextToken
+      )}`;
+      const nextPageResponse = await httpRequest(
+        nextPageUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+      expect(nextPageResponse).toHaveProperty('items');
+      expect(Array.isArray(nextPageResponse.items)).toBe(true);
+      // Should have 2 more (total 4 completed workflows)
+      expect(
+        nextPageResponse.items.length + paginatedResponse.items.length
+      ).toBe(4);
+      nextPageResponse.items.forEach((workflow: any) => {
+        expect(workflow.statusCategory).toBe('completed');
+      });
+
+      // Check if there's a nextToken on the second page
+      if (nextPageResponse.nextToken) {
+        // If there's a nextToken, make a third request to verify it returns empty
+        const thirdPageUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=completed&limit=2&nextToken=${encodeURIComponent(
+          nextPageResponse.nextToken
+        )}`;
+        const thirdPageResponse = await httpRequest(
+          thirdPageUrl,
+          'GET',
+          undefined,
+          AUTH_TOKEN
+        );
+        expect(thirdPageResponse).toHaveProperty('items');
+        expect(Array.isArray(thirdPageResponse.items)).toBe(true);
+        expect(thirdPageResponse.items).toHaveLength(0); // Should be empty
+        expect(thirdPageResponse.nextToken).toBeUndefined(); // Should have no more pages
+        console.log('✅ Third page correctly returned empty results');
+      }
+
+      console.log('✅ statusCategory pagination works as expected');
+
+      // Test invalid statusCategory
+      const invalidCategoryUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=not_a_category`;
+      try {
+        await httpRequest(invalidCategoryUrl, 'GET', undefined, AUTH_TOKEN);
+        expect(true).toBe(false);
+      } catch (error: any) {
+        expect(error.message).toContain('400');
+        console.log('✅ Invalid statusCategory parameter correctly rejected');
+      }
+
+      // Test that combining statusCategory with status is rejected
+      const bothParamsUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=completed&status=SUCCEEDED`;
+      try {
+        await httpRequest(bothParamsUrl, 'GET', undefined, AUTH_TOKEN);
+        expect(true).toBe(false);
+      } catch (error: any) {
+        expect(error.message).toContain('400');
+        console.log('✅ statusCategory and status together correctly rejected');
+      }
+
+      // Test that combining statusCategory with sortBy is rejected
+      const sortByUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=completed&sortBy=createdAt`;
+      try {
+        await httpRequest(sortByUrl, 'GET', undefined, AUTH_TOKEN);
+        expect(true).toBe(false);
+      } catch (error: any) {
+        expect(error.message).toContain('400');
+        console.log('✅ statusCategory and sortBy together correctly rejected');
+      }
+
+      console.log('✅ statusCategory filtering test completed successfully');
     }, 60000);
   });
 });
