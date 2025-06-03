@@ -12,7 +12,11 @@
     "test:coverage": "vitest run --coverage",
     "test:workflow": "vitest run --config vitest.workflow.config.ts --reporter=verbose",
     "test:workflow:concurrent": "VITEST_CONCURRENT=true vitest run --config vitest.workflow.config.ts --reporter=verbose",
-    "get-test-user-token": "ts-node get-test-user-token.ts"
+    "get-test-user-token": "ts-node get-test-user-token.ts",
+    "migrate": "ts-node --project tsconfig.migrations.json run-migrations.ts",
+    "migrate:dry-run": "ts-node --project tsconfig.migrations.json run-migrations.ts --dry-run",
+    "migrate:verbose": "ts-node --project tsconfig.migrations.json run-migrations.ts --verbose",
+    "migrate:dry-run:verbose": "ts-node --project tsconfig.migrations.json run-migrations.ts --dry-run --verbose"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.812.0",
