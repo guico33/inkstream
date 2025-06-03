@@ -8,7 +8,7 @@ import {
   afterAll,
 } from 'vitest';
 import * as s3Utils from '../../../utils/s3-utils';
-import * as workflowState from '../../../utils/workflow-state';
+import * as userWorkflowsDbUtils from '../../../utils/user-workflows-db-utils';
 import {
   ValidationError,
   S3Error,
@@ -17,7 +17,7 @@ import {
 } from '../../../errors';
 
 vi.mock('../../../utils/s3-utils');
-vi.mock('../../../utils/workflow-state');
+vi.mock('../../../utils/user-workflows-db-utils');
 
 // Mock the AI provider factory
 const mockAIProvider = {
@@ -42,7 +42,7 @@ let handler: any;
 
 describe('translate-text Lambda handler', () => {
   const mockedS3Utils = vi.mocked(s3Utils);
-  const mockedWorkflowState = vi.mocked(workflowState);
+  const mockedUserWorkflowsDbUtils = vi.mocked(userWorkflowsDbUtils);
 
   beforeAll(async () => {
     vi.stubEnv('USER_WORKFLOWS_TABLE', 'WorkflowTable');
@@ -68,7 +68,9 @@ describe('translate-text Lambda handler', () => {
       bucket: 'bucket',
       key: 'user/translated/file.txt',
     });
-    mockedWorkflowState.updateWorkflowStatus.mockResolvedValue(undefined);
+    mockedUserWorkflowsDbUtils.updateWorkflowStatus.mockResolvedValue(
+      undefined
+    );
 
     const event = {
       formattedTextFileKey: 'formatted.txt',
@@ -86,7 +88,9 @@ describe('translate-text Lambda handler', () => {
     expect(result.translatedTextFileKey).toBe('user/translated/file.txt');
 
     // Should call updateWorkflowStatus with 'TRANSLATION_COMPLETE' since doSpeech=true (more steps to come)
-    expect(mockedWorkflowState.updateWorkflowStatus).toHaveBeenCalledWith(
+    expect(
+      mockedUserWorkflowsDbUtils.updateWorkflowStatus
+    ).toHaveBeenCalledWith(
       'WorkflowTable',
       'user',
       'workflow-123',
@@ -108,7 +112,9 @@ describe('translate-text Lambda handler', () => {
       bucket: 'bucket',
       key: 'user/translated/file.txt',
     });
-    mockedWorkflowState.updateWorkflowStatus.mockResolvedValue(undefined);
+    mockedUserWorkflowsDbUtils.updateWorkflowStatus.mockResolvedValue(
+      undefined
+    );
 
     const event = {
       formattedTextFileKey: 'formatted.txt',
@@ -126,7 +132,9 @@ describe('translate-text Lambda handler', () => {
     expect(result.translatedTextFileKey).toBe('user/translated/file.txt');
 
     // Should call updateWorkflowStatus with 'SUCCEEDED' since doSpeech=false (workflow complete)
-    expect(mockedWorkflowState.updateWorkflowStatus).toHaveBeenCalledWith(
+    expect(
+      mockedUserWorkflowsDbUtils.updateWorkflowStatus
+    ).toHaveBeenCalledWith(
       'WorkflowTable',
       'user',
       'workflow-123',
@@ -142,7 +150,9 @@ describe('translate-text Lambda handler', () => {
 
   it('throws S3Error if getTextFromS3 fails', async () => {
     mockedS3Utils.getTextFromS3.mockRejectedValue(new Error('fail s3'));
-    mockedWorkflowState.updateWorkflowStatus.mockResolvedValue(undefined);
+    mockedUserWorkflowsDbUtils.updateWorkflowStatus.mockResolvedValue(
+      undefined
+    );
 
     const event = {
       formattedTextFileKey: 'formatted.txt',
@@ -165,7 +175,9 @@ describe('translate-text Lambda handler', () => {
   it('throws ProcessingError if no text to translate', async () => {
     // @ts-expect-error: purposely testing undefined return for error path
     mockedS3Utils.getTextFromS3.mockResolvedValue(undefined);
-    mockedWorkflowState.updateWorkflowStatus.mockResolvedValue(undefined);
+    mockedUserWorkflowsDbUtils.updateWorkflowStatus.mockResolvedValue(
+      undefined
+    );
 
     const event = {
       formattedTextFileKey: 'formatted.txt',
@@ -209,7 +221,9 @@ describe('translate-text Lambda handler', () => {
   it('throws ExternalServiceError if AI provider translation fails', async () => {
     mockedS3Utils.getTextFromS3.mockResolvedValue('hello world');
     mockAIProvider.translateText.mockRejectedValue(new Error('fail translate'));
-    mockedWorkflowState.updateWorkflowStatus.mockResolvedValue(undefined);
+    mockedUserWorkflowsDbUtils.updateWorkflowStatus.mockResolvedValue(
+      undefined
+    );
 
     const event = {
       formattedTextFileKey: 'formatted.txt',

@@ -1,16 +1,7 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { z } from 'zod';
-import {
-  SFNClient,
-  DescribeExecutionCommand,
-  ExecutionStatus,
-} from '@aws-sdk/client-sfn';
-import { getWorkflow } from '../../../utils/workflow-state';
-import { ValidationError, ExternalServiceError } from '../../../errors';
-import { WorkflowRecord } from '@inkstream/shared';
-
-// Initialize Step Functions client
-const sfnClient = new SFNClient({});
+import { ExternalServiceError, ValidationError } from '../../../errors';
+import { getWorkflow } from '../../../utils/user-workflows-db-utils';
 
 // Zod schema for path parameters validation
 const PathParametersSchema = z.object({
@@ -18,89 +9,6 @@ const PathParametersSchema = z.object({
     .string({ required_error: 'workflowId is required' })
     .min(1, 'workflowId cannot be empty'),
 });
-
-// Type for Step Functions execution details
-export type StepFunctionsExecutionDetails = {
-  status: ExecutionStatus;
-  input?: object;
-  output?: object;
-  error?: string;
-  cause?: string;
-  startDate?: Date;
-  stopDate?: Date;
-} | null;
-
-/**
- * Gets Step Functions execution details
- */
-export async function getStepFunctionsExecutionDetails(
-  executionArn: string
-): Promise<StepFunctionsExecutionDetails> {
-  try {
-    const command = new DescribeExecutionCommand({
-      executionArn,
-    });
-
-    const response = await sfnClient.send(command);
-
-    // Helper function to safely parse JSON
-    const safeJsonParse = (jsonString?: string) => {
-      if (!jsonString) return undefined;
-      try {
-        return JSON.parse(jsonString);
-      } catch {
-        return undefined;
-      }
-    };
-
-    return {
-      status: response.status!,
-      input: safeJsonParse(response.input),
-      output: safeJsonParse(response.output),
-      error: response.error || undefined,
-      cause: response.cause || undefined,
-      startDate: response.startDate,
-      stopDate: response.stopDate,
-    };
-  } catch (error) {
-    console.warn('Failed to get Step Functions execution details:', error);
-    // Return null if we can't get Step Functions details, but don't fail the request
-    return null;
-  }
-}
-
-/**
- * Combines DynamoDB workflow record with Step Functions execution details
- */
-export function combineWorkflowStatus(
-  workflowRecord: WorkflowRecord,
-  executionDetails: StepFunctionsExecutionDetails
-) {
-  // Add Step Functions execution details if available
-  if (executionDetails) {
-    return {
-      ...workflowRecord,
-      execution: {
-        status: executionDetails.status,
-        startDate: executionDetails.startDate?.toISOString(),
-        stopDate: executionDetails.stopDate?.toISOString(),
-        error: executionDetails.error,
-        cause: executionDetails.cause,
-      },
-      // Prefer Step Functions error details if workflow failed and SFN has more context
-      ...(executionDetails.error && {
-        error: executionDetails.error,
-        cause: executionDetails.cause,
-      }),
-
-      ...(executionDetails.status === 'FAILED' && {
-        status: 'FAILED',
-      }),
-    };
-  }
-
-  return workflowRecord;
-}
 
 /**
  * Extracts workflowId from path parameters

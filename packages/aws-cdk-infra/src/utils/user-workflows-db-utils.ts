@@ -111,9 +111,13 @@ const getWorkflowTableAndEntity = (tableName: string) => {
 export async function createWorkflow(
   tableName: string,
   record: WorkflowRecord
-): Promise<void> {
+): Promise<WorkflowRecord | undefined> {
   const { workflowEntity } = getWorkflowTableAndEntity(tableName);
-  await workflowEntity.build(PutItemCommand).item(record).send();
+  const { ToolboxItem } = await workflowEntity
+    .build(PutItemCommand)
+    .item(record)
+    .send();
+  return ToolboxItem;
 }
 
 /**
@@ -294,10 +298,6 @@ export async function listWorkflowsByStatus(
   };
 }
 
-/**
- * @deprecated Use listWorkflowsWithSorting or listWorkflowsByStatus instead.
- * This function will be removed in a future version.
- */
 export async function listWorkflows(
   tableName: string,
   userId: string,

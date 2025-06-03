@@ -10,7 +10,7 @@ import {
   TextractJobTokenItem,
   putJobToken,
   getJobToken,
-} from '../textract-job-tokens';
+} from '../textract-job-tokens-db-utils';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 
 const ddbDocMock = mockClient(DynamoDBDocumentClient as any);

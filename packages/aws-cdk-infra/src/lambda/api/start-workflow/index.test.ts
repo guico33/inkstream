@@ -1,35 +1,84 @@
+import { SFNClient } from '@aws-sdk/client-sfn';
 import {
-  describe,
-  it,
-  expect,
-  vi,
-  beforeEach,
   afterAll,
   beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
   vitest,
 } from 'vitest';
-import { SFNClient } from '@aws-sdk/client-sfn';
-import * as workflowStateUtils from '../../../utils/workflow-state';
+import * as userWorkflowsDbUtils from '../../../utils/user-workflows-db-utils';
+
+// IMPORTANT: Mock workflow-utils with a factory BEFORE importing the handler
+vi.mock('../../../utils/workflow-utils', () => ({
+  getStepFunctionsExecutionDetails: vi.fn().mockResolvedValue({
+    status: 'RUNNING',
+    startDate: '2024-01-01T00:00:00.000Z', // <-- string, not Date
+    stopDate: undefined,
+    error: undefined,
+    cause: undefined,
+    input: undefined,
+    output: undefined,
+  }),
+  combineWorkflowDetails: vi.fn((workflowRecord) => {
+    console.log('MOCK combineWorkflowDetails called');
+    return {
+      ...workflowRecord,
+      execution: {
+        status: 'RUNNING',
+        startDate: '2024-01-01T00:00:00.000Z',
+      },
+    };
+  }),
+}));
+
+vi.mock('../../../utils/user-workflows-db-utils');
+
+const mockedUserWorkflowsDbUtils = vi.mocked(userWorkflowsDbUtils);
 
 describe('start-workflow Lambda handler', () => {
   let handler: any;
   let sfnSendSpy: any;
 
   beforeAll(async () => {
-    // Dynamically import handler after setting env
+    // Dynamically import handler after setting env and mocks
     vitest.stubEnv('STATE_MACHINE_ARN', 'test-arn');
     vitest.stubEnv('USER_WORKFLOWS_TABLE', 'test-table');
     vitest.stubEnv('STORAGE_BUCKET', 'test-bucket');
-    handler = (await import('./index.js')).handler;
+
+    const module = await import('./index.js');
+    handler = module.handler;
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Clear all mocks before each test
     vi.clearAllMocks();
-    // Mock createWorkflow and updateWorkflowStatus
-    vi.spyOn(workflowStateUtils, 'createWorkflow').mockResolvedValue(undefined);
-    vi.spyOn(workflowStateUtils, 'updateWorkflowStatus').mockResolvedValue(
-      undefined
-    );
+
+    // Mock createWorkflow to return a proper WorkflowRecord
+    mockedUserWorkflowsDbUtils.createWorkflow.mockResolvedValue({
+      userId: 'user',
+      workflowId: 'arn:aws:states:...',
+      status: 'STARTING',
+      statusHistory: [
+        {
+          status: 'STARTING',
+          timestamp: new Date().toISOString(),
+        },
+      ],
+      parameters: {
+        doTranslate: false,
+        doSpeech: false,
+        targetLanguage: 'english',
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      s3Paths: {
+        originalFile: 'users/user/uploads/file.txt',
+      },
+    });
+
     // Mock SFNClient.send
     sfnSendSpy = vi.spyOn(SFNClient.prototype, 'send');
   });
@@ -50,8 +99,11 @@ describe('start-workflow Lambda handler', () => {
     const result = await handler(event);
     expect(result.statusCode).toBe(200);
     const body = JSON.parse(result.body);
-    expect(body.message).toMatch(/Workflow started successfully/);
-    expect(body.workflowId).toBeDefined();
+    // The response should now contain the combined workflow details
+    expect(body.userId).toBe('user');
+    expect(body.workflowId).toBe('arn:aws:states:...');
+    expect(body.status).toBe('STARTING');
+    expect(body.execution).toBeDefined();
   });
 
   it('returns 500 if SFNClient.send throws', async () => {
@@ -71,7 +123,7 @@ describe('start-workflow Lambda handler', () => {
       executionArn: 'arn:aws:states:...',
       startDate: '2024-01-01T00:00:00.000Z',
     });
-    const createWorkflowSpy = vi.spyOn(workflowStateUtils, 'createWorkflow');
+    const createWorkflowSpy = vi.spyOn(userWorkflowsDbUtils, 'createWorkflow');
     const event = {
       body: JSON.stringify({
         filename: 'file.txt',
@@ -81,18 +133,22 @@ describe('start-workflow Lambda handler', () => {
       }),
       requestContext: { authorizer: { jwt: { claims: { sub: 'user' } } } },
     };
-    await handler(event);
+    const result = await handler(event);
+    expect(result.statusCode).toBe(200);
     expect(createWorkflowSpy).toHaveBeenCalledWith(
       'test-table',
       expect.objectContaining({
         userId: 'user',
+        workflowId: 'arn:aws:states:...',
         status: 'STARTING',
         parameters: {
           doTranslate: true,
           doSpeech: false,
           targetLanguage: 'es',
         },
-        // ...other expected fields if needed
+        s3Paths: {
+          originalFile: 'users/user/uploads/file.txt',
+        },
       })
     );
   });
@@ -163,12 +219,13 @@ describe('start-workflow Lambda handler', () => {
       executionArn: 'arn:aws:states:...',
       startDate: '2024-01-01T00:00:00.000Z',
     });
-    const createWorkflowSpy = vi.spyOn(workflowStateUtils, 'createWorkflow');
+    const createWorkflowSpy = vi.spyOn(userWorkflowsDbUtils, 'createWorkflow');
     const event = {
       body: JSON.stringify({ filename: 'file.txt' }), // Only required field
       requestContext: { authorizer: { jwt: { claims: { sub: 'user' } } } },
     };
-    await handler(event);
+    const result = await handler(event);
+    expect(result.statusCode).toBe(200);
     expect(createWorkflowSpy).toHaveBeenCalledWith(
       'test-table',
       expect.objectContaining({
@@ -186,7 +243,7 @@ describe('start-workflow Lambda handler', () => {
       executionArn: 'arn:aws:states:...',
       startDate: '2024-01-01T00:00:00.000Z',
     });
-    vi.spyOn(workflowStateUtils, 'createWorkflow').mockRejectedValue(
+    vi.spyOn(userWorkflowsDbUtils, 'createWorkflow').mockRejectedValue(
       new Error('DynamoDB error')
     );
     const event = {

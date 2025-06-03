@@ -10,7 +10,7 @@ import {
   formatErrorForLogging,
   getErrorMessage,
 } from '../../../utils/error-utils';
-import { updateWorkflowStatus } from '../../../utils/workflow-state';
+import { updateWorkflowStatus } from '../../../utils/user-workflows-db-utils';
 import {
   ValidationError,
   S3Error,

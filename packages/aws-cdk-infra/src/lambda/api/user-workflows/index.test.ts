@@ -8,7 +8,7 @@ import {
   beforeAll,
   vitest,
 } from 'vitest';
-import * as workflowStateUtils from '../../../utils/workflow-state';
+import * as userWorkflowsDbUtils from '../../../utils/user-workflows-db-utils';
 import { WorkflowRecord } from '@inkstream/shared';
 
 describe('user-workflows Lambda handler', () => {
@@ -68,7 +68,10 @@ describe('user-workflows Lambda handler', () => {
       },
     ];
 
-    vi.spyOn(workflowStateUtils, 'listWorkflowsWithSorting').mockResolvedValue({
+    vi.spyOn(
+      userWorkflowsDbUtils,
+      'listWorkflowsWithSorting'
+    ).mockResolvedValue({
       items: mockWorkflows,
       nextToken: undefined,
     });
@@ -83,7 +86,7 @@ describe('user-workflows Lambda handler', () => {
     expect(result.headers).toMatchObject({
       'Content-Type': 'application/json',
     });
-    expect(workflowStateUtils.listWorkflowsWithSorting).toHaveBeenCalledWith(
+    expect(userWorkflowsDbUtils.listWorkflowsWithSorting).toHaveBeenCalledWith(
       'test-user-workflows-table',
       'test-user-123',
       {
@@ -95,7 +98,10 @@ describe('user-workflows Lambda handler', () => {
   });
 
   it('should return empty array when user has no workflows', async () => {
-    vi.spyOn(workflowStateUtils, 'listWorkflowsWithSorting').mockResolvedValue({
+    vi.spyOn(
+      userWorkflowsDbUtils,
+      'listWorkflowsWithSorting'
+    ).mockResolvedValue({
       items: [],
       nextToken: undefined,
     });
@@ -110,7 +116,10 @@ describe('user-workflows Lambda handler', () => {
   });
 
   it('should return empty array when listWorkflowsWithSorting returns undefined', async () => {
-    vi.spyOn(workflowStateUtils, 'listWorkflowsWithSorting').mockResolvedValue({
+    vi.spyOn(
+      userWorkflowsDbUtils,
+      'listWorkflowsWithSorting'
+    ).mockResolvedValue({
       items: [],
       nextToken: undefined,
     });
@@ -146,9 +155,10 @@ describe('user-workflows Lambda handler', () => {
   });
 
   it('should handle database errors', async () => {
-    vi.spyOn(workflowStateUtils, 'listWorkflowsWithSorting').mockRejectedValue(
-      new Error('Database connection failed')
-    );
+    vi.spyOn(
+      userWorkflowsDbUtils,
+      'listWorkflowsWithSorting'
+    ).mockRejectedValue(new Error('Database connection failed'));
 
     const result = await handler(mockEvent);
 
@@ -180,7 +190,10 @@ describe('user-workflows Lambda handler', () => {
       },
     };
 
-    vi.spyOn(workflowStateUtils, 'listWorkflowsWithSorting').mockResolvedValue({
+    vi.spyOn(
+      userWorkflowsDbUtils,
+      'listWorkflowsWithSorting'
+    ).mockResolvedValue({
       items: mockWorkflows,
       nextToken: 'eyJuZXh0S2V5IjoidGVzdCJ9',
     });
@@ -192,7 +205,7 @@ describe('user-workflows Lambda handler', () => {
       items: mockWorkflows,
       nextToken: 'eyJuZXh0S2V5IjoidGVzdCJ9',
     });
-    expect(workflowStateUtils.listWorkflowsWithSorting).toHaveBeenCalledWith(
+    expect(userWorkflowsDbUtils.listWorkflowsWithSorting).toHaveBeenCalledWith(
       'test-user-workflows-table',
       'test-user-123',
       {
@@ -224,7 +237,10 @@ describe('user-workflows Lambda handler', () => {
       },
     };
 
-    vi.spyOn(workflowStateUtils, 'listWorkflowsWithSorting').mockResolvedValue({
+    vi.spyOn(
+      userWorkflowsDbUtils,
+      'listWorkflowsWithSorting'
+    ).mockResolvedValue({
       items: mockWorkflows,
       nextToken: undefined,
     });
@@ -236,7 +252,7 @@ describe('user-workflows Lambda handler', () => {
       items: mockWorkflows,
       nextToken: undefined,
     });
-    expect(workflowStateUtils.listWorkflowsWithSorting).toHaveBeenCalledWith(
+    expect(userWorkflowsDbUtils.listWorkflowsWithSorting).toHaveBeenCalledWith(
       'test-user-workflows-table',
       'test-user-123',
       {
@@ -268,7 +284,10 @@ describe('user-workflows Lambda handler', () => {
       },
     };
 
-    vi.spyOn(workflowStateUtils, 'listWorkflowsWithSorting').mockResolvedValue({
+    vi.spyOn(
+      userWorkflowsDbUtils,
+      'listWorkflowsWithSorting'
+    ).mockResolvedValue({
       items: mockWorkflows,
       nextToken: undefined,
     });
@@ -280,7 +299,7 @@ describe('user-workflows Lambda handler', () => {
       items: mockWorkflows,
       nextToken: undefined,
     });
-    expect(workflowStateUtils.listWorkflowsWithSorting).toHaveBeenCalledWith(
+    expect(userWorkflowsDbUtils.listWorkflowsWithSorting).toHaveBeenCalledWith(
       'test-user-workflows-table',
       'test-user-123',
       {
@@ -363,7 +382,7 @@ describe('user-workflows Lambda handler', () => {
       },
     };
 
-    vi.spyOn(workflowStateUtils, 'listWorkflowsByStatus').mockResolvedValue({
+    vi.spyOn(userWorkflowsDbUtils, 'listWorkflowsByStatus').mockResolvedValue({
       items: mockWorkflows,
       nextToken: undefined,
     });
@@ -375,7 +394,7 @@ describe('user-workflows Lambda handler', () => {
       items: mockWorkflows,
       nextToken: undefined,
     });
-    expect(workflowStateUtils.listWorkflowsByStatus).toHaveBeenCalledWith(
+    expect(userWorkflowsDbUtils.listWorkflowsByStatus).toHaveBeenCalledWith(
       'test-user-workflows-table',
       'test-user-123',
       'SUCCEEDED',

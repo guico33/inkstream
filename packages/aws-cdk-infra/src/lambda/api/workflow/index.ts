@@ -1,17 +1,20 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent } from 'aws-lambda';
 import { z } from 'zod';
-import {
-  getStepFunctionsExecutionDetails,
-  combineWorkflowStatus,
-  extractWorkflowId,
-  getWorkflowFromDatabase,
-} from './utils';
+import { extractWorkflowId, getWorkflowFromDatabase } from './utils';
+import { WorkflowResponse, GetWorkflowResult } from '@inkstream/shared';
 import { extractUserId } from 'src/utils/auth-utils';
 import {
   handleError,
   createSuccessResponse,
   createErrorResponse,
 } from 'src/utils/api-utils';
+import {
+  combineWorkflowDetails,
+  getStepFunctionsExecutionDetails,
+} from 'src/utils/workflow-utils';
+import { SFNClient } from '@aws-sdk/client-sfn';
+
+const sfnClient = new SFNClient({});
 
 // Zod schema for environment variables validation
 const EnvironmentSchema = z.object({
@@ -27,7 +30,7 @@ const env = EnvironmentSchema.parse(process.env);
 
 export const handler = async (
   event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
+): Promise<GetWorkflowResult> => {
   console.log(
     'Workflow Status Lambda invoked with event:',
     JSON.stringify(event)
@@ -54,15 +57,24 @@ export const handler = async (
     }
 
     // Only get Step Functions execution details after confirming user owns this workflow
-    const executionDetails = await getStepFunctionsExecutionDetails(workflowId);
+    const executionDetails = await getStepFunctionsExecutionDetails(
+      sfnClient,
+      workflowId
+    );
 
     // Combine DynamoDB record with Step Functions execution details
-    const status = combineWorkflowStatus(workflowRecord, executionDetails);
+    const workflowDetails: WorkflowResponse = combineWorkflowDetails(
+      workflowRecord,
+      executionDetails
+    );
 
-    console.log('Combined workflow status:', JSON.stringify(status, null, 2));
+    console.log(
+      'Combined workflow status:',
+      JSON.stringify(workflowDetails, null, 2)
+    );
 
     // Return comprehensive workflow status
-    return createSuccessResponse(status);
+    return createSuccessResponse(workflowDetails);
   } catch (error: unknown) {
     console.error('Error getting workflow status:', error);
     return handleError(error);

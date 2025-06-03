@@ -87,8 +87,8 @@ export const useUserWorkflows = (options?: {
       console.log('Fetching user workflows from API...');
       try {
         const result = await apiService.listUserWorkflows();
-        console.log(`Fetched ${result?.length || 0} workflows from API`);
-        return result;
+        console.log(`Fetched ${result?.items?.length || 0} workflows from API`);
+        return result.items || [];
       } catch (error) {
         console.error('Failed to fetch user workflows:', error);
         // Return empty array as fallback for development

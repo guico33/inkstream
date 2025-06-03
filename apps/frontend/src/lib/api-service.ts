@@ -9,9 +9,9 @@ import { API_PATHS } from './constants/api-endpoints';
 import type { User } from './types/user-types';
 import {
   type StartWorkflowParams,
-  type StartWorkflowResponse,
   type GetWorkflowParams,
   type WorkflowResponse,
+  type ListUserWorkflowsResponse,
 } from '@inkstream/shared';
 
 // Extended params for file upload + workflow start
@@ -62,17 +62,17 @@ export class WorkflowApiService {
     this.getUser = getUser;
   }
 
-  async startWorkflow(
-    params: StartWorkflowParams
-  ): Promise<StartWorkflowResponse> {
-    const response: AxiosResponse<StartWorkflowResponse> =
-      await this.client.post(API_PATHS.START_WORKFLOW, params);
+  async startWorkflow(params: StartWorkflowParams): Promise<WorkflowResponse> {
+    const response: AxiosResponse<WorkflowResponse> = await this.client.post(
+      API_PATHS.START_WORKFLOW,
+      params
+    );
     return response.data;
   }
 
   async startWorkflowWithFile(
     params: StartWorkflowWithFileParams
-  ): Promise<StartWorkflowResponse> {
+  ): Promise<WorkflowResponse> {
     const user = this.getUser();
     if (!user) {
       throw new Error('User not authenticated');
@@ -102,14 +102,13 @@ export class WorkflowApiService {
     return response.data;
   }
 
-  async listUserWorkflows(): Promise<WorkflowResponse[]> {
+  async listUserWorkflows(): Promise<ListUserWorkflowsResponse> {
     console.log('API Service: Making request to /user-workflows');
-    const response: AxiosResponse<WorkflowResponse[]> = await this.client.get(
-      API_PATHS.USER_WORKFLOWS
-    );
+    const response: AxiosResponse<ListUserWorkflowsResponse> =
+      await this.client.get(API_PATHS.USER_WORKFLOWS);
     console.log(
       'API Service: Received response from /user-workflows:',
-      response.data?.length || 0,
+      response.data?.items?.length || 0,
       'workflows'
     );
     return response.data;

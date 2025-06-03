@@ -9,7 +9,7 @@ import {
 } from 'vitest';
 import * as s3Utils from '../../../utils/s3-utils';
 import * as errorUtils from '../../../utils/error-utils';
-import * as workflowState from '../../../utils/workflow-state';
+import * as userWorkflowsDbUtils from '../../../utils/user-workflows-db-utils';
 import * as utils from './utils';
 import { PollyClient } from '@aws-sdk/client-polly';
 import {
@@ -20,12 +20,12 @@ import {
 
 vi.mock('../../../utils/s3-utils');
 vi.mock('../../../utils/error-utils');
-vi.mock('../../../utils/workflow-state');
+vi.mock('../../../utils/user-workflows-db-utils');
 vi.mock('./utils');
 
 const mockedS3Utils = vi.mocked(s3Utils);
 const mockedErrorUtils = vi.mocked(errorUtils);
-const mockedWorkflowState = vi.mocked(workflowState);
+const mockedUserWorkflowsDbUtils = vi.mocked(userWorkflowsDbUtils);
 const mockedUtils = vi.mocked(utils);
 
 async function callHandler(event: any) {
@@ -65,7 +65,9 @@ describe('convert-to-speech Lambda handler', () => {
     vi.clearAllMocks();
     mockedS3Utils.getTextFromS3.mockResolvedValue('hello world');
     mockedUtils.textToSpeech.mockResolvedValue(mockAudioS3);
-    mockedWorkflowState.updateWorkflowStatus.mockResolvedValue(undefined);
+    mockedUserWorkflowsDbUtils.updateWorkflowStatus.mockResolvedValue(
+      undefined
+    );
     mockedErrorUtils.getErrorMessage.mockImplementation(
       (e: any) => e?.message || String(e)
     );

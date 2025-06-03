@@ -7,7 +7,7 @@ import {
   getErrorMessage,
 } from '../../../utils/error-utils';
 import { generateUserS3Key, saveTextToS3 } from '../../../utils/s3-utils';
-import { updateWorkflowStatus } from '../../../utils/workflow-state';
+import { updateWorkflowStatus } from '../../../utils/user-workflows-db-utils';
 import { extractTextFromTextractS3 } from './utils';
 import { WorkflowCommonState } from '@inkstream/shared';
 import {

@@ -13,8 +13,8 @@ import {
   beforeAll,
   afterAll,
 } from 'vitest';
-import * as jobTokenUtils from '../../../utils/textract-job-tokens';
-import * as workflowStateUtils from '../../../utils/workflow-state';
+import * as jobTokenDbUtils from '../../../utils/textract-job-tokens-db-utils';
+import * as userWorkflowsDbUtils from '../../../utils/user-workflows-db-utils';
 import { ValidationError } from '../../../errors';
 
 const textractMock = mockClient(TextractClient as any);
@@ -57,10 +57,10 @@ describe('start-textract-job Lambda', () => {
       JobId: jobId,
     });
     const putJobTokenSpy = vi
-      .spyOn(jobTokenUtils, 'putJobToken')
+      .spyOn(jobTokenDbUtils, 'putJobToken')
       .mockResolvedValue(undefined);
     const updateWorkflowStatusSpy = vi
-      .spyOn(workflowStateUtils, 'updateWorkflowStatus')
+      .spyOn(userWorkflowsDbUtils, 'updateWorkflowStatus')
       .mockResolvedValue(undefined);
 
     const result = await handler(event);

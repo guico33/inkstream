@@ -1,12 +1,17 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent } from 'aws-lambda';
 import {
   SFNClient,
   StartExecutionCommand,
   StartExecutionCommandOutput,
 } from '@aws-sdk/client-sfn';
 import { z } from 'zod';
-import { createWorkflow } from '../../../utils/workflow-state';
-import { WorkflowCommonState } from '@inkstream/shared';
+import { createWorkflow } from '../../../utils/user-workflows-db-utils';
+import {
+  WorkflowCommonState,
+  WorkflowRecord,
+  WorkflowResponse,
+  StartWorkflowResult,
+} from '@inkstream/shared';
 import { ExternalServiceError } from '../../../errors';
 import {
   validateRequestBody,
@@ -14,6 +19,10 @@ import {
   handleError,
 } from '../../../utils/api-utils';
 import { extractUserId } from 'src/utils/auth-utils';
+import {
+  combineWorkflowDetails,
+  getStepFunctionsExecutionDetails,
+} from '../../../utils/workflow-utils';
 
 // Zod schema for environment variables validation
 const EnvironmentSchema = z.object({
@@ -51,7 +60,7 @@ const WorkflowInputSchema = z.object({
 
 export const handler = async (
   event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
+): Promise<StartWorkflowResult> => {
   console.log(
     'Start Workflow Lambda invoked with event:',
     JSON.stringify(event)
@@ -83,7 +92,7 @@ export const handler = async (
     );
 
     // Create workflow record in DynamoDB
-    await createWorkflowRecord(
+    const workflowDetails = await createWorkflowRecord(
       env.USER_WORKFLOWS_TABLE,
       userId,
       workflowId,
@@ -91,10 +100,19 @@ export const handler = async (
       fileKey
     );
 
-    return createSuccessResponse({
-      message: 'Workflow started successfully',
-      workflowId,
-    });
+    const executionDetails = await getStepFunctionsExecutionDetails(
+      sfnClient,
+      workflowId
+    );
+
+    const combinedWorkflowDetails = combineWorkflowDetails(
+      workflowDetails,
+      executionDetails
+    );
+
+    const response: WorkflowResponse = combinedWorkflowDetails;
+
+    return createSuccessResponse(response);
   } catch (error: unknown) {
     console.error('Error starting workflow:', error);
     return handleError(error);
@@ -149,11 +167,11 @@ async function createWorkflowRecord(
   workflowId: string,
   executionInput: WorkflowCommonState,
   fileKey: string
-): Promise<void> {
+): Promise<WorkflowRecord> {
   const nowIso = new Date().toISOString();
 
   try {
-    await createWorkflow(userWorkflowsTable, {
+    const workflow = await createWorkflow(userWorkflowsTable, {
       userId,
       workflowId,
       status: 'STARTING',
@@ -174,6 +192,15 @@ async function createWorkflowRecord(
         originalFile: fileKey,
       },
     });
+
+    if (!workflow) {
+      throw new ExternalServiceError(
+        'Failed to create workflow record in DynamoDB',
+        'DynamoDB'
+      );
+    }
+
+    return workflow;
   } catch (error) {
     throw new ExternalServiceError(
       `Failed to create workflow record in DynamoDB: ${

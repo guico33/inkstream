@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventBridgeEvent } from 'aws-lambda';
-import * as workflowStateUtils from '../../../utils/workflow-state';
+import * as userWorkflowsDbUtils from '../../../utils/user-workflows-db-utils';
 
-// Mock the workflow-state module
-vi.mock('../../../utils/workflow-state');
+// Mock the utils/user-workflows-db-utils module
+vi.mock('../../../utils/user-workflows-db-utils');
 
-describe('workflow-state-change Lambda', () => {
+describe('utils/user-workflows-db-utils-change Lambda', () => {
   let handler: any;
 
   beforeEach(async () => {
@@ -18,7 +18,7 @@ describe('workflow-state-change Lambda', () => {
     handler = (await import('./index.js')).handler;
 
     // Mock the updateWorkflowStatus function
-    vi.spyOn(workflowStateUtils, 'updateWorkflowStatus').mockResolvedValue(
+    vi.spyOn(userWorkflowsDbUtils, 'updateWorkflowStatus').mockResolvedValue(
       undefined
     );
   });
@@ -58,7 +58,7 @@ describe('workflow-state-change Lambda', () => {
 
     await handler(event);
 
-    expect(workflowStateUtils.updateWorkflowStatus).not.toHaveBeenCalled();
+    expect(userWorkflowsDbUtils.updateWorkflowStatus).not.toHaveBeenCalled();
   });
 
   it('ignores FAILED status as it is handled by step lambdas', async () => {
@@ -72,7 +72,7 @@ describe('workflow-state-change Lambda', () => {
 
     await handler(event);
 
-    expect(workflowStateUtils.updateWorkflowStatus).not.toHaveBeenCalled();
+    expect(userWorkflowsDbUtils.updateWorkflowStatus).not.toHaveBeenCalled();
   });
 
   it('updates workflow status to TIMED_OUT for timed out execution', async () => {
@@ -80,7 +80,7 @@ describe('workflow-state-change Lambda', () => {
 
     await handler(event);
 
-    expect(workflowStateUtils.updateWorkflowStatus).toHaveBeenCalledWith(
+    expect(userWorkflowsDbUtils.updateWorkflowStatus).toHaveBeenCalledWith(
       'test-workflows-table',
       'test-user-id',
       'arn:aws:states:us-east-1:123456789012:execution:TestStateMachine:test-workflow-id',
@@ -97,7 +97,7 @@ describe('workflow-state-change Lambda', () => {
 
     await handler(event);
 
-    expect(workflowStateUtils.updateWorkflowStatus).toHaveBeenCalledWith(
+    expect(userWorkflowsDbUtils.updateWorkflowStatus).toHaveBeenCalledWith(
       'test-workflows-table',
       'test-user-id',
       'arn:aws:states:us-east-1:123456789012:execution:TestStateMachine:test-workflow-id',
@@ -114,7 +114,7 @@ describe('workflow-state-change Lambda', () => {
 
     await handler(event);
 
-    expect(workflowStateUtils.updateWorkflowStatus).not.toHaveBeenCalled();
+    expect(userWorkflowsDbUtils.updateWorkflowStatus).not.toHaveBeenCalled();
   });
 
   it('handles missing userId gracefully', async () => {
@@ -123,7 +123,7 @@ describe('workflow-state-change Lambda', () => {
 
     await handler(event);
 
-    expect(workflowStateUtils.updateWorkflowStatus).not.toHaveBeenCalled();
+    expect(userWorkflowsDbUtils.updateWorkflowStatus).not.toHaveBeenCalled();
   });
 
   it('handles invalid JSON input gracefully', async () => {
@@ -132,7 +132,7 @@ describe('workflow-state-change Lambda', () => {
 
     await handler(event);
 
-    expect(workflowStateUtils.updateWorkflowStatus).not.toHaveBeenCalled();
+    expect(userWorkflowsDbUtils.updateWorkflowStatus).not.toHaveBeenCalled();
   });
 
   it('handles missing input gracefully', async () => {
@@ -141,13 +141,13 @@ describe('workflow-state-change Lambda', () => {
 
     await handler(event);
 
-    expect(workflowStateUtils.updateWorkflowStatus).not.toHaveBeenCalled();
+    expect(userWorkflowsDbUtils.updateWorkflowStatus).not.toHaveBeenCalled();
   });
 
   it('does not throw when updateWorkflowStatus fails', async () => {
     const event = createMockEvent('TIMED_OUT');
 
-    vi.spyOn(workflowStateUtils, 'updateWorkflowStatus').mockRejectedValue(
+    vi.spyOn(userWorkflowsDbUtils, 'updateWorkflowStatus').mockRejectedValue(
       new Error('DynamoDB error')
     );
 
@@ -160,6 +160,6 @@ describe('workflow-state-change Lambda', () => {
 
     await handler(event);
 
-    expect(workflowStateUtils.updateWorkflowStatus).not.toHaveBeenCalled();
+    expect(userWorkflowsDbUtils.updateWorkflowStatus).not.toHaveBeenCalled();
   });
 });

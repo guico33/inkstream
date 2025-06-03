@@ -10,7 +10,7 @@ import {
 } from '../../../utils/error-utils';
 import { textToSpeech } from './utils';
 import { WorkflowCommonState } from '@inkstream/shared';
-import { updateWorkflowStatus } from '../../../utils/workflow-state';
+import { updateWorkflowStatus } from '../../../utils/user-workflows-db-utils';
 import {
   ValidationError,
   S3Error,

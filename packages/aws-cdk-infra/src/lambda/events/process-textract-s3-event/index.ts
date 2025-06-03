@@ -17,7 +17,7 @@ import {
 import {
   deleteJobToken,
   getJobToken,
-} from '../../../utils/textract-job-tokens';
+} from '../../../utils/textract-job-tokens-db-utils';
 
 const accountId = process.env.AWS_ACCOUNT_ID;
 if (!accountId) throw new Error('AWS_ACCOUNT_ID env var is required');

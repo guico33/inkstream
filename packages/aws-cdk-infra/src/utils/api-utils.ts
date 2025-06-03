@@ -1,14 +1,14 @@
 // Common API utilities for Lambda functions
 // Provides shared validation, error handling, and extraction functions
 
-import { APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
 import { ValidationError, ExternalServiceError } from '../errors';
+import { ApiSuccessResponse, ApiGatewayErrorResponse } from '@inkstream/shared';
 
 /**
  * Handles different error types and returns appropriate HTTP responses
  */
-export function handleError(error: unknown): APIGatewayProxyResult {
+export function handleError(error: unknown): ApiGatewayErrorResponse {
   const headers = getCommonHeaders();
 
   if (error instanceof ValidationError) {
@@ -98,10 +98,10 @@ export function validateRequestBody<T>(
 /**
  * Creates a successful API response with Content-Type header
  */
-export function createSuccessResponse(
-  data: unknown,
-  statusCode: number = 200
-): APIGatewayProxyResult {
+export function createSuccessResponse<T>(
+  data: T,
+  statusCode: 200 = 200
+): ApiSuccessResponse<T> {
   return {
     statusCode,
     headers: getCommonHeaders(),
@@ -113,11 +113,11 @@ export function createSuccessResponse(
  * Creates an error response with specified status code and message
  */
 export function createErrorResponse(
-  statusCode: number,
+  statusCode: 400 | 401 | 403 | 404 | 500,
   message: string,
   error?: string,
   additionalData?: Record<string, unknown>
-): APIGatewayProxyResult {
+): ApiGatewayErrorResponse {
   return {
     statusCode,
     headers: getCommonHeaders(),

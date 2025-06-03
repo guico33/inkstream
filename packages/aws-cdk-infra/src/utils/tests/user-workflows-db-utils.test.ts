@@ -3,9 +3,9 @@ import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import {
   createWorkflow,
   getWorkflow,
-  updateWorkflowStatus,
   listWorkflows,
-} from '../workflow-state';
+  updateWorkflowStatus,
+} from '../user-workflows-db-utils';
 import { WorkflowRecord } from '@inkstream/shared';
 
 const TABLE_NAME = 'test-table';
@@ -39,12 +39,12 @@ afterEach(() => {
   sendSpy.mockRestore();
 });
 
-describe('workflow-state DynamoDB utilities', () => {
+describe('user-workflows-table DynamoDB utilities', () => {
   it('createWorkflow puts a new item', async () => {
     sendSpy.mockResolvedValueOnce({});
-    await expect(
-      createWorkflow(TABLE_NAME, baseRecord)
-    ).resolves.toBeUndefined();
+    await expect(createWorkflow(TABLE_NAME, baseRecord)).resolves.toMatchObject(
+      baseRecord
+    );
     expect(sendSpy).toHaveBeenCalledTimes(1);
     const callArg = sendSpy.mock.calls[0]?.[0] as any;
     expect(callArg.input.Item.userId).toBe(userId);

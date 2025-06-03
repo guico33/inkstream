@@ -7,10 +7,10 @@ import { z } from 'zod';
 import {
   putJobToken,
   TextractJobTokenItem,
-} from '../../../utils/textract-job-tokens';
+} from '../../../utils/textract-job-tokens-db-utils';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import { updateWorkflowStatus } from '../../../utils/workflow-state';
+import { updateWorkflowStatus } from '../../../utils/user-workflows-db-utils';
 import { WorkflowCommonState } from '@inkstream/shared';
 import { ValidationError } from '../../../errors';
 

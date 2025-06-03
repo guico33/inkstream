@@ -1,13 +1,14 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent } from 'aws-lambda';
 import { z } from 'zod';
 import {
   listWorkflowsWithSorting,
   listWorkflowsByStatus,
-} from '../../../utils/workflow-state';
+} from '../../../utils/user-workflows-db-utils';
 import {
-  WorkflowRecord,
   WorkflowStatus,
   workflowStatuses,
+  ListUserWorkflowsResponse,
+  ListUserWorkflowsResult,
 } from '@inkstream/shared';
 import { handleError, createSuccessResponse } from '../../../utils/api-utils';
 import { ExternalServiceError } from '../../../errors';
@@ -52,7 +53,7 @@ const env = EnvironmentSchema.parse(process.env);
 
 export const handler = async (
   event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
+): Promise<ListUserWorkflowsResult> => {
   console.log(
     'User Workflows Lambda invoked with event:',
     JSON.stringify(event)
@@ -98,10 +99,7 @@ async function getUserWorkflowsFromDatabase(
     sortBy?: 'createdAt' | 'updatedAt';
     status?: WorkflowStatus;
   }
-): Promise<{
-  items: WorkflowRecord[];
-  nextToken?: string;
-}> {
+): Promise<ListUserWorkflowsResponse> {
   try {
     // Use the appropriate function based on whether status filtering is needed
     if (options.status) {

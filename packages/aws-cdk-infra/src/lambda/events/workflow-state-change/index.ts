@@ -1,6 +1,6 @@
 import { EventBridgeEvent } from 'aws-lambda';
 import { z } from 'zod';
-import { updateWorkflowStatus } from '../../../utils/workflow-state';
+import { updateWorkflowStatus } from '../../../utils/user-workflows-db-utils';
 
 // Zod schema for environment variables validation
 const EnvironmentSchema = z.object({

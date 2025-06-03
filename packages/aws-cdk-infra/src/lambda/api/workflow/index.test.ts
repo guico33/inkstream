@@ -8,7 +8,7 @@ import {
   beforeAll,
   vitest,
 } from 'vitest';
-import * as workflowStateUtils from '../../../utils/workflow-state';
+import * as userWorkflowsDbUtils from '../../../utils/user-workflows-db-utils';
 import { WorkflowRecord } from '@inkstream/shared';
 
 describe('workflow Lambda handler', () => {
@@ -23,7 +23,7 @@ describe('workflow Lambda handler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock getWorkflow
-    vi.spyOn(workflowStateUtils, 'getWorkflow').mockResolvedValue(undefined);
+    vi.spyOn(userWorkflowsDbUtils, 'getWorkflow').mockResolvedValue(undefined);
   });
 
   afterAll(() => {
@@ -90,7 +90,9 @@ describe('workflow Lambda handler', () => {
 
   it('returns 200 and workflow details when workflow is found', async () => {
     const mockWorkflow = createMockWorkflowRecord();
-    vi.spyOn(workflowStateUtils, 'getWorkflow').mockResolvedValue(mockWorkflow);
+    vi.spyOn(userWorkflowsDbUtils, 'getWorkflow').mockResolvedValue(
+      mockWorkflow
+    );
 
     const event = createMockEvent();
     const result = await handler(event);
@@ -114,7 +116,7 @@ describe('workflow Lambda handler', () => {
   });
 
   it('returns 404 when workflow is not found', async () => {
-    vi.spyOn(workflowStateUtils, 'getWorkflow').mockResolvedValue(undefined);
+    vi.spyOn(userWorkflowsDbUtils, 'getWorkflow').mockResolvedValue(undefined);
 
     const event = createMockEvent();
     const result = await handler(event);
@@ -166,7 +168,7 @@ describe('workflow Lambda handler', () => {
   });
 
   it('returns 500 when DynamoDB query fails', async () => {
-    vi.spyOn(workflowStateUtils, 'getWorkflow').mockRejectedValue(
+    vi.spyOn(userWorkflowsDbUtils, 'getWorkflow').mockRejectedValue(
       new Error('DynamoDB connection error')
     );
 
@@ -185,7 +187,9 @@ describe('workflow Lambda handler', () => {
       status: 'FAILED',
       error: 'Text formatting failed',
     };
-    vi.spyOn(workflowStateUtils, 'getWorkflow').mockResolvedValue(mockWorkflow);
+    vi.spyOn(userWorkflowsDbUtils, 'getWorkflow').mockResolvedValue(
+      mockWorkflow
+    );
 
     const event = createMockEvent();
     const result = await handler(event);
@@ -198,7 +202,7 @@ describe('workflow Lambda handler', () => {
 
   it('calls getWorkflow with correct parameters', async () => {
     const getWorkflowSpy = vi
-      .spyOn(workflowStateUtils, 'getWorkflow')
+      .spyOn(userWorkflowsDbUtils, 'getWorkflow')
       .mockResolvedValue(createMockWorkflowRecord());
 
     const event = createMockEvent({
