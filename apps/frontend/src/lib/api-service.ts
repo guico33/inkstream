@@ -154,50 +154,6 @@ export class WorkflowApiService {
       filename: filename || defaultFilename,
     });
   }
-
-  async downloadAllWorkflowResults(workflowId: string): Promise<void> {
-    // Get workflow status to find result paths
-    const status = await this.getWorkflow({ workflowId });
-
-    if (!status.s3Paths) {
-      throw new Error('No result files available for download');
-    }
-
-    const downloads: Array<{ path: string; filename: string }> = [];
-
-    if (status.s3Paths.formattedText) {
-      downloads.push({
-        path: status.s3Paths.formattedText,
-        filename: `workflow-${workflowId}-formatted.txt`,
-      });
-    }
-
-    if (status.s3Paths.translatedText) {
-      downloads.push({
-        path: status.s3Paths.translatedText,
-        filename: `workflow-${workflowId}-translated.txt`,
-      });
-    }
-
-    if (status.s3Paths.audioFile) {
-      downloads.push({
-        path: status.s3Paths.audioFile,
-        filename: `workflow-${workflowId}-audio.mp3`,
-      });
-    }
-
-    if (downloads.length === 0) {
-      throw new Error('No result files available for download');
-    }
-
-    // Download all result files
-    for (const download of downloads) {
-      await downloadWorkflowFile({
-        s3Path: download.path,
-        filename: download.filename,
-      });
-    }
-  }
 }
 
 // Hook to get API service instance

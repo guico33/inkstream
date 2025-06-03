@@ -192,21 +192,3 @@ export const useDownloadWorkflowResult = () => {
     },
   });
 };
-
-// Hook to download all workflow results
-export const useDownloadAllWorkflowResults = () => {
-  const apiService = useWorkflowApi();
-
-  return useMutation({
-    mutationFn: async (workflowId: string) => {
-      await apiService.downloadAllWorkflowResults(workflowId);
-    },
-    onSuccess: () => {
-      toast.success('All files download started');
-    },
-    onError: (error) => {
-      console.error('Failed to download files:', error);
-      toast.error('Failed to download files. Please try again.');
-    },
-  });
-};
