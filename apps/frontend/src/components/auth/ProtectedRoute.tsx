@@ -1,7 +1,7 @@
 // Protected route component for easy route protection
 // Replaces manual auth checks in components
 
-import { Navigate, useLocation } from 'react-router';
+import { Navigate } from 'react-router';
 import { useAuth } from '@/lib/contexts/auth-context';
 
 interface ProtectedRouteProps {
@@ -11,7 +11,6 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading } = useAuth();
-  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -24,11 +23,7 @@ export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
   }
 
   if (!isAuthenticated) {
-    // Save current location to redirect back after login
-    const redirectTo = encodeURIComponent(
-      `${location.pathname}${location.search}`
-    );
-    return <Navigate to={`/login?redirect=${redirectTo}`} replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

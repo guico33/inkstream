@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useAuth } from '../lib/contexts/auth-context';
 import { useNavigate, useLocation } from 'react-router';
+import { Button } from '../components/ui/button';
 
 export function LoginPage() {
-  const { user, getLoginUrl, isAuthenticated } = useAuth();
+  const { getLoginUrl, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -17,19 +17,25 @@ export function LoginPage() {
       navigate('/', { replace: true });
       return;
     }
+  }, [isAuthenticated, navigate, location.search]);
 
-    // Prevent multiple redirects
-    if (hasRedirected) return;
-
-    // Redirect to Cognito Hosted UI for Google login
-    setHasRedirected(true);
-    window.location.href = getLoginUrl(); // OAuth redirect must use window.location
-  }, [user, getLoginUrl, isAuthenticated, hasRedirected, navigate, location.search]);
+  const handleSignIn = () => {
+    window.location.href = getLoginUrl();
+  };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh]">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      <div className="mt-4 text-lg">Redirecting to Google sign in...</div>
+    <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+      <div className="text-center space-y-4">
+        <h1 className="text-3xl font-bold">Welcome to Inkstream</h1>
+        <p className="text-muted-foreground max-w-md">
+          Transform your documents with AI-powered processing. Sign in to get
+          started.
+        </p>
+      </div>
+
+      <Button onClick={handleSignIn} size="lg">
+        Sign in with Google
+      </Button>
     </div>
   );
 }

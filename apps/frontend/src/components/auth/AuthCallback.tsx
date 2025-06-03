@@ -52,7 +52,8 @@ export function AuthCallback() {
       try {
         console.log('Exchanging authorization code for tokens...');
         await exchangeCodeForTokens(code);
-        console.log('Authentication successful, redirecting to home...');
+        console.log('Authentication successful, redirecting...');
+
         navigate('/', { replace: true });
       } catch (error) {
         console.error('Token exchange failed:', error);
