@@ -3,6 +3,7 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { migration_20241220_add_status_category_fields } from './migrations/20241220_add_status_category_fields';
+import { migration_20250106_update_failed_status_category_to_completed } from './migrations/20250106_update_failed_status_category_to_completed';
 import {
   Migration,
   MigrationConfig,
@@ -16,7 +17,10 @@ dotenv.config({ path: path.join(__dirname, '.env.migrations') });
 /**
  * List of all migrations in order of execution
  */
-const MIGRATIONS: Migration[] = [migration_20241220_add_status_category_fields];
+const MIGRATIONS: Migration[] = [
+  migration_20241220_add_status_category_fields,
+  migration_20250106_update_failed_status_category_to_completed,
+];
 
 /**
  * Migration runner that executes all pending migrations

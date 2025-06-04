@@ -62,8 +62,8 @@ describe('user-workflows Lambda handler', () => {
         userId: 'test-user-123',
         workflowId: 'workflow-2',
         status: 'FAILED',
-        statusCategory: 'failed',
-        statusCategoryCreatedAt: 'failed#2024-01-02T00:00:00.000Z',
+        statusCategory: 'completed',
+        statusCategoryCreatedAt: 'completed#2024-01-02T00:00:00.000Z',
         statusHistory: [
           { status: 'FAILED', timestamp: '2024-01-02T00:00:00Z' },
         ],

@@ -7,6 +7,7 @@ import {
   ListUserWorkflowsResponse,
   ListUserWorkflowsResult,
   WorkflowStatusCategory,
+  workflowStatusCategories,
 } from '@inkstream/shared';
 import { handleError, createSuccessResponse } from '../../../utils/api-utils';
 import { ExternalServiceError } from '../../../errors';
@@ -34,7 +35,7 @@ const QueryParametersSchema = z
         invalid_type_error: 'status must be a string',
       })
       .optional(),
-    statusCategory: z.enum(['active', 'completed', 'failed']).optional(),
+    statusCategory: z.enum(workflowStatusCategories).optional(),
   })
   .refine(
     (data) => {

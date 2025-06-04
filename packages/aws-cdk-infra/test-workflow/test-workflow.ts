@@ -1135,7 +1135,7 @@ describe('Workflow Integration Tests', () => {
         'Testing user-workflows endpoint with statusCategory filtering...'
       );
 
-      // Test filtering for completed workflows (should match all SUCCEEDED workflows)
+      // Test filtering for completed workflows (should match all workflows - both SUCCEEDED and FAILED)
       const completedUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=completed`;
       const completedResponse = await httpRequest(
         completedUrl,
@@ -1145,37 +1145,19 @@ describe('Workflow Integration Tests', () => {
       );
       expect(completedResponse).toHaveProperty('items');
       expect(Array.isArray(completedResponse.items)).toBe(true);
-      // Should have 4 completed (SUCCEEDED) workflows
-      expect(completedResponse.items).toHaveLength(4);
+      // Should have 5 workflows (4 successful + 1 failed/aborted, all categorized as 'completed')
+      expect(completedResponse.items).toHaveLength(5);
       completedResponse.items.forEach((workflow: any) => {
         expect(workflow.statusCategory).toBe('completed');
         expect(workflow.userId).toBe(USER_ID);
+        expect(['SUCCEEDED', 'FAILED']).toContain(workflow.status);
       });
       console.log(
         `✅ completed statusCategory returned ${completedResponse.items.length} workflows`
       );
 
-      // Test filtering for failed workflows (should match the aborted workflow)
-      const failedUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=failed`;
-      const failedResponse = await httpRequest(
-        failedUrl,
-        'GET',
-        undefined,
-        AUTH_TOKEN
-      );
-      expect(failedResponse).toHaveProperty('items');
-      expect(Array.isArray(failedResponse.items)).toBe(true);
-      expect(failedResponse.items).toHaveLength(1);
-      failedResponse.items.forEach((workflow: any) => {
-        expect(workflow.statusCategory).toBe('failed');
-        expect(workflow.userId).toBe(USER_ID);
-        expect(workflow.status).toBe('FAILED');
-      });
-      console.log(
-        `✅ failed statusCategory returned ${failedResponse.items.length} workflows`
-      );
 
-      // Test filtering for active workflows (should be empty since all are completed/failed)
+      // Test filtering for active workflows (should be empty since all are completed)
       const activeUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=active`;
       const activeResponse = await httpRequest(
         activeUrl,
@@ -1217,7 +1199,7 @@ describe('Workflow Integration Tests', () => {
       );
       expect(nextPageResponse).toHaveProperty('items');
       expect(Array.isArray(nextPageResponse.items)).toBe(true);
-      // Should have 2 more (total 4 completed workflows)
+      // Should have 2 more (first two pages should have 4 workflows total)
       expect(
         nextPageResponse.items.length + paginatedResponse.items.length
       ).toBe(4);
@@ -1225,24 +1207,31 @@ describe('Workflow Integration Tests', () => {
         expect(workflow.statusCategory).toBe('completed');
       });
 
-      // Check if there's a nextToken on the second page
-      if (nextPageResponse.nextToken) {
-        // If there's a nextToken, make a third request to verify it returns empty
-        const thirdPageUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=completed&limit=2&nextToken=${encodeURIComponent(
-          nextPageResponse.nextToken
-        )}`;
-        const thirdPageResponse = await httpRequest(
-          thirdPageUrl,
-          'GET',
-          undefined,
-          AUTH_TOKEN
-        );
-        expect(thirdPageResponse).toHaveProperty('items');
-        expect(Array.isArray(thirdPageResponse.items)).toBe(true);
-        expect(thirdPageResponse.items).toHaveLength(0); // Should be empty
-        expect(thirdPageResponse.nextToken).toBeUndefined(); // Should have no more pages
-        console.log('✅ Third page correctly returned empty results');
-      }
+      // Should have a nextToken on the second page since we have 5 total workflows (2+2+1)
+      expect(nextPageResponse.nextToken).toBeDefined();
+      
+      // Fetch third page - should have 1 remaining workflow
+      const thirdPageUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=completed&limit=2&nextToken=${encodeURIComponent(
+        nextPageResponse.nextToken
+      )}`;
+      const thirdPageResponse = await httpRequest(
+        thirdPageUrl,
+        'GET',
+        undefined,
+        AUTH_TOKEN
+      );
+      expect(thirdPageResponse).toHaveProperty('items');
+      expect(Array.isArray(thirdPageResponse.items)).toBe(true);
+      expect(thirdPageResponse.items).toHaveLength(1); // Should have 1 remaining workflow
+      expect(thirdPageResponse.nextToken).toBeUndefined(); // Should have no more pages
+      thirdPageResponse.items.forEach((workflow: any) => {
+        expect(workflow.statusCategory).toBe('completed');
+      });
+      
+      // Verify total is 5 workflows across all pages
+      const totalWorkflows = paginatedResponse.items.length + nextPageResponse.items.length + thirdPageResponse.items.length;
+      expect(totalWorkflows).toBe(5);
+      console.log('✅ Third page correctly returned 1 remaining workflow');
 
       console.log('✅ statusCategory pagination works as expected');
 

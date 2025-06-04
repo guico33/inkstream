@@ -16,8 +16,8 @@ export function getStatusCategory(
       return 'completed';
     case 'FAILED':
     case 'TIMED_OUT':
-      return 'failed';
+      return 'completed';
     default:
-      return 'failed';
+      return 'completed';
   }
 }

@@ -103,5 +103,4 @@ export const workflowStatuses = [
 export const workflowStatusCategories = [
   'active',
   'completed',
-  'failed',
 ] as const;

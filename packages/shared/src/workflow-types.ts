@@ -32,7 +32,7 @@ export interface WorkflowRecord {
   statusHistory: WorkflowStatusHistoryEntry[];
   parameters?: WorkflowParameters;
   s3Paths?: WorkflowS3Paths;
-  createdAt?: string;
+  createdAt: string;
   updatedAt?: string;
   error?: string;
 }
