@@ -21,7 +21,7 @@ import {
   DEFAULT_WORKFLOW_PARAMS,
   type SupportedLanguage,
 } from '@inkstream/shared';
-import { type WorkflowFormData } from '@/lib/types/form-types';
+import type { WorkflowFormData } from '@/lib/types/form-types';
 
 // Validation schema
 const workflowParametersSchema = z.object({
@@ -75,15 +75,24 @@ export function WorkflowParametersForm({
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
       {/* Translation Options */}
-      <Card className="border-0 shadow-none bg-muted/50">
+      <Card
+        className={`border-0 shadow-none bg-muted/50 transition-colors ${
+          !(disabled || isLoading) ? 'hover:bg-muted/70' : ''
+        }`}
+      >
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
+          <Label
+            htmlFor="doTranslate"
+            className={`flex items-center justify-between ${
+              !(disabled || isLoading) ? 'cursor-pointer' : 'cursor-default'
+            }`}
+          >
             <div className="flex items-center space-x-3">
               <Languages className="h-5 w-5 text-muted-foreground" />
               <div>
-                <Label htmlFor="doTranslate" className="text-base font-medium">
+                <span className="text-base font-medium">
                   Enable Translation
-                </Label>
+                </span>
                 <p className="text-sm text-muted-foreground">
                   Translate the extracted text to your chosen language
                 </p>
@@ -95,7 +104,7 @@ export function WorkflowParametersForm({
               onCheckedChange={(checked) => setValue('doTranslate', checked)}
               disabled={disabled || isLoading}
             />
-          </div>
+          </Label>
 
           {/* Language Selection */}
           {doTranslate && (
@@ -134,15 +143,22 @@ export function WorkflowParametersForm({
       </Card>
 
       {/* Speech Conversion Options */}
-      <Card className="border-0 shadow-none bg-muted/50">
+      <Card
+        className={`border-0 shadow-none bg-muted/50 transition-colors ${
+          !(disabled || isLoading) ? 'hover:bg-muted/70' : ''
+        }`}
+      >
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
+          <Label
+            htmlFor="doSpeech"
+            className={`flex items-center justify-between ${
+              !(disabled || isLoading) ? 'cursor-pointer' : 'cursor-default'
+            }`}
+          >
             <div className="flex items-center space-x-3">
               <Volume2 className="h-5 w-5 text-muted-foreground" />
               <div>
-                <Label htmlFor="doSpeech" className="text-base font-medium">
-                  Convert to Speech
-                </Label>
+                <span className="text-base font-medium">Convert to Speech</span>
                 <p className="text-sm text-muted-foreground">
                   Generate an audio file from the processed text
                 </p>
@@ -154,7 +170,7 @@ export function WorkflowParametersForm({
               onCheckedChange={(checked) => setValue('doSpeech', checked)}
               disabled={disabled || isLoading}
             />
-          </div>
+          </Label>
         </CardContent>
       </Card>
 

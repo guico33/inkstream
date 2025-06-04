@@ -9,8 +9,13 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useWorkflowApi } from '@/lib/api-service';
 import { type WorkflowFormData } from '@/lib/types/form-types';
+import { getWorkflowDisplayId } from '@/lib/display';
 
-export function NewWorkflowTab() {
+interface NewWorkflowTabProps {
+  onWorkflowStarted?: () => void;
+}
+
+export function NewWorkflowTab({ onWorkflowStarted }: NewWorkflowTabProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const workflowApi = useWorkflowApi();
@@ -37,7 +42,9 @@ export function NewWorkflowTab() {
       });
 
       toast.success(
-        `Workflow started successfully! ID: ${response.workflowId}`,
+        `Workflow started successfully! ID: ${getWorkflowDisplayId(
+          response.workflowId
+        )}`,
         {
           id: 'workflow-start',
         }
@@ -45,6 +52,9 @@ export function NewWorkflowTab() {
 
       // Reset form
       setSelectedFile(null);
+
+      // Switch to active tab to see the new workflow
+      onWorkflowStarted?.();
     } catch (error) {
       console.error('Failed to start workflow:', error);
       toast.error('Failed to start workflow. Please try again.', {

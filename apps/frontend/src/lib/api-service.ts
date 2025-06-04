@@ -12,6 +12,7 @@ import {
   type GetWorkflowParams,
   type WorkflowResponse,
   type ListUserWorkflowsResponse,
+  type WorkflowStatusCategory,
 } from '@inkstream/shared';
 
 // Extended params for file upload + workflow start
@@ -102,10 +103,16 @@ export class WorkflowApiService {
     return response.data;
   }
 
-  async listUserWorkflows(): Promise<ListUserWorkflowsResponse> {
+  async listUserWorkflows(params?: {
+    limit?: number;
+    nextToken?: string;
+    sortBy?: 'createdAt' | 'updatedAt';
+    status?: string;
+    statusCategory?: WorkflowStatusCategory;
+  }): Promise<ListUserWorkflowsResponse> {
     console.log('API Service: Making request to /user-workflows');
     const response: AxiosResponse<ListUserWorkflowsResponse> =
-      await this.client.get(API_PATHS.USER_WORKFLOWS);
+      await this.client.get(API_PATHS.USER_WORKFLOWS, { params });
     console.log(
       'API Service: Received response from /user-workflows:',
       response.data?.items?.length || 0,

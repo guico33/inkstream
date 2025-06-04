@@ -25,6 +25,15 @@ export function LoginPage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+      {/* Logo */}
+      <div className="flex items-center justify-center mb-4">
+        <img
+          src="/inkstream-logo.png"
+          alt="Inkstream Logo"
+          className="h-30 w-30 rounded-xl shadow-lg"
+        />
+      </div>
+
       <div className="text-center space-y-4">
         <h1 className="text-3xl font-bold">Welcome to Inkstream</h1>
         <p className="text-muted-foreground max-w-md">
@@ -33,8 +42,13 @@ export function LoginPage() {
         </p>
       </div>
 
-      <Button onClick={handleSignIn} size="lg">
-        Sign in with Google
+      <Button
+        onClick={handleSignIn}
+        size="lg"
+        className="flex items-center space-x-2"
+      >
+        <img src="/google.png" alt="Google" className="h-5 w-5 mb-1" />
+        <span>Sign in with Google</span>
       </Button>
     </div>
   );

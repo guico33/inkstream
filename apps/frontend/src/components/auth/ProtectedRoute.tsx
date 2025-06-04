@@ -16,7 +16,18 @@ export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
     return (
       fallback || (
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <div className="text-center">
+            {/* Logo */}
+            <div className="flex items-center justify-center mb-6">
+              <img
+                src="/inkstream-logo.png"
+                alt="Inkstream Logo"
+                className="h-16 w-16 rounded-xl shadow-lg"
+              />
+            </div>
+            <h1 className="text-2xl font-bold mb-6">Welcome to Inkstream</h1>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          </div>
         </div>
       )
     );

@@ -7,9 +7,11 @@ import { useWorkflowApi } from '../api-service';
 import {
   type StartWorkflowParams,
   type WorkflowResponse,
+  type WorkflowStatusCategory,
   WORKFLOW_POLLING_INTERVAL,
 } from '@inkstream/shared';
 import { toast } from 'sonner';
+import { POLLING_INTERVAL } from '../constants';
 
 // Query keys for consistent caching
 export const workflowKeys = {
@@ -72,98 +74,92 @@ export const useWorkflowStatus = (
   return query;
 };
 
-// Hook to get user's workflow list
+// Hook to get user's workflow list with pagination support
 export const useUserWorkflows = (options?: {
   enableRefetchOnMount?: boolean;
   refetchOnWindowFocus?: boolean;
+  limit?: number;
+  nextToken?: string;
+  sortBy?: 'createdAt' | 'updatedAt';
+  status?: string;
+  statusCategory?: WorkflowStatusCategory;
 }) => {
   const apiService = useWorkflowApi();
-  const { enableRefetchOnMount = false, refetchOnWindowFocus = true } =
-    options || {};
+  const {
+    enableRefetchOnMount = false,
+    refetchOnWindowFocus = true,
+    limit,
+    nextToken,
+    sortBy,
+    status,
+    statusCategory,
+  } = options || {};
+
+  const queryKey = [
+    ...workflowKeys.lists(),
+    'paginated',
+    {
+      limit: limit,
+      nextToken: nextToken,
+      sortBy: sortBy,
+      status: status,
+      statusCategory: statusCategory,
+    },
+  ];
 
   return useQuery({
-    queryKey: workflowKeys.lists(),
+    queryKey,
     queryFn: async () => {
-      console.log('Fetching user workflows from API...');
+      console.log('Fetching user workflows from API with params:', {
+        limit,
+        nextToken,
+        sortBy,
+        status,
+        statusCategory,
+      });
       try {
-        const result = await apiService.listUserWorkflows();
+        const result = await apiService.listUserWorkflows({
+          limit,
+          nextToken,
+          sortBy,
+          status,
+          statusCategory,
+        });
         console.log(`Fetched ${result?.items?.length || 0} workflows from API`);
-        return result.items || [];
+        return result;
       } catch (error) {
         console.error('Failed to fetch user workflows:', error);
-        // Return empty array as fallback for development
-        return [];
+        throw error; // Let React Query handle the error instead of returning fallback data
       }
     },
     // Refetch every 30 seconds to catch new workflows
-    refetchInterval: 30000,
+    refetchInterval: POLLING_INTERVAL,
     // Enable refetch on mount if requested
     refetchOnMount: enableRefetchOnMount ? 'always' : true,
     // Enable refetch on window focus
     refetchOnWindowFocus,
-    // Ensure we always have an array
-    initialData: [],
+    // Remove initialData to ensure proper pagination behavior
+    staleTime: 0, // Consider data stale immediately to ensure fresh fetches
   });
 };
 
-// Hook for both active and recent workflows with polling
-export const useActiveWorkflowsPolling = () => {
-  const {
-    data: workflows,
-    isLoading,
-    error,
-  } = useUserWorkflows({
+// Hook for active workflows with pagination support and polling
+export const useActiveWorkflowsPaginated = (options?: {
+  limit?: number;
+  nextToken?: string;
+}) => {
+  const result = useUserWorkflows({
     enableRefetchOnMount: true,
     refetchOnWindowFocus: true,
+    statusCategory: 'active',
+    limit: options?.limit || 10,
+    nextToken: options?.nextToken,
   });
 
-  // Ensure workflows is always an array
-  const workflowsArray = Array.isArray(workflows) ? workflows : [];
-
-  console.log(
-    'useActiveWorkflowsPolling - Total workflows:',
-    workflowsArray.length
-  );
-  console.log(
-    'Workflow statuses:',
-    workflowsArray.map((w) => `${w.workflowId}: ${w.status}`)
-  );
-
-  // Get active workflows (anything that's not SUCCEEDED or FAILED)
-  const activeWorkflows = workflowsArray.filter(
-    (workflow) =>
-      workflow.status !== 'SUCCEEDED' && workflow.status !== 'FAILED'
-  );
-
-  console.log(
-    'Active workflows:',
-    activeWorkflows.map((w) => `${w.workflowId}: ${w.status}`)
-  );
-
-  // Get recent completed workflows (only SUCCEEDED or FAILED)
-  const completedWorkflows = workflowsArray
-    .filter(
-      (workflow) =>
-        workflow.status === 'SUCCEEDED' || workflow.status === 'FAILED'
-    )
-    .sort((a, b) => {
-      const dateA = a.updatedAt || a.createdAt || '0';
-      const dateB = b.updatedAt || b.createdAt || '0';
-      return new Date(dateB).getTime() - new Date(dateA).getTime();
-    })
-    .slice(0, 3);
-
-  console.log(
-    'Completed workflows:',
-    completedWorkflows.map((w) => `${w.workflowId}: ${w.status}`)
-  );
-
   return {
-    activeWorkflows,
-    completedWorkflows,
-    allWorkflows: workflowsArray,
-    isLoading: isLoading,
-    errors: error ? [error] : [],
+    ...result,
+    activeWorkflows: result.data?.items || [],
+    nextToken: result.data?.nextToken,
   };
 };
 

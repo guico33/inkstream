@@ -71,6 +71,16 @@ export function AuthCallback() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center max-w-md">
+          {/* Logo */}
+          <div className="flex items-center justify-center mb-6">
+            <img
+              src="/inkstream-logo.png"
+              alt="Inkstream Logo"
+              className="h-16 w-16 rounded-xl shadow-lg"
+            />
+          </div>
+          <h1 className="text-2xl font-bold mb-6">Welcome to Inkstream</h1>
+
           <div className="text-red-600 mb-4 text-4xl">❌</div>
           <h2 className="text-xl font-semibold mb-2">Authentication Failed</h2>
           <p className="text-red-600 mb-4">{error}</p>
@@ -84,6 +94,16 @@ export function AuthCallback() {
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="text-center">
+        {/* Logo */}
+        <div className="flex items-center justify-center mb-6">
+          <img
+            src="/inkstream-logo.png"
+            alt="Inkstream Logo"
+            className="h-16 w-16 rounded-xl shadow-lg"
+          />
+        </div>
+        <h1 className="text-2xl font-bold mb-6">Welcome to Inkstream</h1>
+
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
         <h2 className="text-xl font-semibold mb-2">Completing Sign In</h2>
         <p className="text-gray-600">

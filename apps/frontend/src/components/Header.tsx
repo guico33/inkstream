@@ -4,8 +4,9 @@
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { getUserDisplayName } from '@/lib/display';
-import { LogOut, FileText, LogIn } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { ModeToggle } from '@/components/ModeToggle';
 
 export function Header() {
   const { user, isAuthenticated, signOut, getCognitoLogoutUrl } = useAuth();
@@ -37,14 +38,18 @@ export function Header() {
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
           {/* Brand */}
-          <div className="flex items-center space-x-2">
-            <FileText className="h-8 w-8 text-primary" />
+          <div className="flex items-center space-x-3">
+            <img
+              src="/inkstream-logo.png"
+              alt="Inkstream Logo"
+              className="h-10 w-10 rounded-lg shadow-sm"
+            />
             <h1 className="text-2xl font-bold text-foreground">Inkstream</h1>
           </div>
 
           {/* User Info & Actions - Show different content based on auth state */}
           {isAuthenticated ? (
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 ml-4">
               {displayName && (
                 <span className="text-sm text-muted-foreground">
                   Welcome, {displayName}
@@ -59,16 +64,18 @@ export function Header() {
                 <LogOut className="h-4 w-4" />
                 <span>Sign Out</span>
               </Button>
+              <ModeToggle />
             </div>
           ) : (
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 ml-4">
               <Button
                 onClick={handleSignIn}
                 className="flex items-center space-x-2"
               >
-                <LogIn className="h-4 w-4" />
+                <img src="/google.png" alt="Google" className="h-4 w-4" />
                 <span>Sign in with Google</span>
               </Button>
+              <ModeToggle />
             </div>
           )}
         </div>

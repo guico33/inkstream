@@ -12,36 +12,75 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import {
-  useActiveWorkflowsPolling,
+  useActiveWorkflowsPaginated,
   useDownloadWorkflowResult,
 } from '@/lib/hooks/use-workflow-queries';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 import { Download, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import * as React from 'react';
 import {
   WORKFLOW_STEP_NAMES,
   type WorkflowStatus,
   type WorkflowResponse,
 } from '@inkstream/shared';
+import { getWorkflowDisplayId } from '@/lib/display';
 
 export function ActiveWorkflowsTab() {
-  const { activeWorkflows, completedWorkflows, isLoading, errors } =
-    useActiveWorkflowsPolling();
+  const [currentToken, setCurrentToken] = React.useState<string | undefined>();
+  const [previousTokens, setPreviousTokens] = React.useState<string[]>([]);
+
+  const { activeWorkflows, nextToken, isLoading, error, isFetching } =
+    useActiveWorkflowsPaginated({
+      limit: 10,
+      nextToken: currentToken,
+    });
+
+  const hasNextPage = !!nextToken;
+  const hasPreviousPage = previousTokens.length > 0;
 
   console.log(
     'ActiveWorkflowsTab rendered - Active workflows:',
     activeWorkflows?.length || 0
   );
 
+  const handleNextPage = () => {
+    if (nextToken) {
+      setPreviousTokens((prev) => [...prev, currentToken || '']);
+      setCurrentToken(nextToken);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (hasPreviousPage) {
+      const newPreviousTokens = [...previousTokens];
+      const previousToken = newPreviousTokens.pop();
+      setPreviousTokens(newPreviousTokens);
+      setCurrentToken(previousToken === '' ? undefined : previousToken);
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Loading workflows...</span>
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold mb-4 flex items-center">
+          <Loader2 className="h-5 w-5 animate-spin mr-2" />
+          Active Workflows
+        </h3>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <WorkflowCardSkeleton key={i} />
+        ))}
       </div>
     );
   }
 
-  // Show error state if there are errors
-  if (errors.length > 0) {
+  if (error) {
     return (
       <div className="text-center py-8">
         <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
@@ -54,14 +93,12 @@ export function ActiveWorkflowsTab() {
   }
 
   const hasActiveWorkflows = activeWorkflows && activeWorkflows.length > 0;
-  const hasCompletedWorkflows =
-    completedWorkflows && completedWorkflows.length > 0;
 
-  if (!hasActiveWorkflows && !hasCompletedWorkflows) {
+  if (!hasActiveWorkflows && !isLoading) {
     return (
       <div className="text-center py-8">
         <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-        <h3 className="text-lg font-semibold mb-2">No workflows yet</h3>
+        <h3 className="text-lg font-semibold mb-2">No active workflows</h3>
         <p className="text-muted-foreground">
           Start a new workflow from the "New Workflow" tab
         </p>
@@ -71,35 +108,54 @@ export function ActiveWorkflowsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Active Workflows Section */}
-      {hasActiveWorkflows && (
-        <div>
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
+      <div>
+        <h3 className="text-lg font-semibold mb-4 flex items-center">
+          {isFetching ? (
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
-            Active Workflows ({activeWorkflows.length})
-          </h3>
-          <div className="space-y-4">
-            {activeWorkflows.map((workflow) => (
-              <WorkflowCard key={workflow.workflowId} workflow={workflow} />
-            ))}
-          </div>
-        </div>
-      )}
+          ) : (
+            <Clock className="h-5 w-5 mr-2" />
+          )}
+          Active Workflows ({activeWorkflows.length})
+        </h3>
 
-      {/* Completed Workflows Section */}
-      {hasCompletedWorkflows && (
-        <div>
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <CheckCircle className="h-5 w-5 mr-2" />
-            Recent Completed Workflows ({completedWorkflows.length})
-          </h3>
-          <div className="space-y-4">
-            {completedWorkflows.map((workflow) => (
-              <WorkflowCard key={workflow.workflowId} workflow={workflow} />
-            ))}
-          </div>
-        </div>
-      )}
+        {hasActiveWorkflows && (
+          <>
+            <div className="space-y-4">
+              {activeWorkflows.map((workflow) => (
+                <WorkflowCard key={workflow.workflowId} workflow={workflow} />
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            {(hasNextPage || hasPreviousPage) && (
+              <Pagination className="mt-6">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={handlePreviousPage}
+                      className={
+                        !hasPreviousPage
+                          ? 'pointer-events-none opacity-50'
+                          : 'cursor-pointer'
+                      }
+                    />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={handleNextPage}
+                      className={
+                        !hasNextPage
+                          ? 'pointer-events-none opacity-50'
+                          : 'cursor-pointer'
+                      }
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -113,7 +169,9 @@ function WorkflowCard({ workflow }: { workflow: WorkflowResponse }) {
       'STARTING',
       'EXTRACTING_TEXT',
       'FORMATTING_TEXT',
+      'TEXT_FORMATTING_COMPLETE',
       'TRANSLATING',
+      'TRANSLATION_COMPLETE',
       'CONVERTING_TO_SPEECH',
       'SUCCEEDED',
     ];
@@ -164,7 +222,7 @@ function WorkflowCard({ workflow }: { workflow: WorkflowResponse }) {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg">
-              Workflow {workflow.workflowId}
+              Workflow {getWorkflowDisplayId(workflow.workflowId)}
             </CardTitle>
             <CardDescription>
               Started{' '}
@@ -244,6 +302,40 @@ function WorkflowCard({ workflow }: { workflow: WorkflowResponse }) {
               )}
             </div>
           )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WorkflowCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="flex items-center space-x-2">
+            <Skeleton className="h-4 w-4 rounded-full" />
+            <Skeleton className="h-6 w-20" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div>
+            <div className="flex justify-between text-sm mb-2">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-8" />
+            </div>
+            <Skeleton className="h-2 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-32" />
+          </div>
         </div>
       </CardContent>
     </Card>
