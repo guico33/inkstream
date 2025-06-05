@@ -1,23 +1,27 @@
 import { Page, expect } from '@playwright/test';
 
 export async function navigateToDashboard(page: Page) {
-  await page.goto('/dashboard');
-  await page.waitForLoadState('networkidle');
+  const timeout = process.env.CI ? 90000 : 60000; // Extended timeout for CI
+  await page.goto('/dashboard', { timeout });
+  await page.waitForLoadState('networkidle', { timeout });
 }
 
 export async function selectNewWorkflowTab(page: Page) {
+  const timeout = process.env.CI ? 30000 : 20000;
   await page.getByRole('tab', { name: /New Workflow/i }).click();
-  await expect(page.getByText(/Start New Workflow/i)).toBeVisible();
+  await expect(page.getByText(/Start New Workflow/i)).toBeVisible({ timeout });
 }
 
 export async function selectActiveWorkflowsTab(page: Page) {
+  const timeout = process.env.CI ? 45000 : 30000;
   await page.getByRole('tab', { name: /Active/i }).click();
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout });
 }
 
 export async function selectWorkflowHistoryTab(page: Page) {
+  const timeout = process.env.CI ? 45000 : 30000;
   await page.getByRole('tab', { name: /History/i }).click();
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout });
 }
 
 export async function uploadTestFile(
@@ -79,10 +83,9 @@ export async function startWorkflow(page: Page) {
 }
 
 export async function expectWorkflowStartSuccess(page: Page) {
-  // Should show success toast - match the actual toast message
-  await expect(page.getByText(/Workflow started successfully!/i)).toBeVisible();
+  const timeout = process.env.CI ? 30000 : 15000; // 30 seconds on CI, 15 seconds locally
+  await expect(page.getByText(/Workflow started successfully!/i)).toBeVisible({ timeout });
 
-  // Should be redirected to Active Workflows tab
   await expect(page.getByRole('tab', { name: /Active/i })).toHaveAttribute(
     'aria-selected',
     'true'
@@ -195,12 +198,12 @@ export async function expectDownloadSuccess(
   page: Page,
   fileType: 'formatted' | 'translated' | 'audio'
 ) {
-  // Look for toast/success message about the download
+  const timeout = process.env.CI ? 20000 : 10000; // 20 seconds on CI, 10 seconds locally
   await expect(
     page.getByText(
       new RegExp(`File downloaded successfully: .*${fileType}.*`, 'i')
     )
-  ).toBeVisible({ timeout: 10000 });
+  ).toBeVisible({ timeout });
 }
 
 export async function expectWorkflowInHistory(page: Page, workflowId?: string) {

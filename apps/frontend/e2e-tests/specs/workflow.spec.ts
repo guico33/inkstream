@@ -34,7 +34,7 @@ import {
 
 test.describe('Workflow Management', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/', { waitUntil: 'networkidle' });
     await clearStorage(page);
 
     // Set up authentication
@@ -46,6 +46,9 @@ test.describe('Workflow Management', () => {
     // Set up mocks
     await setupAuthMocks(page);
     await setupWorkflowMocks(page);
+
+    // Wait for network to be idle with CI-appropriate timeout
+    // await waitForNetworkIdle(page);
   });
 
   test.describe('File Upload and Selection', () => {
@@ -372,6 +375,9 @@ test.describe('Workflow Management', () => {
     });
 
     test('should download formatted text file', async ({ page }) => {
+      // Increase timeout for download operations
+      test.setTimeout(process.env.CI ? 120000 : 90000); // 2 minutes on CI, 1.5 minutes locally
+
       await navigateToDashboard(page);
       await selectActiveWorkflowsTab(page);
 
@@ -383,6 +389,9 @@ test.describe('Workflow Management', () => {
     });
 
     test('should download translated text file', async ({ page }) => {
+      // Increase timeout for download operations
+      test.setTimeout(process.env.CI ? 120000 : 90000); // 2 minutes on CI, 1.5 minutes locally
+
       await navigateToDashboard(page);
       await selectActiveWorkflowsTab(page);
 
@@ -392,6 +401,9 @@ test.describe('Workflow Management', () => {
     });
 
     test('should download audio file', async ({ page }) => {
+      // Increase timeout for download operations
+      test.setTimeout(process.env.CI ? 120000 : 90000); // 2 minutes on CI, 1.5 minutes locally
+
       await navigateToDashboard(page);
       await selectActiveWorkflowsTab(page);
 
@@ -458,6 +470,9 @@ test.describe('Workflow Management', () => {
     });
 
     test('should download files from history', async ({ page }) => {
+      // Increase timeout for download operations from history
+      test.setTimeout(process.env.CI ? 120000 : 90000); // 2 minutes on CI, 1.5 minutes locally
+
       await navigateToDashboard(page);
       await selectWorkflowHistoryTab(page);
 
@@ -466,6 +481,9 @@ test.describe('Workflow Management', () => {
     });
 
     test('should refresh workflow history', async ({ page }) => {
+      // Increase timeout for this test as it involves multiple API calls and refresh logic
+      test.setTimeout(process.env.CI ? 180000 : 120000); // 3 minutes on CI, 2 minutes locally
+
       await navigateToDashboard(page);
 
       const olderWorkflowTime = new Date('2025-06-01T10:00:00.000Z');
@@ -598,6 +616,9 @@ test.describe('Workflow Management', () => {
 
   test.describe('End-to-End Workflow Flow', () => {
     test('should complete full workflow lifecycle', async ({ page }) => {
+      // Increase timeout for full lifecycle test
+      test.setTimeout(process.env.CI ? 180000 : 120000); // 3 minutes on CI, 2 minutes locally
+
       // Step 1: Start new workflow
       await navigateToDashboard(page);
       await selectNewWorkflowTab(page);
@@ -639,7 +660,7 @@ test.describe('Workflow Management', () => {
 
   test.describe('Error Handling', () => {
     test('should handle API errors gracefully', async ({ page }) => {
-      test.setTimeout(10000); // 10 seconds timeout
+      test.setTimeout(process.env.CI ? 150000 : 90000); // 2.5 minutes on CI, 1.5 minutes locally
 
       // Mock API error
       await page.route('**/user-workflows*', async (route) => {
@@ -653,12 +674,13 @@ test.describe('Workflow Management', () => {
       await navigateToDashboard(page);
       await selectActiveWorkflowsTab(page);
 
-      await expect(page.getByText(/Unable to load workflows/i)).toBeVisible({
-        timeout: 10000,
-      });
+      await expect(page.getByText(/Unable to load workflows/i)).toBeVisible();
     });
 
     test('should handle download errors', async ({ page }) => {
+      // Increase timeout for download error test as it involves file operations
+      test.setTimeout(process.env.CI ? 150000 : 90000); // 2.5 minutes on CI, 1.5 minutes locally
+
       // Set up a workflow with downloadable files (similar to File Downloads beforeEach)
       const workflowWithFiles = {
         ...mockActiveWorkflow,

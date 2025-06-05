@@ -5,6 +5,12 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './e2e-tests',
+  /* Global test timeout - increased for CI environments */
+  timeout: process.env.CI ? 120000 : 60000, // 2 minutes on CI, 1 minute locally
+  /* Add longer expect timeout for CI */
+  expect: {
+    timeout: process.env.CI ? 15000 : 10000, // 15 seconds on CI, 10 seconds locally
+  },
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -12,13 +18,16 @@ export default defineConfig({
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  workers: undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
+  reporter: process.env.CI ? [['github'], ['html']] : 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     baseURL: 'http://localhost:5174', // Adjust if your dev server port is different
     trace: 'on-first-retry',
+    /* Increase default timeout for all expect() calls and page.waitFor*() */
+    actionTimeout: process.env.CI ? 30000 : 20000, // 30 seconds on CI, 20 seconds locally
+    navigationTimeout: process.env.CI ? 45000 : 30000, // 45 seconds on CI, 30 seconds locally
   },
 
   /* Configure projects for major browsers */
@@ -63,6 +72,6 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:5174',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
   },
 });

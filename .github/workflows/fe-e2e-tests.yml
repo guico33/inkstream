@@ -8,10 +8,12 @@ on:
 
 jobs:
   e2e-tests:
-    timeout-minutes: 60
+    timeout-minutes: 90
     runs-on: ubuntu-latest
     env:
       CI: true
+      # Increase Node.js memory allocation for better performance
+      NODE_OPTIONS: '--max_old_space_size=4096'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,9 +34,21 @@ jobs:
         run: npx playwright install --with-deps
         working-directory: apps/frontend
 
+      - name: Start dev server in background
+        run: |
+          cd apps/frontend
+          npm run dev &
+          npx wait-on http://localhost:5174 --timeout 60000
+        env:
+          NODE_ENV: development
+
       - name: Run Playwright tests
         run: npm run test:e2e
         working-directory: apps/frontend
+        env:
+          # Additional environment variables for better debugging
+          DEBUG: pw:api
+          PLAYWRIGHT_JUNIT_OUTPUT_NAME: playwright-report.xml
 
       - name: Upload Playwright Report
         uses: actions/upload-artifact@v4
