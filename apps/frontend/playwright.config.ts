@@ -1,4 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
+import { config } from 'dotenv';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Get __dirname equivalent in ES modules
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Load environment variables from .env.test file
+config({ path: join(__dirname, 'e2e-tests', '.env.test') });
 
 /**
  * See https://playwright.dev/docs/test-configuration.

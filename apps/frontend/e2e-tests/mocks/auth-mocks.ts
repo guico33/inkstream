@@ -203,21 +203,3 @@ export async function mockFailedAuth(
     });
   }
 }
-
-export async function setMockEnvironment(page: Page) {
-  await page.addInitScript(() => {
-    // Mock environment variables - using real Cognito values to match API Gateway expectations
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).mockEnv = {
-      VITE_COGNITO_DOMAIN:
-        'https://dev-inkstream.auth.eu-west-3.amazoncognito.com',
-      VITE_COGNITO_CLIENT_ID: '5i4ajimnhchqns254ivf57lqlp',
-      VITE_AWS_REGION: 'eu-west-3',
-      VITE_API_ENDPOINT_URL: 'https://api.test.example.com',
-      VITE_S3_BUCKET: 'test-inkstream-storage-bucket',
-      VITE_COGNITO_IDENTITY_POOL_ID:
-        'eu-west-3:91745367-3878-4c18-840b-cf1730631c75',
-      VITE_COGNITO_USER_POOL_ID: 'eu-west-3_3w2Im0QFN',
-    };
-  });
-}

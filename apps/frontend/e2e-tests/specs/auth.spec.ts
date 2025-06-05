@@ -1,12 +1,17 @@
 import { test, expect } from '@playwright/test';
-import { setupAuthMocks, mockFailedAuth, mockUser, mockTokens } from '../mocks/auth-mocks';
-import { 
-  waitForPageLoad, 
-  clearStorage, 
-  setStorageAuth, 
-  expectToBeOnLoginPage, 
+import {
+  setupAuthMocks,
+  mockFailedAuth,
+  mockUser,
+  mockTokens,
+} from '../mocks/auth-mocks';
+import {
+  waitForPageLoad,
+  clearStorage,
+  setStorageAuth,
+  expectToBeOnLoginPage,
   expectToBeOnDashboard,
-  expectToBeOnAuthCallback 
+  expectToBeOnAuthCallback,
 } from '../utils/test-utils';
 
 test.describe('Authentication Flow', () => {
@@ -32,7 +37,9 @@ test.describe('Authentication Flow', () => {
     ).toBeVisible();
   });
 
-  test('should redirect authenticated user from login page to dashboard', async ({ page }) => {
+  test('should redirect authenticated user from login page to dashboard', async ({
+    page,
+  }) => {
     // Pre-authenticate user
     await setStorageAuth(page, mockUser, {
       ...mockTokens,
@@ -61,13 +68,15 @@ test.describe('Authentication Flow', () => {
 
     // Should redirect to callback page and process auth
     await expectToBeOnAuthCallback(page);
-    
+
     // Wait for auth processing and redirect to dashboard
     await waitForPageLoad(page);
     await expectToBeOnDashboard(page);
 
     // Verify user is now authenticated by checking localStorage
-    const userDataString = await page.evaluate(() => localStorage.getItem('inkstream_user'));
+    const userDataString = await page.evaluate(() =>
+      localStorage.getItem('inkstream_user')
+    );
     const userData = JSON.parse(userDataString!);
     expect(userData).toMatchObject({
       email: mockUser.email,
@@ -75,7 +84,9 @@ test.describe('Authentication Flow', () => {
     });
   });
 
-  test('should handle successful auth callback with authorization code', async ({ page }) => {
+  test('should handle successful auth callback with authorization code', async ({
+    page,
+  }) => {
     await setupAuthMocks(page);
 
     // Simulate direct navigation to callback with auth code
@@ -90,7 +101,9 @@ test.describe('Authentication Flow', () => {
     await expectToBeOnDashboard(page);
 
     // Verify authentication state
-    const userDataString = await page.evaluate(() => localStorage.getItem('inkstream_user'));
+    const userDataString = await page.evaluate(() =>
+      localStorage.getItem('inkstream_user')
+    );
     const userData = JSON.parse(userDataString!);
     expect(userData.email).toBe(mockUser.email);
   });
@@ -105,9 +118,13 @@ test.describe('Authentication Flow', () => {
     await googleSignInButton.click();
 
     // Should show error on callback page
-    await expect(page.getByRole('heading', { name: /Authentication Failed/i })).toBeVisible();
-    await expect(page.getByText(/Authentication was cancelled or failed/i)).toBeVisible();
-    
+    await expect(
+      page.getByRole('heading', { name: /Authentication Failed/i })
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Authentication was cancelled or failed/i)
+    ).toBeVisible();
+
     // Should redirect back to login after delay (we can check immediately)
     await page.waitForTimeout(3100); // Wait for redirect timeout
     await expectToBeOnLoginPage(page);
@@ -120,21 +137,31 @@ test.describe('Authentication Flow', () => {
     await page.goto('/auth/callback?code=invalid_code_12345');
 
     // Should show error message
-    await expect(page.getByRole('heading', { name: /Authentication Failed/i })).toBeVisible();
-    await expect(page.getByText(/Authentication failed. Please try again/i)).toBeVisible();
-    
+    await expect(
+      page.getByRole('heading', { name: /Authentication Failed/i })
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Authentication failed. Please try again/i)
+    ).toBeVisible();
+
     // Should redirect back to login
     await page.waitForTimeout(3100);
     await expectToBeOnLoginPage(page);
   });
 
-  test('should handle missing authorization code in callback', async ({ page }) => {
+  test('should handle missing authorization code in callback', async ({
+    page,
+  }) => {
     await page.goto('/auth/callback'); // No code parameter
 
     // Should show error message
-    await expect(page.getByRole('heading', { name: /Authentication Failed/i })).toBeVisible();
-    await expect(page.getByText(/Invalid authentication response/i)).toBeVisible();
-    
+    await expect(
+      page.getByRole('heading', { name: /Authentication Failed/i })
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Invalid authentication response/i)
+    ).toBeVisible();
+
     // Should redirect back to login
     await page.waitForTimeout(3100);
     await expectToBeOnLoginPage(page);
@@ -148,7 +175,9 @@ test.describe('Authentication Flow', () => {
     await expectToBeOnLoginPage(page);
   });
 
-  test('should allow access to protected routes for authenticated users', async ({ page }) => {
+  test('should allow access to protected routes for authenticated users', async ({
+    page,
+  }) => {
     // Pre-authenticate user
     await setStorageAuth(page, mockUser, {
       ...mockTokens,
@@ -165,7 +194,7 @@ test.describe('Authentication Flow', () => {
 
   test('should handle logout flow', async ({ page }) => {
     await setupAuthMocks(page);
-    
+
     // Pre-authenticate user
     await setStorageAuth(page, mockUser, {
       ...mockTokens,
@@ -173,21 +202,83 @@ test.describe('Authentication Flow', () => {
     });
 
     await page.goto('/');
-    await waitForPageLoad(page);
+    await waitForPageLoad(page); // Wait for dashboard to load
 
-    // Look for logout/signout functionality (assuming it exists in header)
-    // Note: You may need to adjust this selector based on your actual UI
-    const logoutButton = page.getByRole('button', { name: /sign out|logout/i }).first();
-    
+    // Verify user is initially authenticated
+    await expectToBeOnDashboard(page);
+
+    // Verify localStorage has user data initially
+    const userDataString = await page.evaluate(() =>
+      localStorage.getItem('inkstream_user')
+    );
+    expect(userDataString).not.toBeNull();
+
+    const logoutButton = page
+      .getByRole('button', { name: /sign out|logout/i })
+      .first();
+
     if (await logoutButton.isVisible()) {
+      // Load values from environment variables
+      const cognitoDomain = process.env.VITE_COGNITO_DOMAIN?.replace(
+        'https://',
+        ''
+      );
+      const cognitoClientId = process.env.VITE_COGNITO_CLIENT_ID;
+      const appBaseUrl = page.url().split('/').slice(0, 3).join('/');
+
+      // Ensure environment variables are loaded
+      if (!cognitoDomain || !cognitoClientId) {
+        throw new Error(
+          'Missing required environment variables: VITE_COGNITO_DOMAIN and VITE_COGNITO_CLIENT_ID must be set'
+        );
+      }
+
+      // Set up request interception to capture the Cognito logout URL
+      let cognitoLogoutUrl = '';
+      const requestPromise = new Promise<void>((resolve) => {
+        page.on('request', (request) => {
+          const url = request.url();
+          if (url.includes(cognitoDomain) && url.includes('/logout')) {
+            cognitoLogoutUrl = url;
+            console.log('Captured Cognito logout URL:', url);
+            resolve();
+          }
+        });
+      });
+
+      // Block the external request to prevent navigation to fake domain
+      await page.route(`https://${cognitoDomain}/*`, async (route) => {
+        console.log('Blocked request to:', route.request().url());
+        // Simulate successful logout by redirecting back to app
+        await route.fulfill({
+          status: 302,
+          headers: {
+            Location: appBaseUrl,
+          },
+        });
+      });
+
+      // Click logout button
       await logoutButton.click();
-      
-      // Should redirect to login page
-      await expectToBeOnLoginPage(page);
-      
-      // Verify localStorage is cleared
-      const userDataString = await page.evaluate(() => localStorage.getItem('inkstream_user'));
-      expect(userDataString).toBeNull();
+
+      // Wait for the Cognito logout request to be intercepted
+      await Promise.race([
+        requestPromise,
+        page.waitForTimeout(3000), // Fallback timeout
+      ]);
+
+      // Verify the Cognito logout URL was correctly constructed
+      if (cognitoLogoutUrl) {
+        expect(cognitoLogoutUrl).toMatch(
+          new RegExp(`^https://${cognitoDomain}/logout`)
+        );
+        expect(cognitoLogoutUrl).toContain(`client_id=${cognitoClientId}`);
+        expect(cognitoLogoutUrl).toContain(`logout_uri=${appBaseUrl}`);
+      } else {
+        throw new Error('Expected Cognito logout URL was not captured');
+      }
+    } else {
+      throw new Error('Logout button not found - cannot test logout flow');
     }
   });
 });
