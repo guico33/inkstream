@@ -84,9 +84,30 @@ export async function startWorkflow(page: Page) {
 
 export async function expectWorkflowStartSuccess(page: Page) {
   const timeout = process.env.CI ? 30000 : 15000; // 30 seconds on CI, 15 seconds locally
-  await expect(page.getByText(/Workflow started successfully!/i)).toBeVisible({
-    timeout,
-  });
+
+  // Wait for the actual toast content to appear - Sonner renders toasts with data-title
+  const toastTitleSelector =
+    '[data-sonner-toaster] li[data-sonner-toast] div[data-title]';
+
+  try {
+    // First, wait for any toast title to appear
+    await page.waitForSelector(toastTitleSelector, { timeout: 10000 });
+
+    // Then look for the specific success message within the toast title
+    await expect(
+      page
+        .locator(toastTitleSelector)
+        .filter({ hasText: /Workflow started successfully!/i })
+    ).toBeVisible({ timeout });
+  } catch {
+    // Fallback: try to find the text anywhere on the page
+    console.warn('Toast title method failed, trying fallback approach');
+    await expect(page.getByText(/Workflow started successfully!/i)).toBeVisible(
+      {
+        timeout,
+      }
+    );
+  }
 
   await expect(page.getByRole('tab', { name: /Active/i })).toHaveAttribute(
     'aria-selected',
@@ -201,11 +222,35 @@ export async function expectDownloadSuccess(
   fileType: 'formatted' | 'translated' | 'audio'
 ) {
   const timeout = process.env.CI ? 20000 : 10000; // 20 seconds on CI, 10 seconds locally
-  await expect(
-    page.getByText(
-      new RegExp(`File downloaded successfully: .*${fileType}.*`, 'i')
-    )
-  ).toBeVisible({ timeout });
+
+  // Wait for the actual toast content to appear - Sonner renders toasts with data-title
+  const toastTitleSelector =
+    '[data-sonner-toaster] li[data-sonner-toast] div[data-title]';
+
+  try {
+    // First, wait for any toast title to appear
+    await page.waitForSelector(toastTitleSelector, { timeout: 10000 });
+
+    // Then look for the specific download success message within the toast title
+    await expect(
+      page
+        .locator(toastTitleSelector)
+        .filter({
+          hasText: new RegExp(
+            `File downloaded successfully: .*${fileType}.*`,
+            'i'
+          ),
+        })
+    ).toBeVisible({ timeout });
+  } catch {
+    // Fallback: try to find the text anywhere on the page
+    console.warn('Toast title method failed, trying fallback approach');
+    await expect(
+      page.getByText(
+        new RegExp(`File downloaded successfully: .*${fileType}.*`, 'i')
+      )
+    ).toBeVisible({ timeout });
+  }
 }
 
 export async function expectWorkflowInHistory(page: Page, workflowId?: string) {
