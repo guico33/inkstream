@@ -84,7 +84,9 @@ export async function startWorkflow(page: Page) {
 
 export async function expectWorkflowStartSuccess(page: Page) {
   const timeout = process.env.CI ? 30000 : 15000; // 30 seconds on CI, 15 seconds locally
-  await expect(page.getByText(/Workflow started successfully!/i)).toBeVisible({ timeout });
+  await expect(page.getByText(/Workflow started successfully!/i)).toBeVisible({
+    timeout,
+  });
 
   await expect(page.getByRole('tab', { name: /Active/i })).toHaveAttribute(
     'aria-selected',
