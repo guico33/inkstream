@@ -50,7 +50,6 @@ jobs:
         working-directory: apps/frontend
         env:
           # Additional environment variables for better debugging
-          DEBUG: pw:api
           PLAYWRIGHT_JUNIT_OUTPUT_NAME: playwright-report.xml
 
       - name: Upload Playwright Report
