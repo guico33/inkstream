@@ -11,7 +11,7 @@ import { authService } from './auth-service';
 import { ENV } from './constants/env';
 import type { User } from './types/user-types';
 import {
-  outputExtentionMap,
+  outputExtensionMap,
   outputTypeMap,
   type S3PathOutputFileKey,
 } from '@inkstream/shared';
@@ -259,7 +259,7 @@ export function getDownloadFileName({
     : 'downloaded-file';
   const outputTypeSuffix = `-${outputTypeMap[outputFileType]}`;
 
-  const resultFileName = `${originalFileNameWithoutExt}${outputTypeSuffix}${outputExtentionMap[outputFileType]}`;
+  const resultFileName = `${originalFileNameWithoutExt}${outputTypeSuffix}${outputExtensionMap[outputFileType]}`;
 
   console.log(
     `[getDownloadFileName] Generated download filename: ${resultFileName}`

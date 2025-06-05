@@ -91,7 +91,7 @@ export const outputTypeMap: Record<S3PathOutputFileKey, OutputFileType> = {
   audioFile: 'audio',
 };
 
-export const outputExtentionMap: Record<S3PathOutputFileKey, string> = {
+export const outputExtensionMap: Record<S3PathOutputFileKey, string> = {
   formattedText: '.txt',
   translatedText: '.txt',
   audioFile: '.mp3',

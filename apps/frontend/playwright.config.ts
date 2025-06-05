@@ -25,6 +25,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5174', // Adjust if your dev server port is different
     trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'on-first-retry',
     /* Increase default timeout for all expect() calls and page.waitFor*() */
     actionTimeout: process.env.CI ? 30000 : 20000, // 30 seconds on CI, 20 seconds locally
     navigationTimeout: process.env.CI ? 45000 : 30000, // 45 seconds on CI, 30 seconds locally

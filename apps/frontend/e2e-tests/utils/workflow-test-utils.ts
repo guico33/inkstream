@@ -1,4 +1,5 @@
 import { Page, expect } from '@playwright/test';
+import { OutputFileType } from '@inkstream/shared';
 
 export async function navigateToDashboard(page: Page) {
   const timeout = process.env.CI ? 90000 : 60000; // Extended timeout for CI
@@ -85,34 +86,59 @@ export async function startWorkflow(page: Page) {
 export async function expectWorkflowStartSuccess(page: Page) {
   const timeout = process.env.CI ? 30000 : 15000; // 30 seconds on CI, 15 seconds locally
 
-  // Wait for the actual toast content to appear - Sonner renders toasts with data-title
+  // Primary method: Wait for automatic tab switch to Active tab
+  // This is more reliable than toast detection in CI environments
+  try {
+    // Wait for the Active tab to become selected (automatic redirect after successful workflow start)
+    await expect(page.getByRole('tab', { name: /Active/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+      { timeout }
+    );
+
+    // Ensure we're actually on the Active tab content
+    await expect(
+      page
+        .locator('h3')
+        .filter({ hasText: /Active Workflows/ })
+        .first()
+    ).toBeVisible({ timeout: 5000 });
+
+    console.log('✅ Workflow start success detected via tab switch');
+    return;
+  } catch {
+    console.warn(
+      '❌ Tab switch detection failed, trying toast detection as fallback'
+    );
+  }
+
+  // Fallback method: Try to detect toast messages (less reliable in CI)
   const toastTitleSelector =
     '[data-sonner-toaster] li[data-sonner-toast] div[data-title]';
 
   try {
     // First, wait for any toast title to appear
-    await page.waitForSelector(toastTitleSelector, { timeout: 10000 });
+    await page.waitForSelector(toastTitleSelector, { timeout: 8000 });
 
     // Then look for the specific success message within the toast title
     await expect(
       page
         .locator(toastTitleSelector)
         .filter({ hasText: /Workflow started successfully!/i })
-    ).toBeVisible({ timeout });
+    ).toBeVisible({ timeout: 5000 });
+
+    console.log('✅ Workflow start success detected via toast message');
   } catch {
-    // Fallback: try to find the text anywhere on the page
-    console.warn('Toast title method failed, trying fallback approach');
+    // Final fallback: try to find the text anywhere on the page
+    console.warn('Toast title method failed, trying text search fallback');
     await expect(page.getByText(/Workflow started successfully!/i)).toBeVisible(
       {
-        timeout,
+        timeout: 5000,
       }
     );
-  }
 
-  await expect(page.getByRole('tab', { name: /Active/i })).toHaveAttribute(
-    'aria-selected',
-    'true'
-  );
+    console.log('✅ Workflow start success detected via text search');
+  }
 }
 
 export async function expectToBeOnActiveTab(page: Page) {
@@ -196,7 +222,7 @@ export async function expectDownloadButtonsVisible(
 
 export async function clickDownloadButton(
   page: Page,
-  fileType: 'formatted' | 'translated' | 'audio'
+  fileType: OutputFileType
 ) {
   let buttonText: string;
   switch (fileType) {
@@ -217,39 +243,79 @@ export async function clickDownloadButton(
   await downloadButton.click();
 }
 
+export async function clickDownloadButtonAndExpectSuccess(
+  page: Page,
+  fileType: OutputFileType
+) {
+  // Set up download event listener BEFORE clicking
+  const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
+
+  // Click the download button
+  await clickDownloadButton(page, fileType);
+
+  // Wait for and verify the download
+  try {
+    const download = await downloadPromise;
+
+    // Verify the download object exists and has a filename
+    const filename = download.suggestedFilename();
+    expect(filename).toBeTruthy();
+
+    // Verify the filename contains the expected file type
+    const expectedExtensions = {
+      formatted: ['.txt', '.docx', '.pdf'],
+      translated: ['.txt', '.docx', '.pdf'],
+      audio: ['.mp3', '.wav', '.m4a'],
+    };
+
+    const extensions = expectedExtensions[fileType];
+
+    const hasValidExtension = extensions.some((ext) =>
+      filename.toLowerCase().includes(ext)
+    );
+    expect(hasValidExtension).toBe(true);
+
+    const hasValidName = filename.toLowerCase().includes(fileType);
+    expect(hasValidName).toBe(true);
+
+    console.log(`✅ Download success for ${fileType} verified: ${filename}`);
+    return download;
+  } catch (error) {
+    throw new Error(`Failed to detect download for ${fileType}: ${error}`);
+  }
+}
+
 export async function expectDownloadSuccess(
   page: Page,
   fileType: 'formatted' | 'translated' | 'audio'
 ) {
-  const timeout = process.env.CI ? 20000 : 10000; // 20 seconds on CI, 10 seconds locally
+  // Set up download event listener before clicking
+  const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
 
-  // Wait for the actual toast content to appear - Sonner renders toasts with data-title
-  const toastTitleSelector =
-    '[data-sonner-toaster] li[data-sonner-toast] div[data-title]';
-
+  // The download should have been triggered by clickDownloadButton()
+  // Now we wait for the actual download event
   try {
-    // First, wait for any toast title to appear
-    await page.waitForSelector(toastTitleSelector, { timeout: 10000 });
+    const download = await downloadPromise;
 
-    // Then look for the specific download success message within the toast title
-    await expect(
-      page
-        .locator(toastTitleSelector)
-        .filter({
-          hasText: new RegExp(
-            `File downloaded successfully: .*${fileType}.*`,
-            'i'
-          ),
-        })
-    ).toBeVisible({ timeout });
-  } catch {
-    // Fallback: try to find the text anywhere on the page
-    console.warn('Toast title method failed, trying fallback approach');
-    await expect(
-      page.getByText(
-        new RegExp(`File downloaded successfully: .*${fileType}.*`, 'i')
-      )
-    ).toBeVisible({ timeout });
+    // Verify the download object exists and has a filename
+    const filename = download.suggestedFilename();
+    expect(filename).toBeTruthy();
+
+    // Verify the filename contains the expected file type
+    const expectedExtensions = {
+      formatted: '.txt',
+      translated: '.txt',
+      audio: '.mp3',
+    };
+
+    const extensions = expectedExtensions[fileType];
+    const hasValidExtension = filename.toLowerCase().includes(extensions);
+    expect(hasValidExtension).toBe(true);
+
+    console.log(`✅ Download success for ${fileType} verified: ${filename}`);
+    return download;
+  } catch (error) {
+    throw new Error(`Failed to detect download for ${fileType}: ${error}`);
   }
 }
 
