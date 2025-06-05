@@ -2,6 +2,7 @@
   "name": "@inkstream/shared",
   "version": "1.0.0",
   "description": "Shared types and utilities for Inkstream",
+  "type": "module",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "exports": {

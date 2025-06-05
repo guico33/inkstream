@@ -5,13 +5,13 @@ import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWorkflowApi } from '../api-service';
 import {
+  type S3PathOutputFileKey,
   type StartWorkflowParams,
   type WorkflowResponse,
   type WorkflowStatusCategory,
   WORKFLOW_POLLING_INTERVAL,
 } from '@inkstream/shared';
 import { toast } from 'sonner';
-import { POLLING_INTERVAL } from '../constants';
 
 // Query keys for consistent caching
 export const workflowKeys = {
@@ -133,7 +133,7 @@ export const useUserWorkflows = (options?: {
       }
     },
     // Refetch every 30 seconds to catch new workflows
-    refetchInterval: POLLING_INTERVAL,
+    refetchInterval: 30 * 1000, // 30 seconds
     // Enable refetch on mount if requested
     refetchOnMount: enableRefetchOnMount ? 'always' : true,
     // Enable refetch on window focus
@@ -170,18 +170,21 @@ export const useDownloadWorkflowResult = () => {
   return useMutation({
     mutationFn: async ({
       workflowId,
-      resultType = 'formatted',
-      filename,
+      outputFileType = 'formattedText',
     }: {
       workflowId: string;
-      resultType?: 'formatted' | 'translated' | 'audio';
-      filename?: string;
+      outputFileType: S3PathOutputFileKey;
     }) => {
-      await apiService.downloadWorkflowResult(workflowId, resultType, filename);
+      const downloadedFilename = apiService.downloadWorkflowResult(
+        workflowId,
+        outputFileType
+      );
+      return downloadedFilename;
     },
-    onSuccess: () => {
-      toast.success('File download started');
+    onSuccess: (filename) => {
+      toast.success(`File downloaded successfully: ${filename}`);
     },
+
     onError: (error) => {
       console.error('Failed to download file:', error);
       toast.error('Failed to download file. Please try again.');

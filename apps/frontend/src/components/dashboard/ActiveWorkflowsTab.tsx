@@ -29,6 +29,7 @@ import {
   WORKFLOW_STEP_NAMES,
   type WorkflowStatus,
   type WorkflowResponse,
+  type S3PathOutputFileKey,
 } from '@inkstream/shared';
 import { getWorkflowDisplayId } from '@/lib/display';
 
@@ -209,10 +210,10 @@ function WorkflowCard({ workflow }: { workflow: WorkflowResponse }) {
     );
   };
 
-  const handleDownload = (resultType: 'formatted' | 'translated' | 'audio') => {
+  const handleDownload = (outputFileType: S3PathOutputFileKey) => {
     downloadResult.mutate({
       workflowId: workflow.workflowId,
-      resultType,
+      outputFileType,
     });
   };
 
@@ -271,7 +272,7 @@ function WorkflowCard({ workflow }: { workflow: WorkflowResponse }) {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => handleDownload('formatted')}
+                  onClick={() => handleDownload('formattedText')}
                   disabled={downloadResult.isPending}
                 >
                   <Download className="h-4 w-4 mr-2" />
@@ -282,7 +283,7 @@ function WorkflowCard({ workflow }: { workflow: WorkflowResponse }) {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => handleDownload('translated')}
+                  onClick={() => handleDownload('translatedText')}
                   disabled={downloadResult.isPending}
                 >
                   <Download className="h-4 w-4 mr-2" />
@@ -293,7 +294,7 @@ function WorkflowCard({ workflow }: { workflow: WorkflowResponse }) {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => handleDownload('audio')}
+                  onClick={() => handleDownload('audioFile')}
                   disabled={downloadResult.isPending}
                 >
                   <Download className="h-4 w-4 mr-2" />

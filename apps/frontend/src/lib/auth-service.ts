@@ -2,7 +2,7 @@
 // Handles all auth operations: login, logout, token management, storage
 
 import type { User } from './types/user-types';
-import { ENV } from './constants';
+import { ENV } from './constants/env';
 
 export interface AuthTokens {
   accessToken: string;
@@ -218,10 +218,22 @@ export class AuthService {
 
   // Get current ID token (refreshing if needed)
   async getIdToken(): Promise<string | null> {
+    console.log(
+      '🔑 AuthService.getIdToken: Current tokens:',
+      this.tokens ? 'PRESENT' : 'NULL'
+    );
     if (!this.tokens) return null;
 
+    console.log(
+      '🔑 AuthService.getIdToken: Checking if token refresh is needed...'
+    );
     await this.refreshTokensIfNeeded();
-    return this.tokens?.idToken || null;
+    const token = this.tokens?.idToken || null;
+    console.log(
+      '🔑 AuthService.getIdToken: Returning token:',
+      token ? `${token.substring(0, 20)}...` : 'NULL'
+    );
+    return token;
   }
 
   // Sign out user

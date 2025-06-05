@@ -1,6 +1,8 @@
 // Shared constants used across frontend and backend
 // These values should be kept in sync between all applications
 
+import { OutputFileType, S3PathOutputFileKey } from './workflow-types';
+
 // Supported languages for translation
 export const SUPPORTED_LANGUAGES = [
   { code: 'english', name: 'English' },
@@ -68,25 +70,6 @@ export const WORKFLOW_STEP_NAMES = {
   FAILED: 'Workflow Failed',
 } as const;
 
-// File output types and their display names
-export const OUTPUT_FILE_TYPES = {
-  formattedText: {
-    name: 'Formatted Text',
-    extension: '.txt',
-    description: 'Clean, formatted text extracted from your document',
-  },
-  translatedText: {
-    name: 'Translated Text',
-    extension: '.txt',
-    description: 'Text translated to your target language',
-  },
-  audioFile: {
-    name: 'Audio File',
-    extension: '.mp3',
-    description: 'Text converted to speech audio',
-  },
-} as const;
-
 export const workflowStatuses = [
   'STARTING',
   'EXTRACTING_TEXT',
@@ -100,7 +83,16 @@ export const workflowStatuses = [
   'TIMED_OUT',
 ] as const;
 
-export const workflowStatusCategories = [
-  'active',
-  'completed',
-] as const;
+export const workflowStatusCategories = ['active', 'completed'] as const;
+
+export const outputTypeMap: Record<S3PathOutputFileKey, OutputFileType> = {
+  formattedText: 'formatted',
+  translatedText: 'translated',
+  audioFile: 'audio',
+};
+
+export const outputExtentionMap: Record<S3PathOutputFileKey, string> = {
+  formattedText: '.txt',
+  translatedText: '.txt',
+  audioFile: '.mp3',
+};

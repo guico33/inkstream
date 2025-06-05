@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Upload, FileText, Image, X, AlertCircle } from 'lucide-react';
 import { SUPPORTED_FILE_TYPES, MAX_FILE_SIZE } from '@inkstream/shared';
+import { toast } from 'sonner';
 
 interface FileUploadSectionProps {
   onFileSelect: (file: File | null) => void;
@@ -50,7 +51,7 @@ export function FileUploadSection({
     if (file) {
       const error = validateFile(file);
       if (error) {
-        alert(error); // TODO: Replace with proper toast notification
+        toast.error(error);
         return;
       }
       onFileSelect(file);
@@ -65,7 +66,7 @@ export function FileUploadSection({
       if (file) {
         const error = validateFile(file);
         if (error) {
-          alert(error); // TODO: Replace with proper toast notification
+          toast.error(error);
           return;
         }
         onFileSelect(file);
@@ -151,6 +152,7 @@ export function FileUploadSection({
                 size="sm"
                 onClick={clearFile}
                 className="h-8 w-8 p-0"
+                data-testid="remove-file-button"
               >
                 <X className="h-4 w-4" />
               </Button>

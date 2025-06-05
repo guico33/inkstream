@@ -3,7 +3,11 @@
 
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 import { useAuth } from './contexts/auth-context';
-import { uploadFileToS3, downloadWorkflowFile } from './aws-s3';
+import {
+  uploadFileToS3,
+  downloadWorkflowFile,
+  getDownloadFileName,
+} from './aws-s3';
 import { ENV } from './constants/env';
 import { API_PATHS } from './constants/api-endpoints';
 import type { User } from './types/user-types';
@@ -13,6 +17,7 @@ import {
   type WorkflowResponse,
   type ListUserWorkflowsResponse,
   type WorkflowStatusCategory,
+  type S3PathOutputFileKey,
 } from '@inkstream/shared';
 
 // Extended params for file upload + workflow start
@@ -33,10 +38,16 @@ const createApiClient = (getIdToken: () => Promise<string>): AxiosInstance => {
   // Request interceptor to add auth token
   client.interceptors.request.use(async (config) => {
     try {
+      console.log('🔑 API Interceptor: Getting auth token...');
       const token = await getIdToken();
+      console.log(
+        '🔑 API Interceptor: Token received:',
+        token ? `${token.substring(0, 20)}...` : 'NULL'
+      );
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('🔑 API Interceptor: Authorization header set');
     } catch (error) {
-      console.error('Failed to get auth token:', error);
+      console.error('🔑 API Interceptor: Failed to get auth token:', error);
       throw error;
     }
     return config;
@@ -123,9 +134,8 @@ export class WorkflowApiService {
 
   async downloadWorkflowResult(
     workflowId: string,
-    resultType: 'formatted' | 'translated' | 'audio' = 'formatted',
-    filename?: string
-  ): Promise<void> {
+    outputFileType: S3PathOutputFileKey
+  ): Promise<string> {
     // Get workflow status to find result paths
     const status = await this.getWorkflow({ workflowId });
 
@@ -134,31 +144,32 @@ export class WorkflowApiService {
     }
 
     let resultPath: string | undefined;
-    let defaultFilename: string;
 
-    switch (resultType) {
-      case 'formatted':
+    switch (outputFileType) {
+      case 'formattedText':
         resultPath = status.s3Paths.formattedText;
-        defaultFilename = `workflow-${workflowId}-formatted.txt`;
         break;
-      case 'translated':
+      case 'translatedText':
         resultPath = status.s3Paths.translatedText;
-        defaultFilename = `workflow-${workflowId}-translated.txt`;
         break;
-      case 'audio':
+      case 'audioFile':
         resultPath = status.s3Paths.audioFile;
-        defaultFilename = `workflow-${workflowId}-audio.mp3`;
         break;
     }
 
     if (!resultPath) {
-      throw new Error(`No ${resultType} file available for download`);
+      throw new Error(`No ${outputFileType} file available for download`);
     }
 
-    await downloadWorkflowFile({
+    const downloadedFilename = await downloadWorkflowFile({
       s3Path: resultPath,
-      filename: filename || defaultFilename,
+      filename: getDownloadFileName({
+        originalFilePath: status.s3Paths.originalFile,
+        outputFileType,
+      }),
     });
+
+    return downloadedFilename;
   }
 }
 
@@ -167,8 +178,14 @@ export const useWorkflowApi = () => {
   const { getIdToken, user } = useAuth();
 
   const getToken = async (): Promise<string> => {
+    console.log('🔑 useWorkflowApi: Getting token from auth context...');
     const token = await getIdToken();
+    console.log(
+      '🔑 useWorkflowApi: Token received:',
+      token ? `${token.substring(0, 20)}...` : 'NULL'
+    );
     if (!token) {
+      console.error('🔑 useWorkflowApi: No authentication token available');
       throw new Error('No authentication token available');
     }
     return token;

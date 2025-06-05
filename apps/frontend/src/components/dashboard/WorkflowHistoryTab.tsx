@@ -20,7 +20,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { useUserWorkflows } from '@/lib/hooks/use-workflow-queries';
-import { downloadWorkflowFile } from '@/lib/aws-s3';
+import { downloadWorkflowFile, getDownloadFileName } from '@/lib/aws-s3';
 import {
   Download,
   History,
@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import {
   WORKFLOW_STEP_NAMES,
-  OUTPUT_FILE_TYPES,
+  type S3PathOutputFileKey,
   type WorkflowRecord,
 } from '@inkstream/shared';
 import { toast } from 'sonner';
@@ -149,13 +149,6 @@ export function WorkflowHistoryTab() {
         </Button>
       </div>
 
-      {/* Loading state for pagination */}
-      {isFetching && currentPage > 0 && (
-        <div className="flex justify-center py-4">
-          <RefreshCw className="h-6 w-6 animate-spin" />
-        </div>
-      )}
-
       {/* Workflow groups */}
       {Object.entries(groupedWorkflows)
         .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
@@ -221,25 +214,24 @@ function CompletedWorkflowCard({ workflow }: { workflow: WorkflowRecord }) {
     );
   };
 
-  const handleDownload = async (fileType: string, s3Path: string) => {
+  const handleDownload = async (
+    fileType: S3PathOutputFileKey,
+    s3Path: string
+  ) => {
     if (downloadingFiles.has(fileType)) return;
 
     try {
       setDownloadingFiles((prev) => new Set(prev).add(fileType));
 
-      // Get the output file info for proper naming
-      const outputInfo =
-        OUTPUT_FILE_TYPES[fileType as keyof typeof OUTPUT_FILE_TYPES];
-      const filename = `workflow-${workflow.workflowId}-${fileType}${
-        outputInfo?.extension || ''
-      }`;
-
-      await downloadWorkflowFile({
+      const downloadedFilename = await downloadWorkflowFile({
         s3Path,
-        filename,
+        filename: getDownloadFileName({
+          originalFilePath: workflow.s3Paths?.originalFile,
+          outputFileType: fileType,
+        }),
       });
 
-      toast.success(`Downloaded ${outputInfo?.name || fileType}`);
+      toast.success(`File downloaded successfully: ${downloadedFilename}`);
     } catch (error) {
       console.error(`Failed to download ${fileType}:`, error);
       toast.error(`Failed to download ${fileType}. Please try again.`);
@@ -253,13 +245,16 @@ function CompletedWorkflowCard({ workflow }: { workflow: WorkflowRecord }) {
   };
 
   // Extract available files from s3Paths
-  const availableFiles = [];
+  const availableFiles: {
+    type: S3PathOutputFileKey;
+    path: string;
+    name: string;
+  }[] = [];
   if (workflow.s3Paths?.formattedText) {
     availableFiles.push({
       type: 'formattedText',
       path: workflow.s3Paths.formattedText,
       name: 'Formatted Text',
-      description: 'Clean, formatted text extracted from your document',
     });
   }
   if (workflow.s3Paths?.translatedText) {
@@ -267,7 +262,6 @@ function CompletedWorkflowCard({ workflow }: { workflow: WorkflowRecord }) {
       type: 'translatedText',
       path: workflow.s3Paths.translatedText,
       name: 'Translated Text',
-      description: 'Text translated to your target language',
     });
   }
   if (workflow.s3Paths?.audioFile) {
@@ -275,7 +269,6 @@ function CompletedWorkflowCard({ workflow }: { workflow: WorkflowRecord }) {
       type: 'audioFile',
       path: workflow.s3Paths.audioFile,
       name: 'Audio File',
-      description: 'Text converted to speech audio',
     });
   }
 

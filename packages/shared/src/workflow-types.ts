@@ -10,12 +10,16 @@ export interface WorkflowParameters {
   targetLanguage?: string;
 }
 
-export interface WorkflowS3Paths {
+export type S3PathOutputFileKey =
+  | 'formattedText'
+  | 'translatedText'
+  | 'audioFile';
+
+export type WorkflowS3Paths = {
   originalFile: string;
-  formattedText?: string;
-  translatedText?: string;
-  audioFile?: string;
-}
+} & {
+  [key in S3PathOutputFileKey]?: string;
+};
 
 export interface WorkflowStatusHistoryEntry {
   status: WorkflowStatus;
@@ -31,7 +35,7 @@ export interface WorkflowRecord {
   statusCategoryCreatedAt: string;
   statusHistory: WorkflowStatusHistoryEntry[];
   parameters?: WorkflowParameters;
-  s3Paths?: WorkflowS3Paths;
+  s3Paths: WorkflowS3Paths;
   createdAt: string;
   updatedAt?: string;
   error?: string;
@@ -49,3 +53,5 @@ export type WorkflowCommonState = {
 };
 
 export type WorkflowStatusCategory = (typeof workflowStatusCategories)[number];
+
+export type OutputFileType = 'formatted' | 'translated' | 'audio';

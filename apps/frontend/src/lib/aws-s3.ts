@@ -8,8 +8,13 @@ import {
 } from '@aws-sdk/client-s3';
 import { fromCognitoIdentityPool } from '@aws-sdk/credential-providers';
 import { authService } from './auth-service';
-import { ENV } from './constants';
+import { ENV } from './constants/env';
 import type { User } from './types/user-types';
+import {
+  outputExtentionMap,
+  outputTypeMap,
+  type S3PathOutputFileKey,
+} from '@inkstream/shared';
 
 class S3Service {
   private client: S3Client | null = null;
@@ -54,7 +59,7 @@ class S3Service {
     bucket: string;
     key: string;
     filename?: string;
-  }): Promise<void> {
+  }): Promise<string> {
     try {
       console.log(
         `[S3Download] Downloading file from S3: s3://${bucket}/${key}`
@@ -118,6 +123,8 @@ class S3Service {
       console.log(
         `[S3Download] Successfully downloaded file: ${downloadFilename}`
       );
+
+      return downloadFilename;
     } catch (error) {
       console.error('[S3Download] Failed to download file:', error);
       throw new Error(
@@ -215,8 +222,8 @@ export async function downloadWorkflowFile({
   filename,
 }: {
   s3Path: string;
-  filename?: string;
-}): Promise<void> {
+  filename: string;
+}): Promise<string> {
   if (!ENV.S3_BUCKET) {
     throw new Error('S3_BUCKET environment variable not configured');
   }
@@ -226,9 +233,37 @@ export async function downloadWorkflowFile({
     ? s3Path.replace(`s3://${ENV.S3_BUCKET}/`, '')
     : s3Path;
 
-  await s3Service.downloadFile({
+  const downloadedFilename = await s3Service.downloadFile({
     bucket: ENV.S3_BUCKET,
     key,
     filename,
   });
+
+  return downloadedFilename;
+}
+
+export function getDownloadFileName({
+  originalFilePath,
+  outputFileType,
+}: {
+  originalFilePath: string;
+  outputFileType: S3PathOutputFileKey;
+}): string {
+  console.log(
+    `[getDownloadFileName] Generating download filename for: ${originalFilePath}, type: ${outputFileType}`
+  );
+  // combine the original file name with the output type and add a timestamp
+  const originalFilename = originalFilePath.split('/').pop();
+  const originalFileNameWithoutExt = originalFilename
+    ? originalFilename.split('.').slice(0, -1).join('.')
+    : 'downloaded-file';
+  const outputTypeSuffix = `-${outputTypeMap[outputFileType]}`;
+
+  const resultFileName = `${originalFileNameWithoutExt}${outputTypeSuffix}${outputExtentionMap[outputFileType]}`;
+
+  console.log(
+    `[getDownloadFileName] Generated download filename: ${resultFileName}`
+  );
+
+  return resultFileName;
 }

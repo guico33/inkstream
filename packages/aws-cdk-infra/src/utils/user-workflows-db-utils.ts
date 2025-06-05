@@ -61,7 +61,7 @@ const workflowItemSchema = item({
     formattedText: string().optional(),
     translatedText: string().optional(),
     audioFile: string().optional(),
-  }).optional(),
+  }).required(),
   error: string().optional(),
 });
 

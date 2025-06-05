@@ -4,7 +4,7 @@ import { BrowserRouter as Router } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/query-client';
 import { Toaster } from 'sonner';
-import { ThemeProvider } from './lib/contexts/theme-provider';
+import { ThemeProvider } from './lib/contexts/theme-provider-context';
 
 function App() {
   return (
