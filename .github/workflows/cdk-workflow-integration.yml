@@ -46,4 +46,4 @@ jobs:
           TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
           # CI=true is often used to indicate a non-interactive environment
           CI: true
-        run: npx ts-node test-workflow/test-workflow.ts
+        run: npm run test:workflow:concurrent

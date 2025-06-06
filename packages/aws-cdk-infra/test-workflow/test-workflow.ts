@@ -52,7 +52,6 @@ const USER_POOL_ID = process.env.USER_POOL_ID;
 const CLIENT_ID = process.env.USER_POOL_WEB_CLIENT_ID;
 const TEST_USERNAME = process.env.TEST_USERNAME;
 const TEST_PASSWORD = process.env.TEST_PASSWORD;
-const STATE_MACHINE_ARN = process.env.STATE_MACHINE_ARN;
 
 // These will be set during test setup
 let AUTH_TOKEN: string;
@@ -65,11 +64,10 @@ if (
   !USER_POOL_ID ||
   !CLIENT_ID ||
   !TEST_USERNAME ||
-  !TEST_PASSWORD ||
-  !STATE_MACHINE_ARN
+  !TEST_PASSWORD
 ) {
   throw new Error(
-    'Missing required environment variables: API_GATEWAY_URL, BUCKET_NAME, AWS_REGION, USER_POOL_ID, USER_POOL_WEB_CLIENT_ID, TEST_USERNAME, TEST_PASSWORD, STATE_MACHINE_ARN'
+    'Missing required environment variables: API_GATEWAY_URL, BUCKET_NAME, AWS_REGION, USER_POOL_ID, USER_POOL_WEB_CLIENT_ID, TEST_USERNAME, TEST_PASSWORD'
   );
 }
 
@@ -1156,7 +1154,6 @@ describe('Workflow Integration Tests', () => {
         `✅ completed statusCategory returned ${completedResponse.items.length} workflows`
       );
 
-
       // Test filtering for active workflows (should be empty since all are completed)
       const activeUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=active`;
       const activeResponse = await httpRequest(
@@ -1209,7 +1206,7 @@ describe('Workflow Integration Tests', () => {
 
       // Should have a nextToken on the second page since we have 5 total workflows (2+2+1)
       expect(nextPageResponse.nextToken).toBeDefined();
-      
+
       // Fetch third page - should have 1 remaining workflow
       const thirdPageUrl = `${API_GATEWAY_URL}/user-workflows?statusCategory=completed&limit=2&nextToken=${encodeURIComponent(
         nextPageResponse.nextToken
@@ -1227,9 +1224,12 @@ describe('Workflow Integration Tests', () => {
       thirdPageResponse.items.forEach((workflow: any) => {
         expect(workflow.statusCategory).toBe('completed');
       });
-      
+
       // Verify total is 5 workflows across all pages
-      const totalWorkflows = paginatedResponse.items.length + nextPageResponse.items.length + thirdPageResponse.items.length;
+      const totalWorkflows =
+        paginatedResponse.items.length +
+        nextPageResponse.items.length +
+        thirdPageResponse.items.length;
       expect(totalWorkflows).toBe(5);
       console.log('✅ Third page correctly returned 1 remaining workflow');
 
