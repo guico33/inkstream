@@ -10,6 +10,7 @@ export interface EnvironmentConfig {
   };
   certificateArn?: string;
   cloudFrontCertificateArn?: string; // Certificate in us-east-1 for CloudFront
+  cloudFrontDomain?: string; // CloudFront default domain for dev environments
   stackPrefix: string;
   tags: {
     Environment: string;
@@ -28,6 +29,7 @@ export const environments: Record<string, EnvironmentConfig> = {
       api: '', // No custom API domain for dev - use API Gateway default
       web: '', // No custom web domain for dev - use CloudFront default
     },
+    cloudFrontDomain: 'd2l0j0z2j75g3e.cloudfront.net', // CloudFront default domain for dev
     stackPrefix: 'Dev',
     tags: {
       Environment: 'Development',

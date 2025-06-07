@@ -30,6 +30,11 @@ export class StorageConstruct extends Construct {
       allowedOrigins.push(`https://${props.config.subdomains.web}`);
     }
 
+    // Add CloudFront domain for dev environments
+    if (props.config.cloudFrontDomain) {
+      allowedOrigins.push(`https://${props.config.cloudFrontDomain}`);
+    }
+
     this.storageBucket = new s3.Bucket(
       this,
       `${props.config.stackPrefix}StorageBucket`,

@@ -1,5 +1,5 @@
 import { Page, expect } from '@playwright/test';
-import { OutputFileType } from '@inkstream/shared';
+import { type OutputFileType } from '@inkstream/shared';
 
 export async function navigateToDashboard(page: Page) {
   const timeout = process.env.CI ? 90000 : 60000; // Extended timeout for CI

@@ -64,6 +64,7 @@ export class BackendStack extends cdk.Stack {
       googleClientSecret: secrets.googleClientSecretSecret,
       domainName: config.domainName,
       webAppDomain: config.subdomains.web,
+      cloudFrontDomain: config.cloudFrontDomain,
       storageBucketName: storage.storageBucket.bucketName,
     });
 

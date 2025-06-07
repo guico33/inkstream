@@ -1,0 +1,26 @@
+{
+  "name": "@inkstream/frontend-deployment",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "deploy:dev": "./scripts/deploy-frontend.sh dev",
+    "deploy:prod": "./scripts/deploy-frontend.sh prod", 
+    "cdk:synth:dev": "cdk synth --context environment=dev",
+    "cdk:synth:prod": "cdk synth --context environment=prod",
+    "cdk:diff:dev": "cdk diff --context environment=dev",
+    "cdk:diff:prod": "cdk diff --context environment=prod",
+    "cdk:deploy:dev": "cdk deploy --context environment=dev --require-approval never",
+    "cdk:deploy:prod": "cdk deploy --context environment=prod --require-approval never",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.196.0",
+    "constructs": "^10.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "aws-cdk": "^2.1016.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

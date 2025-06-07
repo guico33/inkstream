@@ -1,4 +1,4 @@
-import { WorkflowStatus, WorkflowStatusCategory } from './workflow-types';
+import type { WorkflowStatus, WorkflowStatusCategory } from './workflow-types';
 
 export function getStatusCategory(
   status: WorkflowStatus

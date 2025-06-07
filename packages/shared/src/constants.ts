@@ -1,7 +1,7 @@
 // Shared constants used across frontend and backend
 // These values should be kept in sync between all applications
 
-import { OutputFileType, S3PathOutputFileKey } from './workflow-types';
+import type { OutputFileType, S3PathOutputFileKey } from './workflow-types';
 
 // Supported languages for translation
 export const SUPPORTED_LANGUAGES = [

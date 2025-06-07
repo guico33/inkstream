@@ -19,6 +19,7 @@ export interface AuthConstructProps {
   // Domain configuration for OAuth callbacks
   domainName?: string; // e.g., 'inkstream.cloud' for prod, 'dev.inkstream.cloud' for dev
   webAppDomain?: string; // e.g., 'app.inkstream.cloud' for prod
+  cloudFrontDomain?: string; // e.g., 'd2l0j0z2j75g3e.cloudfront.net' for dev
 
   // Storage bucket name for S3 permissions
   storageBucketName: string;
@@ -102,11 +103,15 @@ export class AuthConstruct extends Construct {
           ...(props.webAppDomain
             ? [`https://${props.webAppDomain}/auth/callback`]
             : []),
+          ...(props.cloudFrontDomain
+            ? [`https://${props.cloudFrontDomain}/auth/callback`]
+            : []),
         ].filter(Boolean),
         logoutUrls: [
           'http://localhost:5174', // Local development
           ...(props.domainName ? [`https://${props.domainName}`] : []),
           ...(props.webAppDomain ? [`https://${props.webAppDomain}`] : []),
+          ...(props.cloudFrontDomain ? [`https://${props.cloudFrontDomain}`] : []),
         ].filter(Boolean),
       },
       preventUserExistenceErrors: true,

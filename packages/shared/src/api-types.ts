@@ -2,10 +2,10 @@
 import type { WorkflowRecord, WorkflowStatus } from './workflow-types.js';
 
 // Generic API Gateway Lambda response types
-export interface ApiSuccessResponse<T = any> {
+export interface ApiSuccessResponse {
   statusCode: 200;
   headers: Record<string, string>;
-  body: string; // JSON stringified T
+  body: string; // JSON stringified success response
 }
 
 export interface ApiGatewayErrorResponse {
@@ -14,27 +14,24 @@ export interface ApiGatewayErrorResponse {
   body: string; // JSON stringified error response
 }
 
-export type ApiGatewayResponse<T = any> =
-  | ApiSuccessResponse<T>
-  | ApiGatewayErrorResponse;
+export type ApiGatewayResponse = ApiSuccessResponse | ApiGatewayErrorResponse;
 
 // Specific response types for Start Workflow endpoint
-export type StartWorkflowSuccessResponse = ApiSuccessResponse<WorkflowResponse>;
+export type StartWorkflowSuccessResponse = ApiSuccessResponse;
 export type StartWorkflowErrorResponse = ApiGatewayErrorResponse;
 export type StartWorkflowResult =
   | StartWorkflowSuccessResponse
   | StartWorkflowErrorResponse;
 
 // Specific response types for Get Workflow endpoint
-export type GetWorkflowSuccessResponse = ApiSuccessResponse<WorkflowResponse>;
+export type GetWorkflowSuccessResponse = ApiSuccessResponse;
 export type GetWorkflowErrorResponse = ApiGatewayErrorResponse;
 export type GetWorkflowResult =
   | GetWorkflowSuccessResponse
   | GetWorkflowErrorResponse;
 
 // Specific response types for List User Workflows endpoint
-export type ListUserWorkflowsSuccessResponse =
-  ApiSuccessResponse<ListUserWorkflowsResponse>;
+export type ListUserWorkflowsSuccessResponse = ApiSuccessResponse;
 export type ListUserWorkflowsErrorResponse = ApiGatewayErrorResponse;
 export type ListUserWorkflowsResult =
   | ListUserWorkflowsSuccessResponse

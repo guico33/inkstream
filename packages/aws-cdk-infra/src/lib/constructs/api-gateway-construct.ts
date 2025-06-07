@@ -33,6 +33,11 @@ export class ApiGatewayConstruct extends Construct {
       allowedOrigins.push(`https://${props.config.subdomains.web}`);
     }
 
+    // Add CloudFront domain for dev environments
+    if (props.config.cloudFrontDomain) {
+      allowedOrigins.push(`https://${props.config.cloudFrontDomain}`);
+    }
+
     // Create custom domain if SSL certificate is provided and API subdomain is configured
     let customDomainName: apigwv2.DomainName | undefined;
     if (props.config.certificateArn && props.config.subdomains.api) {
