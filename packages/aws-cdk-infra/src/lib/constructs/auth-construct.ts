@@ -162,9 +162,8 @@ export class AuthConstruct extends Construct {
     // 3. Select "Use custom mappings" (add "sub" -> "sub" mapping)
     // 4. Save changes
     //
-    // This step is required because AWS CDK doesn't support configuring session tags directly yet.
-    // Future improvement: Consider migrating to the L2 IdentityPool construct from aws-cdk-lib/aws-cognito-identitypool,
-    // which supports configuring attribute mapping in code.
+    // This step cannot be automated with CDK as the principal tags configuration
+    // is not supported in the AWS::Cognito::IdentityPool CloudFormation resource.
 
     // Create roles for authenticated users
     // This role defines what AWS resources authenticated users can access

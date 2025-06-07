@@ -9,18 +9,24 @@ export interface EnvironmentConfig {
     web: string;
   };
   certificateArn?: string;
+  cloudFrontCertificateArn?: string; // Certificate in us-east-1 for CloudFront
   stackPrefix: string;
-  tags: Record<string, string>;
+  tags: {
+    Environment: string;
+    Project: string;
+    Owner: string;
+    ManagedBy: string;
+  };
 }
 
 export const environments: Record<string, EnvironmentConfig> = {
   dev: {
     accountId: '560756474135',
     region: 'eu-west-3',
-    domainName: 'dev.inkstream.cloud', // Using subdomain for dev
+    domainName: '', // No custom domain for dev - use CloudFront default
     subdomains: {
-      api: 'api-dev.inkstream.cloud',
-      web: 'app-dev.inkstream.cloud',
+      api: '', // No custom API domain for dev - use API Gateway default
+      web: '', // No custom web domain for dev - use CloudFront default
     },
     stackPrefix: 'Dev',
     tags: {
@@ -41,6 +47,9 @@ export const environments: Record<string, EnvironmentConfig> = {
     // ACM certificate in the eu-west-3 region for API Gateway custom domains
     certificateArn:
       'arn:aws:acm:eu-west-3:426361305135:certificate/b544fc1e-7d2e-42df-8d5a-aa561bcff0b7',
+    // ACM certificate in us-east-1 region for CloudFront distribution
+    cloudFrontCertificateArn:
+      'arn:aws:acm:us-east-1:426361305135:certificate/639b89d7-fb27-4e04-98c0-4fcc91e16658',
     stackPrefix: 'Prod',
     tags: {
       Environment: 'Production',

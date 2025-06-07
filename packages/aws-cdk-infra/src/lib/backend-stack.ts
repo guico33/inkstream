@@ -8,7 +8,8 @@ import { WorkflowControlLambdas } from './constructs/workflow-control-lambdas';
 import { WorkflowStepLambdas } from './constructs/workflow-step-lambdas';
 import { WorkflowStepFunctions } from './constructs/workflow-stepfunctions';
 import { WorkflowEvents } from './constructs/workflow-events';
-import { StaticWebsiteConstruct } from './constructs/static-website-construct';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import { EnvironmentConfig } from '../../config/environments';
 
 function requireEnvVars(vars: string[]) {
@@ -20,7 +21,13 @@ function requireEnvVars(vars: string[]) {
   }
 }
 
-export class InkstreamStack extends cdk.Stack {
+export class BackendStack extends cdk.Stack {
+  public readonly userPool: cdk.aws_cognito.UserPool;
+  public readonly userPoolClient: cdk.aws_cognito.UserPoolClient;
+  public readonly identityPool: cdk.aws_cognito.CfnIdentityPool;
+  public readonly apiUrl: string;
+  public readonly storageBucket: cdk.aws_s3.Bucket;
+
   constructor(
     scope: Construct,
     id: string,
@@ -144,38 +151,68 @@ export class InkstreamStack extends cdk.Stack {
       config,
     });
 
-    console.log('building Static Website...');
-    // Static Website (S3 + CloudFront + Route53)
-    const staticWebsite = new StaticWebsiteConstruct(this, 'StaticWebsite', {
-      config,
-    });
+    // Create Route53 A record for API Gateway custom domain (only if custom domain exists)
+    if (api.customDomain && config.subdomains.api && config.domainName) {
+      // Look up existing hosted zone
+      const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
+        domainName: config.domainName,
+      });
 
-    new cdk.CfnOutput(this, 'HttpApiUrl', {
-      value: api.httpApi.url ?? 'undefined',
-    });
-
-    // Static Website outputs
-    new cdk.CfnOutput(this, 'StaticWebsiteBucketName', {
-      value: staticWebsite.bucket.bucketName,
-      description: 'S3 bucket name for static website hosting',
-    });
-
-    new cdk.CfnOutput(this, 'CloudFrontDistributionId', {
-      value: staticWebsite.distribution.distributionId,
-      description: 'CloudFront distribution ID',
-    });
-
-    new cdk.CfnOutput(this, 'CloudFrontDistributionDomainName', {
-      value: staticWebsite.distribution.distributionDomainName,
-      description: 'CloudFront distribution domain name',
-    });
-
-    if (config.cloudFrontCertificateArn) {
-      new cdk.CfnOutput(this, 'WebsiteUrl', {
-        value: `https://${config.domainName}`,
-        description: 'Production website URL',
+      // Create A record pointing to API Gateway custom domain
+      new route53.ARecord(this, 'ApiARecord', {
+        zone: hostedZone,
+        target: route53.RecordTarget.fromAlias(
+          new route53Targets.ApiGatewayv2DomainProperties(
+            api.customDomain.regionalDomainName,
+            api.customDomain.regionalHostedZoneId
+          )
+        ),
+        recordName: config.subdomains.api,
       });
     }
+
+    // Store references for cross-stack outputs
+    this.userPool = auth.userPool;
+    this.userPoolClient = auth.userPoolClient;
+    this.identityPool = auth.identityPool;
+    this.apiUrl = api.httpApi.url ?? '';
+    this.storageBucket = storage.storageBucket;
+
+    // Backend Stack Outputs
+    new cdk.CfnOutput(this, 'ApiGatewayUrl', {
+      value: api.httpApi.url ?? 'undefined',
+      description: 'API Gateway URL for frontend configuration',
+      exportName: `${config.stackPrefix}-ApiGatewayUrl`,
+    });
+
+    new cdk.CfnOutput(this, 'UserPoolId', {
+      value: auth.userPool.userPoolId,
+      description: 'Cognito User Pool ID for frontend configuration',
+      exportName: `${config.stackPrefix}-UserPoolId`,
+    });
+
+    new cdk.CfnOutput(this, 'UserPoolWebClientId', {
+      value: auth.userPoolClient.userPoolClientId,
+      description: 'Cognito User Pool Client ID for frontend configuration',
+      exportName: `${config.stackPrefix}-UserPoolWebClientId`,
+    });
+
+    new cdk.CfnOutput(this, 'IdentityPoolId', {
+      value: auth.identityPool.ref,
+      description: 'Cognito Identity Pool ID for frontend configuration',
+      exportName: `${config.stackPrefix}-IdentityPoolId`,
+    });
+
+    new cdk.CfnOutput(this, 'StorageBucketName', {
+      value: storage.storageBucket.bucketName,
+      description: 'S3 storage bucket name for frontend configuration',
+      exportName: `${config.stackPrefix}-StorageBucketName`,
+    });
+
+    new cdk.CfnOutput(this, 'StateMachineArn', {
+      value: stateMachine.stateMachineArn,
+      description: 'Step Functions state machine ARN',
+    });
 
     // Output custom domain information if available
     if (api.customDomain) {
@@ -192,51 +229,6 @@ export class InkstreamStack extends cdk.Stack {
       new cdk.CfnOutput(this, 'ApiDomainNameHostedZoneId', {
         value: api.customDomain.regionalHostedZoneId,
         description: 'Hosted zone ID for Route53 alias record',
-      });
-    }
-
-    new cdk.CfnOutput(this, 'StateMachineArn', {
-      value: stateMachine.stateMachineArn,
-    });
-
-    // Output Cognito IDs for frontend configuration
-    new cdk.CfnOutput(this, 'UserPoolId', {
-      value: auth.userPool.userPoolId,
-    });
-
-    new cdk.CfnOutput(this, 'UserPoolWebClientId', {
-      value: auth.userPoolClient.userPoolClientId,
-    });
-
-    new cdk.CfnOutput(this, 'IdentityPoolId', {
-      value: auth.identityPool.ref,
-    });
-
-    // Static Website outputs
-    new cdk.CfnOutput(this, 'WebsiteBucketName', {
-      value: staticWebsite.bucket.bucketName,
-      description: 'S3 bucket name for static website hosting',
-    });
-
-    new cdk.CfnOutput(this, 'CloudFrontDistributionId', {
-      value: staticWebsite.distribution.distributionId,
-      description: 'CloudFront distribution ID',
-    });
-
-    new cdk.CfnOutput(this, 'CloudFrontDomainName', {
-      value: staticWebsite.distribution.distributionDomainName,
-      description: 'CloudFront distribution domain name',
-    });
-
-    if (config.cloudFrontCertificateArn && config.domainName) {
-      new cdk.CfnOutput(this, 'WebsiteUrl', {
-        value: `https://${config.domainName}`,
-        description: 'Website URL with custom domain',
-      });
-    } else {
-      new cdk.CfnOutput(this, 'WebsiteUrl', {
-        value: `https://${staticWebsite.distribution.distributionDomainName}`,
-        description: 'Website URL via CloudFront domain',
       });
     }
 

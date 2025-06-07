@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import * as dotenv from 'dotenv';
 import * as cdk from 'aws-cdk-lib';
-import { InkstreamStack } from '../src/lib/inkstream-stack';
+import { BackendStack } from '../src/lib/backend-stack';
+import { FrontendStack } from '../src/lib/frontend-stack';
 import { getEnvironmentConfig } from '../config/environments';
 
 const app = new cdk.App();
@@ -25,9 +26,24 @@ console.log(
   `Deploying to ${environment} environment (Account: ${config.accountId}, Region: ${config.region})`
 );
 
-new InkstreamStack(
+// Create Backend Stack (API Gateway, Lambda, DynamoDB, Cognito, etc.)
+new BackendStack(
   app,
-  `${config.stackPrefix}-InkstreamStack`,
+  `${config.stackPrefix}-InkstreamBackendStack`,
+  {
+    env: {
+      account: config.accountId,
+      region: config.region,
+    },
+    tags: config.tags,
+  },
+  config
+);
+
+// Create Frontend Stack (S3, CloudFront, Route53 for static hosting)
+new FrontendStack(
+  app,
+  `${config.stackPrefix}-InkstreamFrontendStack`,
   {
     env: {
       account: config.accountId,
