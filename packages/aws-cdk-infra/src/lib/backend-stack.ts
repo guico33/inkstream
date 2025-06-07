@@ -65,6 +65,7 @@ export class BackendStack extends cdk.Stack {
       domainName: config.domainName,
       webAppDomain: config.subdomains.web,
       cloudFrontDomain: config.cloudFrontDomain,
+      allowedEmails: process.env.ALLOWED_EMAILS, // Only used for dev environments
       storageBucketName: storage.storageBucket.bucketName,
     });
 

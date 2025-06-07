@@ -1,7 +1,10 @@
 import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import { Construct } from 'constructs';
+import * as path from 'path';
 
 /**
  * Properties for the AuthConstruct
@@ -20,6 +23,9 @@ export interface AuthConstructProps {
   domainName?: string; // e.g., 'inkstream.cloud' for prod, 'dev.inkstream.cloud' for dev
   webAppDomain?: string; // e.g., 'app.inkstream.cloud' for prod
   cloudFrontDomain?: string; // e.g., 'd2l0j0z2j75g3e.cloudfront.net' for dev
+
+  // Email whitelist for pre-signup validation (dev environments only)
+  allowedEmails?: string; // Comma-separated list passed from environment variable
 
   // Storage bucket name for S3 permissions
   storageBucketName: string;
@@ -48,6 +54,21 @@ export class AuthConstruct extends Construct {
     // - User sign-in and sign-out
     // - Account recovery workflows
     // - Multi-factor authentication
+    // Create pre-signup Lambda trigger for dev environments only
+    let preSignupTrigger: lambda.IFunction | undefined;
+    if (props.envName === 'dev') {
+      preSignupTrigger = new lambdaNodejs.NodejsFunction(this, 'PreSignupTrigger', {
+        runtime: lambda.Runtime.NODEJS_20_X,
+        handler: 'handler',
+        entry: path.join(__dirname, '../../lambda/auth/pre-signup.ts'),
+        environment: {
+          ALLOWED_EMAILS: props.allowedEmails || '', // Default empty, managed via AWS Console
+        },
+        timeout: cdk.Duration.seconds(30),
+        description: 'Validates email whitelist before allowing user signup (dev only)',
+      });
+    }
+
     this.userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: `${props.envName}-inkstream-user-pool`,
       selfSignUpEnabled: true,
@@ -72,6 +93,10 @@ export class AuthConstruct extends Construct {
       },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       removalPolicy: cdk.RemovalPolicy.DESTROY, // For development; use RETAIN for production
+      // Add pre-signup trigger if provided
+      lambdaTriggers: preSignupTrigger ? {
+        preSignUp: preSignupTrigger,
+      } : undefined,
     });
 
     // Create the app client

@@ -15,7 +15,7 @@ const environment = app.node.tryGetContext('environment') || 'dev';
 // Otherwise fall back to environment-based file selection
 const envFile =
   process.env.DOTENV_CONFIG_PATH ||
-  (environment === 'prod' ? '.env.prod' : '.env');
+  (environment === 'prod' ? '.env.prod' : '.env.dev');
 dotenv.config({ path: envFile });
 
 console.log(`Loading environment variables from: ${envFile}`);
