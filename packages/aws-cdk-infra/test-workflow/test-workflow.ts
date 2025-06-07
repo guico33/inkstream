@@ -46,7 +46,7 @@ interface WorkflowResponse {
 
 // Test configuration - map from .env.test variables
 const API_GATEWAY_URL = process.env.API_GATEWAY_URL;
-const S3_BUCKET = process.env.BUCKET_NAME; // Maps to BUCKET_NAME in .env.test
+const S3_BUCKET = process.env.BUCKET_NAME;
 const AWS_REGION = process.env.AWS_REGION;
 const USER_POOL_ID = process.env.USER_POOL_ID;
 const CLIENT_ID = process.env.USER_POOL_WEB_CLIENT_ID;

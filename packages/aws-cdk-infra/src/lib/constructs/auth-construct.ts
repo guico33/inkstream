@@ -2,8 +2,6 @@ import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
-import * as dotenv from 'dotenv';
-dotenv.config({ path: __dirname + '/../../.env' });
 
 /**
  * Properties for the AuthConstruct
@@ -17,6 +15,13 @@ export interface AuthConstructProps {
 
   // Google OAuth Client Secret (from SecretsConstruct) - required
   googleClientSecret: secretsmanager.ISecret;
+
+  // Domain configuration for OAuth callbacks
+  domainName?: string; // e.g., 'inkstream.cloud' for prod, 'dev.inkstream.cloud' for dev
+  webAppDomain?: string; // e.g., 'app.inkstream.cloud' for prod
+
+  // Storage bucket name for S3 permissions
+  storageBucketName: string;
 }
 
 /**
@@ -91,12 +96,18 @@ export class AuthConstruct extends Construct {
         ],
         callbackUrls: [
           'http://localhost:5174/auth/callback', // Local development (must match frontend redirect_uri)
-          'https://your-domain.com/auth/callback', // Production (update as needed)
-        ],
+          ...(props.domainName
+            ? [`https://${props.domainName}/auth/callback`]
+            : []),
+          ...(props.webAppDomain
+            ? [`https://${props.webAppDomain}/auth/callback`]
+            : []),
+        ].filter(Boolean),
         logoutUrls: [
           'http://localhost:5174', // Local development
-          'https://your-domain.com', // Production (update as needed)
-        ],
+          ...(props.domainName ? [`https://${props.domainName}`] : []),
+          ...(props.webAppDomain ? [`https://${props.webAppDomain}`] : []),
+        ].filter(Boolean),
       },
       preventUserExistenceErrors: true,
       supportedIdentityProviders: [
@@ -188,9 +199,7 @@ export class AuthConstruct extends Construct {
         actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
         resources: [
           // Allow access to all user folders for downloading processed files
-          `arn:aws:s3:::dev-inkstream-storage-${
-            cdk.Stack.of(this).account
-          }/users/\${aws:PrincipalTag/sub}/*`,
+          `arn:aws:s3:::${props.storageBucketName}/users/\${aws:PrincipalTag/sub}/*`,
         ],
       })
     );

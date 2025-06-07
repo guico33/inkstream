@@ -69,6 +69,7 @@ export class WorkflowStepLambdas extends Construct {
         environment: {
           AWS_ACCOUNT_ID: cdk.Stack.of(this).account,
           USER_WORKFLOWS_TABLE: props.userWorkflowsTableName,
+          TEXTRACT_JOB_TOKENS_TABLE: props.textractJobTokensTableName,
         },
         initialPolicy: [
           new cdk.aws_iam.PolicyStatement({

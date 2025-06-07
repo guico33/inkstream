@@ -4,6 +4,8 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as cdk from 'aws-cdk-lib';
 import * as apigwv2_integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+import { EnvironmentConfig } from '../../../config/environments';
 
 export interface ApiGatewayConstructProps {
   startWorkflowFn: lambda.IFunction;
@@ -11,24 +13,60 @@ export interface ApiGatewayConstructProps {
   userWorkflowsFn: lambda.IFunction;
   userPool: cognito.IUserPool;
   userPoolClientId: string;
+  config: EnvironmentConfig;
 }
 
 export class ApiGatewayConstruct extends Construct {
   public readonly httpApi: apigwv2.HttpApi;
+  public readonly customDomain?: apigwv2.DomainName;
 
   constructor(scope: Construct, id: string, props: ApiGatewayConstructProps) {
     super(scope, id);
 
+    // Build CORS allowed origins based on environment
+    const allowedOrigins = [
+      'http://localhost:5174', // Local development
+    ];
+
+    // Add production web domain if available
+    if (props.config.subdomains.web) {
+      allowedOrigins.push(`https://${props.config.subdomains.web}`);
+    }
+
+    // Create custom domain if SSL certificate is provided and API subdomain is configured
+    let customDomainName: apigwv2.DomainName | undefined;
+    if (props.config.certificateArn && props.config.subdomains.api) {
+      const certificate = acm.Certificate.fromCertificateArn(
+        this,
+        'ApiCertificate',
+        props.config.certificateArn
+      );
+
+      customDomainName = new apigwv2.DomainName(this, 'ApiCustomDomain', {
+        domainName: props.config.subdomains.api,
+        certificate,
+      });
+
+      // Store reference for external access (e.g., for Route53 configuration)
+      this.customDomain = customDomainName;
+    }
+
     this.httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
-      apiName: `dev-inkstream-api-${
-        scope.node.tryGetContext('account') || 'dev'
+      apiName: `${props.config.stackPrefix.toLowerCase()}-inkstream-api-${
+        scope.node.tryGetContext('account') || props.config.accountId
       }`,
       corsPreflight: {
-        allowOrigins: ['*'], // In production, restrict to your domain
+        allowOrigins: allowedOrigins,
         allowMethods: [apigwv2.CorsHttpMethod.ANY],
         allowHeaders: ['*'],
         maxAge: cdk.Duration.days(10),
       },
+      // Attach custom domain if available
+      defaultDomainMapping: customDomainName
+        ? {
+            domainName: customDomainName,
+          }
+        : undefined,
     });
 
     // Custom implementation of IHttpRouteAuthorizer to wrap HttpAuthorizer

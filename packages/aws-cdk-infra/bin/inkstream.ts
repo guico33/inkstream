@@ -1,12 +1,39 @@
 #!/usr/bin/env node
-import 'dotenv/config';
+import * as dotenv from 'dotenv';
 import * as cdk from 'aws-cdk-lib';
 import { InkstreamStack } from '../src/lib/inkstream-stack';
+import { getEnvironmentConfig } from '../config/environments';
 
 const app = new cdk.App();
-new InkstreamStack(app, 'Dev-InkstreamStack', {
-  env: {
-    account: process.env.AWS_ACCOUNT_ID,
-    region: process.env.AWS_REGION,
+
+// Get environment from context (cdk deploy --context environment=prod)
+const environment = app.node.tryGetContext('environment') || 'dev';
+
+// Load environment-specific .env file
+// First check if DOTENV_CONFIG_PATH is set (from package.json scripts)
+// Otherwise fall back to environment-based file selection
+const envFile =
+  process.env.DOTENV_CONFIG_PATH ||
+  (environment === 'prod' ? '.env.prod' : '.env');
+dotenv.config({ path: envFile });
+
+console.log(`Loading environment variables from: ${envFile}`);
+
+const config = getEnvironmentConfig(environment);
+
+console.log(
+  `Deploying to ${environment} environment (Account: ${config.accountId}, Region: ${config.region})`
+);
+
+new InkstreamStack(
+  app,
+  `${config.stackPrefix}-InkstreamStack`,
+  {
+    env: {
+      account: config.accountId,
+      region: config.region,
+    },
+    tags: config.tags,
   },
-});
+  config
+);

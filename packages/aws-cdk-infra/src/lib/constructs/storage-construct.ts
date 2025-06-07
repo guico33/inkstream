@@ -2,41 +2,61 @@ import { Construct } from 'constructs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as cdk from 'aws-cdk-lib';
+import { EnvironmentConfig } from '../../../config/environments';
+
+export interface StorageConstructProps {
+  config: EnvironmentConfig;
+}
 
 export class StorageConstruct extends Construct {
   public readonly storageBucket: s3.Bucket;
   public readonly textractJobTokensTable: dynamodb.Table;
   public readonly userWorkflowsTable: dynamodb.Table;
 
-  constructor(scope: Construct, id: string) {
+  constructor(scope: Construct, id: string, props: StorageConstructProps) {
     super(scope, id);
 
-    const bucketName = `dev-inkstream-storage-${cdk.Stack.of(this).account}`;
+    const accountId = cdk.Stack.of(this).account;
+    const envPrefix = props.config.stackPrefix.toLowerCase();
+    const bucketName = `${envPrefix}-inkstream-storage-${accountId}`;
 
-    this.storageBucket = new s3.Bucket(this, 'DevStorageBucket', {
-      bucketName,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
-      versioned: false,
-      cors: [
-        {
-          allowedOrigins: ['http://localhost:5174'], // Add prod origins as needed
-          allowedMethods: [
-            s3.HttpMethods.GET,
-            s3.HttpMethods.PUT,
-            s3.HttpMethods.POST,
-            s3.HttpMethods.HEAD,
-          ],
-          allowedHeaders: ['*'],
-          exposedHeaders: ['ETag'],
-          maxAge: 3000,
-        },
-      ],
-    });
+    // Build CORS allowed origins based on environment
+    const allowedOrigins = [
+      'http://localhost:5174', // Local development
+    ];
+
+    // Add production web domain if available
+    if (props.config.subdomains.web) {
+      allowedOrigins.push(`https://${props.config.subdomains.web}`);
+    }
+
+    this.storageBucket = new s3.Bucket(
+      this,
+      `${props.config.stackPrefix}StorageBucket`,
+      {
+        bucketName,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        autoDeleteObjects: true,
+        versioned: false,
+        cors: [
+          {
+            allowedOrigins,
+            allowedMethods: [
+              s3.HttpMethods.GET,
+              s3.HttpMethods.PUT,
+              s3.HttpMethods.POST,
+              s3.HttpMethods.HEAD,
+            ],
+            allowedHeaders: ['*'],
+            exposedHeaders: ['ETag'],
+            maxAge: 3000,
+          },
+        ],
+      }
+    );
 
     // Textract Job Tokens Table (for event-driven workflow)
-    const accountId = cdk.Stack.of(this).account;
-    const textractJobTokensTableName = `dev-inkstream-textract-job-tokens-${accountId}`;
+    const textractJobTokensTableName = `${envPrefix}-inkstream-textract-job-tokens-${accountId}`;
     this.textractJobTokensTable = new dynamodb.Table(
       this,
       'TextractJobTokensTable',
@@ -50,7 +70,7 @@ export class StorageConstruct extends Construct {
     );
 
     // User Workflows Table (for workflow state tracking)
-    const userWorkflowsTableName = `dev-inkstream-user-workflows-${accountId}`;
+    const userWorkflowsTableName = `${envPrefix}-inkstream-user-workflows-${accountId}`;
     this.userWorkflowsTable = new dynamodb.Table(this, 'UserWorkflowsTable', {
       tableName: userWorkflowsTableName,
       partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },

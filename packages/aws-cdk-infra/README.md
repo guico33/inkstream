@@ -88,8 +88,7 @@ aws secretsmanager create-secret \
    OPENAI_API_KEY_SECRET_ARN=arn:aws:secretsmanager:eu-west-3:560756474135:secret:inkstream/dev/openai/api-key-xxxxxx
 
    # AWS Configuration
-   AWS_ACCOUNT_ID=123456789012
-   AWS_REGION=us-east-1
+   AWS_REGION=us-west-3
    AI_PROVIDER=bedrock  # or 'openai'
    ```
 

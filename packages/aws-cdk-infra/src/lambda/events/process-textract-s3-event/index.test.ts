@@ -71,6 +71,7 @@ const mockContext = {
 let handler: any;
 beforeAll(async () => {
   vi.stubEnv('AWS_ACCOUNT_ID', 'test');
+  vi.stubEnv('TEXTRACT_JOB_TOKENS_TABLE', 'test-textract-job-tokens-table');
   // Dynamically import the handler after env var is set
   handler = (await import('./index.js')).handler;
 });

@@ -8,6 +8,7 @@ import { WorkflowControlLambdas } from './constructs/workflow-control-lambdas';
 import { WorkflowStepLambdas } from './constructs/workflow-step-lambdas';
 import { WorkflowStepFunctions } from './constructs/workflow-stepfunctions';
 import { WorkflowEvents } from './constructs/workflow-events';
+import { EnvironmentConfig } from '../../config/environments';
 
 function requireEnvVars(vars: string[]) {
   const missing = vars.filter((v) => !process.env[v]);
@@ -19,33 +20,44 @@ function requireEnvVars(vars: string[]) {
 }
 
 export class InkstreamStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props: cdk.StackProps,
+    config: EnvironmentConfig
+  ) {
     requireEnvVars([
       'GOOGLE_CLIENT_ID',
       'GOOGLE_CLIENT_SECRET_SECRET_ARN',
-      'AWS_ACCOUNT_ID',
-      'AWS_REGION',
       'AI_PROVIDER',
     ]);
     super(scope, id, props);
 
+    // Environment name for resource naming
+    const envName = config.stackPrefix.toLowerCase();
+
     // Secrets Manager for API keys and other secrets
     const secrets = new SecretsConstruct(this, 'Secrets', {
-      envName: 'dev',
+      envName,
       appName: 'inkstream',
       openaiApiKeySecretArn: process.env.OPENAI_API_KEY_SECRET_ARN,
       googleClientSecretSecretArn: process.env.GOOGLE_CLIENT_SECRET_SECRET_ARN!,
     });
 
-    // Cognito User Pool and Client
-    const auth = new AuthConstruct(this, 'Auth', {
-      envName: 'dev',
-      googleClientId: process.env.GOOGLE_CLIENT_ID!,
-      googleClientSecret: secrets.googleClientSecretSecret,
+    // S3 and DynamoDB setup (StorageConstruct must be created before WorkflowStepLambdas)
+    const storage = new StorageConstruct(this, 'Storage', {
+      config,
     });
 
-    // S3 and DynamoDB setup (StorageConstruct must be created before WorkflowStepLambdas)
-    const storage = new StorageConstruct(this, 'Storage');
+    // Cognito User Pool and Client
+    const auth = new AuthConstruct(this, 'Auth', {
+      envName,
+      googleClientId: process.env.GOOGLE_CLIENT_ID!,
+      googleClientSecret: secrets.googleClientSecretSecret,
+      domainName: config.domainName,
+      webAppDomain: config.subdomains.web,
+      storageBucketName: storage.storageBucket.bucketName,
+    });
 
     // Lambdas for workflow steps
     const stepLambdas = new WorkflowStepLambdas(this, 'WorkflowStepLambdas', {
@@ -128,11 +140,30 @@ export class InkstreamStack extends cdk.Stack {
       userWorkflowsFn: controlLambdas.userWorkflowsFn,
       userPool: auth.userPool,
       userPoolClientId: auth.userPoolClient.userPoolClientId, // Pass userPoolClientId here
+      config,
     });
 
     new cdk.CfnOutput(this, 'HttpApiUrl', {
       value: api.httpApi.url ?? 'undefined',
     });
+
+    // Output custom domain information if available
+    if (api.customDomain) {
+      new cdk.CfnOutput(this, 'ApiCustomDomainName', {
+        value: api.customDomain.name,
+        description: 'Custom domain name for API Gateway',
+      });
+
+      new cdk.CfnOutput(this, 'ApiDomainNameAlias', {
+        value: api.customDomain.regionalDomainName,
+        description: 'Regional domain name for Route53 alias record',
+      });
+
+      new cdk.CfnOutput(this, 'ApiDomainNameHostedZoneId', {
+        value: api.customDomain.regionalHostedZoneId,
+        description: 'Hosted zone ID for Route53 alias record',
+      });
+    }
 
     new cdk.CfnOutput(this, 'StateMachineArn', {
       value: stateMachine.stateMachineArn,

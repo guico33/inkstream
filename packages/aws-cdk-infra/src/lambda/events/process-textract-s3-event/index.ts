@@ -7,6 +7,7 @@ import {
 } from '@aws-sdk/client-sfn';
 import { Handler, S3Event } from 'aws-lambda';
 import { S3Client } from '@aws-sdk/client-s3';
+import { z } from 'zod';
 import {
   listNumberedTextractFiles,
   getExpectedPagesFromFirstFile,
@@ -19,9 +20,18 @@ import {
   getJobToken,
 } from '../../../utils/textract-job-tokens-db-utils';
 
-const accountId = process.env.AWS_ACCOUNT_ID;
-if (!accountId) throw new Error('AWS_ACCOUNT_ID env var is required');
-const DYNAMODB_TABLE_NAME = `dev-inkstream-textract-job-tokens-${accountId}`;
+// Zod schema for environment variables validation
+const EnvironmentSchema = z.object({
+  TEXTRACT_JOB_TOKENS_TABLE: z
+    .string({
+      required_error:
+        'TEXTRACT_JOB_TOKENS_TABLE environment variable is required',
+    })
+    .min(1, 'TEXTRACT_JOB_TOKENS_TABLE cannot be empty'),
+});
+
+// Validate environment variables
+const env = EnvironmentSchema.parse(process.env);
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const sfn = new SFNClient({});
@@ -51,7 +61,7 @@ export const handler: Handler = async (event: S3Event) => {
     }
     // Lookup TaskToken in DynamoDB
     const jobTokenItem = await getJobToken(
-      DYNAMODB_TABLE_NAME,
+      env.TEXTRACT_JOB_TOKENS_TABLE,
       textractJobId,
       ddb
     );
@@ -118,7 +128,7 @@ export const handler: Handler = async (event: S3Event) => {
       }
     }
     // Clean up DynamoDB entry
-    await deleteJobToken(DYNAMODB_TABLE_NAME, textractJobId, ddb);
+    await deleteJobToken(env.TEXTRACT_JOB_TOKENS_TABLE, textractJobId, ddb);
   }
   return { status: 'done' };
 };
