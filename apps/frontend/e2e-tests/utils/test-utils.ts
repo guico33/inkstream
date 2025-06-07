@@ -1,5 +1,6 @@
 import { Page, expect } from '@playwright/test';
-import { MockTokens, MockUser } from '../mocks/auth-mocks';
+import { MockTokens, MockUser, setupAuthMocks, mockUser, mockTokens } from '../mocks/auth-mocks';
+import { setupWorkflowMocks } from '../mocks/workflow-mocks';
 
 export async function waitForPageLoad(page: Page) {
   await page.waitForLoadState('networkidle');
@@ -80,4 +81,19 @@ export async function debugAuthState(page: Page) {
 
   console.log('Auth state debug:', authState);
   return authState;
+}
+
+export async function setupAuthenticatedTestEnvironment(page: Page) {
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await clearStorage(page);
+
+  // Set up authentication
+  await setStorageAuth(page, mockUser, {
+    ...mockTokens,
+    expiresAt: Date.now() + 3600000,
+  });
+
+  // Set up mocks
+  await setupAuthMocks(page);
+  await setupWorkflowMocks(page);
 }

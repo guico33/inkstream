@@ -1,28 +1,38 @@
 import { Page, expect } from '@playwright/test';
 import { type OutputFileType } from '@inkstream/shared';
+import { TEST_TIMEOUTS } from './test-config';
+
+// Constants for download validation
+const EXPECTED_FILE_EXTENSIONS = {
+  formatted: ['.txt', '.docx', '.pdf'],
+  translated: ['.txt', '.docx', '.pdf'],
+  audio: ['.mp3', '.wav', '.m4a'],
+} as const;
+
+const DOWNLOAD_BUTTON_TEXT = {
+  formatted: 'Formatted Text',
+  translated: 'Translated Text',
+  audio: 'Audio File',
+} as const;
 
 export async function navigateToDashboard(page: Page) {
-  const timeout = process.env.CI ? 90000 : 60000; // Extended timeout for CI
-  await page.goto('/dashboard', { timeout });
-  await page.waitForLoadState('networkidle', { timeout });
+  await page.goto('/dashboard', { timeout: TEST_TIMEOUTS.NAVIGATION });
+  await page.waitForLoadState('networkidle', { timeout: TEST_TIMEOUTS.NAVIGATION });
 }
 
 export async function selectNewWorkflowTab(page: Page) {
-  const timeout = process.env.CI ? 30000 : 20000;
   await page.getByRole('tab', { name: /New Workflow/i }).click();
-  await expect(page.getByText(/Start New Workflow/i)).toBeVisible({ timeout });
+  await expect(page.getByText(/Start New Workflow/i)).toBeVisible({ timeout: TEST_TIMEOUTS.DEFAULT });
 }
 
 export async function selectActiveWorkflowsTab(page: Page) {
-  const timeout = process.env.CI ? 45000 : 30000;
   await page.getByRole('tab', { name: /Active/i }).click();
-  await page.waitForLoadState('networkidle', { timeout });
+  await page.waitForLoadState('networkidle', { timeout: TEST_TIMEOUTS.NETWORK_IDLE });
 }
 
 export async function selectWorkflowHistoryTab(page: Page) {
-  const timeout = process.env.CI ? 45000 : 30000;
   await page.getByRole('tab', { name: /History/i }).click();
-  await page.waitForLoadState('networkidle', { timeout });
+  await page.waitForLoadState('networkidle', { timeout: TEST_TIMEOUTS.NETWORK_IDLE });
 }
 
 export async function uploadTestFile(
@@ -84,7 +94,7 @@ export async function startWorkflow(page: Page) {
 }
 
 export async function expectWorkflowStartSuccess(page: Page) {
-  const timeout = process.env.CI ? 30000 : 15000; // 30 seconds on CI, 15 seconds locally
+  const timeout = TEST_TIMEOUTS.WORKFLOW_START;
 
   // Primary method: Wait for automatic tab switch to Active tab
   // This is more reliable than toast detection in CI environments
@@ -201,19 +211,7 @@ export async function expectDownloadButtonsVisible(
   fileTypes: ('formatted' | 'translated' | 'audio')[]
 ) {
   for (const fileType of fileTypes) {
-    let buttonText: string;
-    switch (fileType) {
-      case 'formatted':
-        buttonText = 'Formatted Text';
-        break;
-      case 'translated':
-        buttonText = 'Translated Text';
-        break;
-      case 'audio':
-        buttonText = 'Audio File';
-        break;
-    }
-
+    const buttonText = DOWNLOAD_BUTTON_TEXT[fileType];
     await expect(
       page.getByRole('button', { name: new RegExp(buttonText, 'i') })
     ).toBeVisible();
@@ -224,34 +222,20 @@ export async function clickDownloadButton(
   page: Page,
   fileType: OutputFileType
 ) {
-  let buttonText: string;
-  switch (fileType) {
-    case 'formatted':
-      buttonText = 'Formatted Text';
-      break;
-    case 'translated':
-      buttonText = 'Translated Text';
-      break;
-    case 'audio':
-      buttonText = 'Audio File';
-      break;
-  }
-
+  const buttonText = DOWNLOAD_BUTTON_TEXT[fileType];
   const downloadButton = page.getByRole('button', {
     name: new RegExp(buttonText, 'i'),
   });
   await downloadButton.click();
 }
 
-export async function clickDownloadButtonAndExpectSuccess(
+export async function expectDownloadSuccess(
   page: Page,
-  fileType: OutputFileType
+  fileType: OutputFileType,
+  timeout: number = TEST_TIMEOUTS.DOWNLOAD
 ) {
-  // Set up download event listener BEFORE clicking
-  const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
-
-  // Click the download button
-  await clickDownloadButton(page, fileType);
+  // Set up download event listener
+  const downloadPromise = page.waitForEvent('download', { timeout });
 
   // Wait for and verify the download
   try {
@@ -262,14 +246,7 @@ export async function clickDownloadButtonAndExpectSuccess(
     expect(filename).toBeTruthy();
 
     // Verify the filename contains the expected file type
-    const expectedExtensions = {
-      formatted: ['.txt', '.docx', '.pdf'],
-      translated: ['.txt', '.docx', '.pdf'],
-      audio: ['.mp3', '.wav', '.m4a'],
-    };
-
-    const extensions = expectedExtensions[fileType];
-
+    const extensions = EXPECTED_FILE_EXTENSIONS[fileType];
     const hasValidExtension = extensions.some((ext) =>
       filename.toLowerCase().includes(ext)
     );
@@ -285,38 +262,18 @@ export async function clickDownloadButtonAndExpectSuccess(
   }
 }
 
-export async function expectDownloadSuccess(
+export async function clickDownloadButtonAndExpectSuccess(
   page: Page,
-  fileType: 'formatted' | 'translated' | 'audio'
+  fileType: OutputFileType
 ) {
-  // Set up download event listener before clicking
-  const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
+  // Set up download event listener BEFORE clicking
+  const downloadPromise = expectDownloadSuccess(page, fileType);
 
-  // The download should have been triggered by clickDownloadButton()
-  // Now we wait for the actual download event
-  try {
-    const download = await downloadPromise;
+  // Click the download button
+  await clickDownloadButton(page, fileType);
 
-    // Verify the download object exists and has a filename
-    const filename = download.suggestedFilename();
-    expect(filename).toBeTruthy();
-
-    // Verify the filename contains the expected file type
-    const expectedExtensions = {
-      formatted: '.txt',
-      translated: '.txt',
-      audio: '.mp3',
-    };
-
-    const extensions = expectedExtensions[fileType];
-    const hasValidExtension = filename.toLowerCase().includes(extensions);
-    expect(hasValidExtension).toBe(true);
-
-    console.log(`✅ Download success for ${fileType} verified: ${filename}`);
-    return download;
-  } catch (error) {
-    throw new Error(`Failed to detect download for ${fileType}: ${error}`);
-  }
+  // Wait for download success
+  return await downloadPromise;
 }
 
 export async function expectWorkflowInHistory(page: Page, workflowId?: string) {

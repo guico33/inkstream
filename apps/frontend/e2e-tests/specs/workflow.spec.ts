@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { setupAuthMocks, mockUser, mockTokens } from '../mocks/auth-mocks';
+import { mockUser } from '../mocks/auth-mocks';
+import { SUITE_TIMEOUTS } from '../utils/test-config';
 import {
-  setupWorkflowMocks,
   mockWorkflowFailure,
   mockS3UploadFailure,
   mockS3DownloadFailure,
@@ -9,7 +9,7 @@ import {
   mockCompletedWorkflow as baseMockCompletedWorkflow,
 } from '../mocks/workflow-mocks';
 import { WorkflowResponse } from '@inkstream/shared';
-import { setStorageAuth, clearStorage } from '../utils/test-utils';
+import { setupAuthenticatedTestEnvironment } from '../utils/test-utils';
 import {
   navigateToDashboard,
   selectNewWorkflowTab,
@@ -34,21 +34,7 @@ import {
 
 test.describe('Workflow Management', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/', { waitUntil: 'networkidle' });
-    await clearStorage(page);
-
-    // Set up authentication
-    await setStorageAuth(page, mockUser, {
-      ...mockTokens,
-      expiresAt: Date.now() + 3600000,
-    });
-
-    // Set up mocks
-    await setupAuthMocks(page);
-    await setupWorkflowMocks(page);
-
-    // Wait for network to be idle with CI-appropriate timeout
-    // await waitForNetworkIdle(page);
+    await setupAuthenticatedTestEnvironment(page);
   });
 
   test.describe('File Upload and Selection', () => {
@@ -376,21 +362,19 @@ test.describe('Workflow Management', () => {
 
     test('should download formatted text file', async ({ page }) => {
       // Increase timeout for download operations
-      test.setTimeout(process.env.CI ? 120000 : 90000); // 2 minutes on CI, 1.5 minutes locally
+      test.setTimeout(SUITE_TIMEOUTS.DOWNLOAD_TESTS);
 
       await navigateToDashboard(page);
       await selectActiveWorkflowsTab(page);
 
       await clickDownloadButton(page, 'formatted');
 
-      await page.pause(); // Pause to manually verify download
-
       await expectDownloadSuccess(page, 'formatted');
     });
 
     test('should download translated text file', async ({ page }) => {
       // Increase timeout for download operations
-      test.setTimeout(process.env.CI ? 120000 : 90000); // 2 minutes on CI, 1.5 minutes locally
+      test.setTimeout(SUITE_TIMEOUTS.DOWNLOAD_TESTS);
 
       await navigateToDashboard(page);
       await selectActiveWorkflowsTab(page);
@@ -402,7 +386,7 @@ test.describe('Workflow Management', () => {
 
     test('should download audio file', async ({ page }) => {
       // Increase timeout for download operations
-      test.setTimeout(process.env.CI ? 120000 : 90000); // 2 minutes on CI, 1.5 minutes locally
+      test.setTimeout(SUITE_TIMEOUTS.DOWNLOAD_TESTS);
 
       await navigateToDashboard(page);
       await selectActiveWorkflowsTab(page);
@@ -471,7 +455,7 @@ test.describe('Workflow Management', () => {
 
     test('should download files from history', async ({ page }) => {
       // Increase timeout for download operations from history
-      test.setTimeout(process.env.CI ? 120000 : 90000); // 2 minutes on CI, 1.5 minutes locally
+      test.setTimeout(SUITE_TIMEOUTS.DOWNLOAD_TESTS);
 
       await navigateToDashboard(page);
       await selectWorkflowHistoryTab(page);
@@ -482,7 +466,7 @@ test.describe('Workflow Management', () => {
 
     test('should refresh workflow history', async ({ page }) => {
       // Increase timeout for this test as it involves multiple API calls and refresh logic
-      test.setTimeout(process.env.CI ? 180000 : 120000); // 3 minutes on CI, 2 minutes locally
+      test.setTimeout(SUITE_TIMEOUTS.FULL_LIFECYCLE);
 
       await navigateToDashboard(page);
 
@@ -617,7 +601,7 @@ test.describe('Workflow Management', () => {
   test.describe('End-to-End Workflow Flow', () => {
     test('should complete full workflow lifecycle', async ({ page }) => {
       // Increase timeout for full lifecycle test
-      test.setTimeout(process.env.CI ? 180000 : 120000); // 3 minutes on CI, 2 minutes locally
+      test.setTimeout(SUITE_TIMEOUTS.FULL_LIFECYCLE);
 
       // Step 1: Start new workflow
       await navigateToDashboard(page);
@@ -660,7 +644,7 @@ test.describe('Workflow Management', () => {
 
   test.describe('Error Handling', () => {
     test('should handle API errors gracefully', async ({ page }) => {
-      test.setTimeout(process.env.CI ? 150000 : 90000); // 2.5 minutes on CI, 1.5 minutes locally
+      test.setTimeout(SUITE_TIMEOUTS.ERROR_HANDLING);
 
       // Mock API error
       await page.route('**/user-workflows*', async (route) => {
@@ -679,7 +663,7 @@ test.describe('Workflow Management', () => {
 
     test('should handle download errors', async ({ page }) => {
       // Increase timeout for download error test as it involves file operations
-      test.setTimeout(process.env.CI ? 150000 : 90000); // 2.5 minutes on CI, 1.5 minutes locally
+      test.setTimeout(SUITE_TIMEOUTS.ERROR_HANDLING);
 
       // Set up a workflow with downloadable files (similar to File Downloads beforeEach)
       const workflowWithFiles = {

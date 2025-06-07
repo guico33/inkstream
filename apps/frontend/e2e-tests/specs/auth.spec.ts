@@ -5,6 +5,7 @@ import {
   mockUser,
   mockTokens,
 } from '../mocks/auth-mocks';
+import { TEST_TIMEOUTS } from '../utils/test-config';
 import {
   waitForPageLoad,
   clearStorage,
@@ -126,7 +127,7 @@ test.describe('Authentication Flow', () => {
     ).toBeVisible();
 
     // Should redirect back to login after delay (we can check immediately)
-    await page.waitForTimeout(3100); // Wait for redirect timeout
+    await page.waitForTimeout(TEST_TIMEOUTS.AUTH_REDIRECT); // Wait for redirect timeout
     await expectToBeOnLoginPage(page);
   });
 
@@ -145,7 +146,7 @@ test.describe('Authentication Flow', () => {
     ).toBeVisible();
 
     // Should redirect back to login
-    await page.waitForTimeout(3100);
+    await page.waitForTimeout(TEST_TIMEOUTS.AUTH_REDIRECT);
     await expectToBeOnLoginPage(page);
   });
 
@@ -163,7 +164,7 @@ test.describe('Authentication Flow', () => {
     ).toBeVisible();
 
     // Should redirect back to login
-    await page.waitForTimeout(3100);
+    await page.waitForTimeout(TEST_TIMEOUTS.AUTH_REDIRECT);
     await expectToBeOnLoginPage(page);
   });
 
@@ -264,7 +265,7 @@ test.describe('Authentication Flow', () => {
       // Wait for the Cognito logout request to be intercepted
       await Promise.race([
         requestPromise,
-        page.waitForTimeout(3000), // Fallback timeout
+        page.waitForTimeout(TEST_TIMEOUTS.DEFAULT), // Fallback timeout
       ]);
 
       // Verify the Cognito logout URL was correctly constructed

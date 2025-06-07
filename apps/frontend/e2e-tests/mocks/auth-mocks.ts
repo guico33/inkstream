@@ -168,12 +168,11 @@ export async function setupAuthMocks(page: Page) {
   });
 }
 
+type AuthErrorType = 'token_exchange' | 'invalid_code' | 'oauth_error';
+
 export async function mockFailedAuth(
   page: Page,
-  errorType:
-    | 'token_exchange'
-    | 'invalid_code'
-    | 'oauth_error' = 'token_exchange'
+  errorType: AuthErrorType = 'token_exchange'
 ) {
   if (errorType === 'token_exchange') {
     await page.route('**/oauth2/token', async (route) => {

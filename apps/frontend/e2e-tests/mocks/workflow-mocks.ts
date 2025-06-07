@@ -6,9 +6,52 @@ import {
   getStatusCategory,
 } from '@inkstream/shared';
 
+// Types for mock configuration
+interface MockS3Headers {
+  readonly ETAG: string;
+  readonly REQUEST_ID: string;
+  readonly ID_2: string;
+}
+
+interface MockWorkflowIds {
+  readonly START: string;
+  readonly ACTIVE: string;
+  readonly COMPLETED: string;
+  readonly FAILED: string;
+}
+
+interface MockS3Paths {
+  readonly ORIGINAL: string;
+  readonly FORMATTED: string;
+  readonly TRANSLATED: string;
+  readonly AUDIO: string;
+}
+
+type MockErrorType = 'token_exchange' | 'invalid_code' | 'oauth_error';
+
+// Constants for mock data
+const MOCK_USER_ID = 'test_user';
+const MOCK_WORKFLOW_IDS: MockWorkflowIds = {
+  START: 'wf_test_12345',
+  ACTIVE: 'wf_active_12345',
+  COMPLETED: 'wf_completed_12345',
+  FAILED: 'wf_failed_12345',
+} as const;
+const MOCK_S3_PATHS: MockS3Paths = {
+  ORIGINAL: 'user-uploads/test-document.pdf',
+  FORMATTED: 'workflow-results/formatted.txt',
+  TRANSLATED: 'workflow-results/translated.txt',
+  AUDIO: 'workflow-results/audio.mp3',
+} as const;
+const MOCK_S3_HEADERS: MockS3Headers = {
+  ETAG: '"mock-etag-12345"',
+  REQUEST_ID: 'mock-request-id',
+  ID_2: 'mock-id-2',
+} as const;
+
 export const mockWorkflowStartResponse: WorkflowResponse = {
-  userId: 'test_user',
-  workflowId: 'wf_test_12345',
+  userId: MOCK_USER_ID,
+  workflowId: MOCK_WORKFLOW_IDS.START,
   status: 'STARTING',
   statusHistory: [],
   statusCategory: 'active',
@@ -21,16 +64,16 @@ export const mockWorkflowStartResponse: WorkflowResponse = {
     targetLanguage: 'es',
   },
   s3Paths: {
-    originalFile: 'user-uploads/test-document.pdf',
+    originalFile: MOCK_S3_PATHS.ORIGINAL,
   },
 };
 
 export const mockActiveWorkflow: WorkflowResponse = {
-  userId: 'test_user',
+  userId: MOCK_USER_ID,
   statusHistory: [],
   statusCategory: 'active',
   statusCategoryCreatedAt: 'active#' + new Date().toISOString(),
-  workflowId: 'wf_active_12345',
+  workflowId: MOCK_WORKFLOW_IDS.ACTIVE,
   status: 'EXTRACTING_TEXT',
   createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(), // 5 minutes ago
   updatedAt: new Date(Date.now() - 1 * 60 * 1000).toISOString(), // 1 minute ago
@@ -40,13 +83,13 @@ export const mockActiveWorkflow: WorkflowResponse = {
     targetLanguage: 'fr',
   },
   s3Paths: {
-    originalFile: 'user-uploads/test-doc.pdf',
+    originalFile: MOCK_S3_PATHS.ORIGINAL,
   },
 };
 
 export const mockCompletedWorkflow: WorkflowResponse = {
-  userId: 'test_user',
-  workflowId: 'wf_completed_12345',
+  userId: MOCK_USER_ID,
+  workflowId: MOCK_WORKFLOW_IDS.COMPLETED,
   status: 'SUCCEEDED',
   statusHistory: [],
   statusCategory: 'completed',
@@ -59,16 +102,16 @@ export const mockCompletedWorkflow: WorkflowResponse = {
     targetLanguage: 'es',
   },
   s3Paths: {
-    originalFile: 'user-uploads/sample-document.pdf',
-    formattedText: 'workflow-results/formatted.txt',
-    translatedText: 'workflow-results/translated.txt',
-    audioFile: 'workflow-results/audio.mp3',
+    originalFile: MOCK_S3_PATHS.ORIGINAL,
+    formattedText: MOCK_S3_PATHS.FORMATTED,
+    translatedText: MOCK_S3_PATHS.TRANSLATED,
+    audioFile: MOCK_S3_PATHS.AUDIO,
   },
 };
 
 export const mockFailedWorkflow: WorkflowResponse = {
-  userId: 'test_user',
-  workflowId: 'wf_failed_12345',
+  userId: MOCK_USER_ID,
+  workflowId: MOCK_WORKFLOW_IDS.FAILED,
   status: 'FAILED',
   statusHistory: [],
   statusCategory: 'completed',
@@ -81,7 +124,7 @@ export const mockFailedWorkflow: WorkflowResponse = {
   },
   error: 'Failed to extract text from document',
   s3Paths: {
-    originalFile: 'user-uploads/corrupted-file.pdf',
+    originalFile: MOCK_S3_PATHS.ORIGINAL,
   },
 };
 
@@ -101,7 +144,7 @@ export function createProgressingWorkflow(
   const statusCategory = getStatusCategory(initialStatus);
   const date = new Date().toISOString();
   return {
-    userId: 'test_user',
+    userId: MOCK_USER_ID,
     workflowId: 'wf_progressing_' + Date.now(),
     statusHistory: [],
     statusCategory,
@@ -115,71 +158,88 @@ export function createProgressingWorkflow(
       targetLanguage: 'fr',
     },
     s3Paths: {
-      originalFile: 'user-uploads/test-document.pdf',
+      originalFile: MOCK_S3_PATHS.ORIGINAL,
     },
   };
 }
 
-export async function setupWorkflowMocks(page: Page) {
-  // Mock S3 upload endpoint - comprehensive mock for all S3 operations
+async function setupS3Mocks(page: Page) {
   await page.route('**/*.s3.*.amazonaws.com/**', async (route) => {
     const request = route.request();
+    const method = request.method();
 
-    if (request.method() === 'PUT') {
-      // Mock successful S3 PUT response for file uploads
-      await route.fulfill({
-        status: 200,
-        headers: {
-          ETag: '"mock-etag-12345"',
-          'x-amz-request-id': 'mock-request-id',
-          'x-amz-id-2': 'mock-id-2',
-          'Content-Type': 'application/xml',
-        },
-        body: '',
-      });
-    } else if (request.method() === 'POST') {
-      // Mock S3 POST (multipart upload initiation)
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/xml',
-        body: `<?xml version="1.0" encoding="UTF-8"?>
+    switch (method) {
+      case 'PUT':
+        // Mock successful S3 PUT response for file uploads
+        await route.fulfill({
+          status: 200,
+          headers: {
+            ETag: MOCK_S3_HEADERS.ETAG,
+            'x-amz-request-id': MOCK_S3_HEADERS.REQUEST_ID,
+            'x-amz-id-2': MOCK_S3_HEADERS.ID_2,
+            'Content-Type': 'application/xml',
+          },
+          body: '',
+        });
+        break;
+
+      case 'POST':
+        // Mock S3 POST (multipart upload initiation)
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/xml',
+          body: `<?xml version="1.0" encoding="UTF-8"?>
 <InitiateMultipartUploadResult>
   <Bucket>mock-bucket</Bucket>
   <Key>mock-key</Key>
   <UploadId>mock-upload-id</UploadId>
 </InitiateMultipartUploadResult>`,
-      });
-    } else if (request.method() === 'GET') {
-      // Handle S3 downloads
-      const url = request.url();
-      let contentType = 'text/plain';
-      let body = 'Mock file content';
+        });
+        break;
 
-      if (url.includes('audio')) {
-        contentType = 'audio/mpeg';
-        body = 'mock audio content';
-      } else if (url.includes('translated')) {
-        body = 'Contenido de texto traducido simulado';
-      } else if (url.includes('formatted')) {
-        body = 'Mock formatted text content';
-      }
+      case 'GET':
+        // Handle S3 downloads
+        const url = request.url();
+        let contentType = 'text/plain';
+        let body = 'Mock file content';
+        let filename = 'mock-file.txt';
 
-      await route.fulfill({
-        status: 200,
-        headers: {
-          'Content-Type': contentType,
-          'Content-Disposition': 'attachment; filename="mock-file.txt"',
-        },
-        body,
-      });
-    } else {
-      // Mock other S3 operations
-      await route.fulfill({
-        status: 200,
-        body: '',
-      });
+        if (url.includes('audio')) {
+          contentType = 'audio/mpeg';
+          body = 'mock audio content';
+          filename = 'mock-file.mp3';
+        } else if (url.includes('translated')) {
+          body = 'Contenido de texto traducido simulado';
+          filename = 'translated-text.txt';
+        } else if (url.includes('formatted')) {
+          body = 'Mock formatted text content';
+          filename = 'formatted-text.txt';
+        }
+
+        await route.fulfill({
+          status: 200,
+          headers: {
+            'Content-Type': contentType,
+            'Content-Disposition': `attachment; filename="${filename}"`,
+          },
+          body,
+        });
+        break;
+
+      default:
+        // Mock other S3 operations
+        await route.fulfill({
+          status: 200,
+          body: '',
+        });
+        break;
     }
   });
+}
+
+export async function setupWorkflowMocks(page: Page) {
+  // Set up S3 mocking
+  await setupS3Mocks(page);
 
   // Mock workflow start endpoint - match any /workflow/start path
   await page.route('**/workflow/start', async (route) => {
@@ -283,15 +343,15 @@ export async function setupWorkflowProgressMock(
       // Add s3Paths based on progress
       if (currentStep >= 2) {
         // After FORMATTING_TEXT
-        workflow.s3Paths!.formattedText = 'workflow-results/formatted.txt';
+        workflow.s3Paths!.formattedText = MOCK_S3_PATHS.FORMATTED;
       }
       if (currentStep >= 4) {
         // After TRANSLATION_COMPLETE
-        workflow.s3Paths!.translatedText = 'workflow-results/translated.txt';
+        workflow.s3Paths!.translatedText = MOCK_S3_PATHS.TRANSLATED;
       }
       if (currentStep >= 5) {
         // After CONVERTING_TO_SPEECH
-        workflow.s3Paths!.audioFile = 'workflow-results/audio.mp3';
+        workflow.s3Paths!.audioFile = MOCK_S3_PATHS.AUDIO;
       }
 
       currentStep = Math.min(currentStep + 1, progressSteps.length - 1);
