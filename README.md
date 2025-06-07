@@ -23,7 +23,9 @@
 
 **Inkstream** is a modern, full-stack serverless web application built on AWS, designed for seamless document processing and language transformation. Users can upload images or PDFs through a comprehensive React dashboard, which are then automatically processed through a robust, AI-powered workflow with real-time progress tracking.
 
-## ✨ What Does Inkstream Do?
+🌐 **Live Application:** [app.inkstream.cloud](https://app.inkstream.cloud)
+
+## ▶️ What Does Inkstream Do?
 
 1. **Upload**: Users upload images or PDFs via a modern React dashboard with drag-and-drop support
 2. **Real-time Tracking**: Live workflow progress tracking with 5-second polling and status updates
@@ -72,12 +74,20 @@
   - Tailwind CSS ^4.1.7 + Radix UI components
   - Comprehensive workflow management dashboard
   - Real-time updates, dark mode, mobile responsive
+  - End-to-end testing with Playwright
 - `packages/aws-cdk-infra/` – AWS CDK infrastructure
+  - Separate backend and frontend stacks for independent deployment
   - Step Functions workflow orchestration
-  - Lambda functions for processing
+  - Lambda functions for processing (including pre-signup triggers)
   - API Gateway for HTTP endpoints
   - S3, DynamoDB, Cognito, Textract, Bedrock, Polly
-- `packages/` – Shared packages (if any)
+  - Environment-specific configurations (dev/prod)
+- `packages/frontend-deployment/` – Frontend deployment automation
+  - Automated deployment script for frontend content
+  - Environment variable management and backend output fetching
+  - CloudFront cache invalidation and S3 sync
+- `packages/shared/` – Shared TypeScript packages
+  - Common types and utilities used across frontend and backend
 
 ---
 
@@ -109,23 +119,43 @@ This project uses npm workspaces. Commands are typically run from the root of th
 
 ## 🚀 Production Deployment
 
-### Frontend (React App)
-The React application can be deployed to any static hosting service:
+### Architecture Overview
+The application uses separate CDK stacks for independent deployment:
+- **Backend Stack**: API Gateway, Lambda functions, DynamoDB, Cognito, Step Functions
+- **Frontend Stack**: S3 bucket, CloudFront distribution, Route53 DNS records
 
-1. **Build the frontend**:
-   ```sh
-   npm run build:frontend
-   ```
-
-2. **Deploy** the `apps/frontend/dist/` folder to your hosting provider (AWS S3, Vercel, Netlify, etc.)
-
-### Backend (AWS Infrastructure)
-Deploy the complete AWS infrastructure:
+### Backend Infrastructure Deployment
+Deploy the AWS infrastructure:
 
 ```sh
-# Production deployment
-npm run deploy:infra:prod  # or your production environment
+# Deploy backend infrastructure
+cd packages/aws-cdk-infra
+npm run cdk:deploy:backend:prod
+
+# Deploy frontend infrastructure (S3, CloudFront)
+npm run cdk:deploy:frontend:prod
+
+# Or deploy both together
+npm run cdk:deploy:prod
 ```
+
+### Frontend Content Deployment
+Deploy the React application content using automated deployment:
+
+```sh
+# Deploy frontend content to production
+cd packages/frontend-deployment
+npm run deploy:prod
+
+# Deploy to development environment
+npm run deploy:dev
+```
+
+The deployment script automatically:
+- Fetches backend configuration from CloudFormation outputs
+- Builds the shared packages and frontend application
+- Generates production environment variables
+- Syncs content to S3 and invalidates CloudFront cache
 
 ## Working with AWS CDK Infrastructure
 
@@ -156,8 +186,10 @@ npx cdk <command> # e.g., npx cdk deploy, npx cdk synth
 - **📝 Text Extraction**: Amazon Textract for OCR
 - **🤖 AI Processing**: OpenAI gpt-4o or Claude 3 Haiku on Bedrock for formatting and translation
 - **🔊 Text-to-Speech**: Amazon Polly for audio generation
-- **☁️ Serverless**: Fully serverless architecture
+- **☁️ Serverless**: Fully serverless architecture with separate backend/frontend stacks
 - **🗄️ Data Management**: DynamoDB for metadata, S3 for file storage
+- **🔐 Security**: Email whitelist for development environments, CORS configuration
+- **🌍 Multi-environment**: Separate dev and production configurations
 
 ---
 
@@ -199,9 +231,31 @@ cd apps/frontend && npm run lint
 cd packages/aws-cdk-infra
 npx cdk bootstrap
 
-# Deploy to development environment
-npm run deploy:infra:dev
+# Deploy backend and frontend infrastructure to development
+npm run cdk:deploy:dev
+
+# Or deploy stacks separately
+npm run cdk:deploy:backend:dev
+npm run cdk:deploy:frontend:dev
 
 # View changes before deployment
-npx cdk diff
+npx cdk diff --context environment=dev
+```
+
+### 4. Frontend Content Deployment
+```sh
+# Deploy frontend content to development environment
+cd packages/frontend-deployment
+export ALLOWED_EMAILS="your.email@example.com"  # For dev environment whitelist
+npm run deploy:dev
+```
+
+### 5. Testing
+```sh
+# Run end-to-end tests
+cd apps/frontend
+npm run test:e2e
+
+# Run tests in headless mode
+npm run test:e2e:ci
 ```
