@@ -35,6 +35,10 @@ export function Dashboard() {
     handleTabChange('active');
   };
 
+  const switchToHistoryTab = () => {
+    handleTabChange('history');
+  };
+
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="mb-6">
@@ -95,7 +99,10 @@ export function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ActiveWorkflowsTab />
+              <ActiveWorkflowsTab 
+                isActiveTab={activeTab === 'active'}
+                onSwitchToHistory={switchToHistoryTab}
+              />
             </CardContent>
           </Card>
         </TabsContent>

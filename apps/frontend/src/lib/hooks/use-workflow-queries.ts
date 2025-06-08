@@ -1,9 +1,6 @@
 // Custom React Query hooks for workflow management
 // Provides typed queries and mutations with caching and optimistic updates
 
-import { useEffect } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useWorkflowApi } from '../api-service';
 import {
   type S3PathOutputFileKey,
   type StartWorkflowParams,
@@ -11,7 +8,11 @@ import {
   type WorkflowStatusCategory,
   WORKFLOW_POLLING_INTERVAL,
 } from '@inkstream/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { useWorkflowApi } from '../api-service';
+import { getWorkflowDisplayId } from '../display';
 
 // Query keys for consistent caching
 export const workflowKeys = {
@@ -147,20 +148,69 @@ export const useUserWorkflows = (options?: {
 export const useActiveWorkflowsPaginated = (options?: {
   limit?: number;
   nextToken?: string;
+  onWorkflowCompleted?: (workflowId: string) => void;
 }) => {
+  const { onWorkflowCompleted, ...queryOptions } = options || {};
+  const previousWorkflowIds = useRef<string[]>([]);
+
   const result = useUserWorkflows({
     enableRefetchOnMount: true,
     refetchOnWindowFocus: true,
     statusCategory: 'active',
-    limit: options?.limit || 10,
-    nextToken: options?.nextToken,
+    limit: queryOptions?.limit || 10,
+    nextToken: queryOptions?.nextToken,
   });
+
+  const currentWorkflows = result.data?.items || [];
+  const currentWorkflowIds = currentWorkflows.map((w) => w.workflowId);
+
+  // Detect completed workflows
+  useEffect(() => {
+    if (previousWorkflowIds.current.length > 0 && onWorkflowCompleted) {
+      // Find workflows that were active but are no longer in the active list
+      const completedWorkflowIds = previousWorkflowIds.current.filter(
+        (id) => !currentWorkflowIds.includes(id)
+      );
+
+      // Notify about each completed workflow
+      completedWorkflowIds.forEach((workflowId) => {
+        onWorkflowCompleted(workflowId);
+      });
+    }
+
+    // Update the previous workflow IDs
+    previousWorkflowIds.current = currentWorkflowIds;
+  }, [currentWorkflowIds, onWorkflowCompleted]);
 
   return {
     ...result,
-    activeWorkflows: result.data?.items || [],
+    activeWorkflows: currentWorkflows,
     nextToken: result.data?.nextToken,
   };
+};
+
+// Hook to handle workflow completion notifications
+export const useWorkflowCompletionNotification = (
+  isActiveTab: boolean,
+  onSwitchToHistory: () => void
+) => {
+  const handleWorkflowCompleted = (workflowId: string) => {
+    if (!isActiveTab) return;
+
+    const workflowDisplayId = getWorkflowDisplayId(workflowId);
+
+    toast.success(`Workflow ${workflowDisplayId} completed!`, {
+      description:
+        'Your workflow has finished processing and results are ready for download.',
+      action: {
+        label: 'View in History',
+        onClick: onSwitchToHistory,
+      },
+      duration: 15000, // 15 seconds
+    });
+  };
+
+  return { handleWorkflowCompleted };
 };
 
 // Hook to download workflow results

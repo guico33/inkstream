@@ -598,6 +598,156 @@ test.describe('Workflow Management', () => {
     });
   });
 
+  test.describe('Workflow Completion Notifications', () => {
+    test('should show completion toast when workflow finishes', async ({
+      page,
+    }) => {
+      // Install clock BEFORE navigating to the page so it's active when React Query sets up
+      await page.clock.install({ time: new Date('2024-01-01T00:00:00Z') });
+
+      await navigateToDashboard(page);
+      await selectActiveWorkflowsTab(page);
+
+      // Set up a workflow that will transition from active to completed
+      const activeWorkflowId = 'wf_active_for_notification';
+      let serveActiveWorkflow = true;
+
+      // Mock the active workflows response to simulate workflow completion
+      await page.route('**/user-workflows*', async (route) => {
+        const url = new URL(route.request().url());
+        const statusCategory = url.searchParams.get('statusCategory');
+
+        if (statusCategory === 'active') {
+          if (serveActiveWorkflow) {
+            // First response: serve the active workflow
+            const activeWorkflow = {
+              ...mockActiveWorkflow,
+              workflowId: activeWorkflowId,
+              status: 'EXTRACTING_TEXT',
+            };
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                items: [activeWorkflow],
+                nextToken: undefined,
+              }),
+            });
+          } else {
+            // Second response: workflow has completed (no longer in active list)
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                items: [],
+                nextToken: undefined,
+              }),
+            });
+          }
+        } else {
+          await route.continue();
+        }
+      });
+
+      // Verify initial active workflow is visible
+      await expectActiveWorkflowVisible(page);
+
+      // Simulate workflow completion by changing the mock response
+      serveActiveWorkflow = false;
+
+      // Fast forward time to trigger the next polling cycle (30 seconds)
+      console.log('Fast forwarding clock by 35 seconds...');
+      await page.clock.fastForward(35000); // 35 seconds in milliseconds
+
+      // Give React a moment to process the timer events
+      await page.waitForTimeout(100);
+
+      console.log('Looking for completion toast...');
+      // Wait for toast and click the action button
+      await expect(page.getByText(/Workflow.*completed!/i)).toBeVisible({
+        timeout: 10000,
+      });
+      await expect(
+        page.getByText(/results are ready for download/i)
+      ).toBeVisible();
+
+      // Check that the "View in History" button is present in the toast
+      await expect(
+        page.getByRole('button', { name: /View in History/i })
+      ).toBeVisible();
+    });
+
+    test('should navigate to history tab when clicking View in History button', async ({
+      page,
+    }) => {
+      await navigateToDashboard(page);
+      await selectActiveWorkflowsTab(page);
+
+      // Set up workflow completion scenario
+      const activeWorkflowId = 'wf_active_for_navigation';
+      let serveActiveWorkflow = true;
+
+      await page.route('**/user-workflows*', async (route) => {
+        const url = new URL(route.request().url());
+        const statusCategory = url.searchParams.get('statusCategory');
+
+        if (statusCategory === 'active') {
+          if (serveActiveWorkflow) {
+            const activeWorkflow = {
+              ...mockActiveWorkflow,
+              workflowId: activeWorkflowId,
+            };
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                items: [activeWorkflow],
+                nextToken: undefined,
+              }),
+            });
+          } else {
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                items: [],
+                nextToken: undefined,
+              }),
+            });
+          }
+        } else {
+          await route.continue();
+        }
+      });
+
+      // Verify we're on active tab
+      await expectToBeOnActiveTab(page);
+
+      // Trigger workflow completion
+      serveActiveWorkflow = false;
+
+      // Wait for the actual polling interval to trigger (30 seconds + buffer)
+      // This is not ideal but may be the most reliable approach
+      await page.waitForTimeout(35000);
+
+      // Wait for toast and click the action button
+      await expect(page.getByText(/Workflow.*completed!/i)).toBeVisible({
+        timeout: 10000,
+      });
+      const viewHistoryButton = page.getByRole('button', {
+        name: /View in History/i,
+      });
+      await expect(viewHistoryButton).toBeVisible();
+      await viewHistoryButton.click();
+
+      // Verify we switched to the history tab
+      await expect(page.getByRole('tab', { name: /History/i })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      );
+    });
+  });
+
   test.describe('End-to-End Workflow Flow', () => {
     test('should complete full workflow lifecycle', async ({ page }) => {
       // Increase timeout for full lifecycle test

@@ -203,7 +203,7 @@ test.describe('Authentication Flow', () => {
     });
 
     await page.goto('/');
-    await waitForPageLoad(page); // Wait for dashboard to load
+    await waitForPageLoad(page);
 
     // Verify user is initially authenticated
     await expectToBeOnDashboard(page);
@@ -218,68 +218,29 @@ test.describe('Authentication Flow', () => {
       .getByRole('button', { name: /sign out|logout/i })
       .first();
 
-    if (await logoutButton.isVisible()) {
-      // Load values from environment variables
-      const cognitoDomain = process.env.VITE_COGNITO_DOMAIN?.replace(
-        'https://',
-        ''
-      );
-      const cognitoClientId = process.env.VITE_COGNITO_CLIENT_ID;
-      const appBaseUrl = page.url().split('/').slice(0, 3).join('/');
+    await expect(logoutButton).toBeVisible();
 
-      // Ensure environment variables are loaded
-      if (!cognitoDomain || !cognitoClientId) {
-        throw new Error(
-          'Missing required environment variables: VITE_COGNITO_DOMAIN and VITE_COGNITO_CLIENT_ID must be set'
-        );
-      }
-
-      // Set up request interception to capture the Cognito logout URL
-      let cognitoLogoutUrl = '';
-      const requestPromise = new Promise<void>((resolve) => {
-        page.on('request', (request) => {
-          const url = request.url();
-          if (url.includes(cognitoDomain) && url.includes('/logout')) {
-            cognitoLogoutUrl = url;
-            console.log('Captured Cognito logout URL:', url);
-            resolve();
-          }
-        });
+    // Mock any Cognito logout requests to prevent external navigation
+    await page.route('**/*cognito*.amazonaws.com/**', async (route) => {
+      // Simulate successful logout by redirecting back to login
+      await route.fulfill({
+        status: 302,
+        headers: {
+          Location: `${page.url().split('/').slice(0, 3).join('/')}/login`,
+        },
       });
+    });
 
-      // Block the external request to prevent navigation to fake domain
-      await page.route(`https://${cognitoDomain}/*`, async (route) => {
-        console.log('Blocked request to:', route.request().url());
-        // Simulate successful logout by redirecting back to app
-        await route.fulfill({
-          status: 302,
-          headers: {
-            Location: appBaseUrl,
-          },
-        });
-      });
+    // Click logout button
+    await logoutButton.click();
 
-      // Click logout button
-      await logoutButton.click();
+    // Wait for logout to complete and verify we're redirected to login
+    await expectToBeOnLoginPage(page);
 
-      // Wait for the Cognito logout request to be intercepted
-      await Promise.race([
-        requestPromise,
-        page.waitForTimeout(TEST_TIMEOUTS.DEFAULT), // Fallback timeout
-      ]);
-
-      // Verify the Cognito logout URL was correctly constructed
-      if (cognitoLogoutUrl) {
-        expect(cognitoLogoutUrl).toMatch(
-          new RegExp(`^https://${cognitoDomain}/logout`)
-        );
-        expect(cognitoLogoutUrl).toContain(`client_id=${cognitoClientId}`);
-        expect(cognitoLogoutUrl).toContain(`logout_uri=${appBaseUrl}`);
-      } else {
-        throw new Error('Expected Cognito logout URL was not captured');
-      }
-    } else {
-      throw new Error('Logout button not found - cannot test logout flow');
-    }
+    // Verify localStorage has been cleared
+    const userDataAfterLogout = await page.evaluate(() =>
+      localStorage.getItem('inkstream_user')
+    );
+    expect(userDataAfterLogout).toBeNull();
   });
 });

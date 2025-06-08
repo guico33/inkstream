@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import {
   useActiveWorkflowsPaginated,
   useDownloadWorkflowResult,
+  useWorkflowCompletionNotification,
 } from '@/lib/hooks/use-workflow-queries';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -33,14 +34,26 @@ import {
 } from '@inkstream/shared';
 import { getWorkflowDisplayId } from '@/lib/display';
 
-export function ActiveWorkflowsTab() {
+interface ActiveWorkflowsTabProps {
+  isActiveTab: boolean;
+  onSwitchToHistory: () => void;
+}
+
+export function ActiveWorkflowsTab({ isActiveTab, onSwitchToHistory }: ActiveWorkflowsTabProps) {
   const [currentToken, setCurrentToken] = React.useState<string | undefined>();
   const [previousTokens, setPreviousTokens] = React.useState<string[]>([]);
+
+  // Set up workflow completion notifications
+  const { handleWorkflowCompleted } = useWorkflowCompletionNotification(
+    isActiveTab,
+    onSwitchToHistory
+  );
 
   const { activeWorkflows, nextToken, isLoading, error, isFetching } =
     useActiveWorkflowsPaginated({
       limit: 10,
       nextToken: currentToken,
+      onWorkflowCompleted: handleWorkflowCompleted,
     });
 
   const hasNextPage = !!nextToken;
