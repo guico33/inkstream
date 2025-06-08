@@ -25,7 +25,7 @@
 
 🌐 **Live Application:** [app.inkstream.cloud](https://app.inkstream.cloud)
 
-## ▶️ What Does Inkstream Do?
+## What Does Inkstream Do?
 
 1. **Upload**: Users upload images or PDFs via a modern React dashboard with drag-and-drop support
 2. **Real-time Tracking**: Live workflow progress tracking with 5-second polling and status updates
