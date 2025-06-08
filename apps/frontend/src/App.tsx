@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/query-client';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from './lib/contexts/theme-provider-context';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function App() {
   return (
@@ -12,7 +13,9 @@ function App() {
       <ThemeProvider defaultTheme="system" storageKey="inkstream-ui-theme">
         <AuthProvider>
           <Router>
-            <AppRoutes />
+            <ErrorBoundary>
+              <AppRoutes />
+            </ErrorBoundary>
             <Toaster position="top-center" richColors />
           </Router>
         </AuthProvider>

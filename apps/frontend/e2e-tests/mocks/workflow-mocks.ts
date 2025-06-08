@@ -27,8 +27,6 @@ interface MockS3Paths {
   readonly AUDIO: string;
 }
 
-type MockErrorType = 'token_exchange' | 'invalid_code' | 'oauth_error';
-
 // Constants for mock data
 const MOCK_USER_ID = 'test_user';
 const MOCK_WORKFLOW_IDS: MockWorkflowIds = {
@@ -197,7 +195,7 @@ async function setupS3Mocks(page: Page) {
         });
         break;
 
-      case 'GET':
+      case 'GET': {
         // Handle S3 downloads
         const url = request.url();
         let contentType = 'text/plain';
@@ -225,6 +223,7 @@ async function setupS3Mocks(page: Page) {
           body,
         });
         break;
+      }
 
       default:
         // Mock other S3 operations
@@ -243,7 +242,6 @@ export async function setupWorkflowMocks(page: Page) {
 
   // Mock workflow start endpoint - match any /workflow/start path
   await page.route('**/workflow/start', async (route) => {
-    console.log('MOCKING WORKFLOW START:', route.request().url());
     const requestBody = route.request().postData();
     let response = mockWorkflowStartResponse;
 
@@ -273,7 +271,6 @@ export async function setupWorkflowMocks(page: Page) {
   // Mock workflow status endpoint - match the full API Gateway URL
   await page.route('**execute-api*.amazonaws.com/workflow/*', async (route) => {
     if (route.request().method() === 'GET') {
-      console.log('MOCKING WORKFLOW STATUS:', route.request().url());
       const url = route.request().url();
       const workflowId = url.split('/').pop();
 
@@ -300,7 +297,6 @@ export async function setupWorkflowMocks(page: Page) {
 
   // Mock user workflows list endpoint - match any host path for /user-workflows
   await page.route('**/user-workflows*', async (route) => {
-    console.log('MOCKING USER WORKFLOWS:', route.request().url());
     const url = new URL(route.request().url());
     const statusCategory = url.searchParams.get('statusCategory');
 

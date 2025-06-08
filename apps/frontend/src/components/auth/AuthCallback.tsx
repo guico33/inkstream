@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router';
-import { useAuth } from '../../lib/contexts/auth-context';
+import { useAuth } from '@/lib/contexts/auth-context';
 
 export function AuthCallback() {
   const navigate = useNavigate();
@@ -11,19 +11,11 @@ export function AuthCallback() {
   const hasProcessed = useRef(false); // Prevent double execution in React StrictMode
 
   useEffect(() => {
-    console.log(
-      'AuthCallback useEffect running, hasProcessed:',
-      hasProcessed.current
-    );
-
     // Prevent double execution in React StrictMode
     if (hasProcessed.current) {
-      console.log('AuthCallback: Skipping because already processed');
       return;
     }
     hasProcessed.current = true;
-
-    console.log('AuthCallback: Starting token exchange process');
 
     const handleCallback = async () => {
       const params = new URLSearchParams(location.search);
@@ -50,10 +42,7 @@ export function AuthCallback() {
 
       // Exchange code for tokens
       try {
-        console.log('Exchanging authorization code for tokens...');
         await exchangeCodeForTokens(code);
-        console.log('Authentication successful, redirecting...');
-
         navigate('/', { replace: true });
       } catch (error) {
         console.error('Token exchange failed:', error);

@@ -111,13 +111,6 @@ export const useUserWorkflows = (options?: {
   return useQuery({
     queryKey,
     queryFn: async () => {
-      console.log('Fetching user workflows from API with params:', {
-        limit,
-        nextToken,
-        sortBy,
-        status,
-        statusCategory,
-      });
       try {
         const result = await apiService.listUserWorkflows({
           limit,
@@ -126,7 +119,6 @@ export const useUserWorkflows = (options?: {
           status,
           statusCategory,
         });
-        console.log(`Fetched ${result?.items?.length || 0} workflows from API`);
         return result;
       } catch (error) {
         console.error('Failed to fetch user workflows:', error);
