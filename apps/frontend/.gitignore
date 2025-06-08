@@ -32,3 +32,4 @@ dist-ssr
 /playwright/.cache/
 # Auto-generated environment files
 .env.production
+.env.test

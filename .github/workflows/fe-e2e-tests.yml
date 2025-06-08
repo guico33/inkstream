@@ -37,14 +37,6 @@ jobs:
         run: npx playwright install --with-deps
         working-directory: apps/frontend
 
-      - name: Start dev server in background
-        run: |
-          cd apps/frontend
-          npm run dev &
-          npx wait-on http://localhost:5174 --timeout 60000
-        env:
-          NODE_ENV: development
-
       - name: Run Playwright tests
         run: npm run test:e2e
         working-directory: apps/frontend
