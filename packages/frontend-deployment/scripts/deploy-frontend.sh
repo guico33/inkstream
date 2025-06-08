@@ -29,13 +29,27 @@ fi
 echo "🚀 Starting frontend deployment for $ENVIRONMENT environment..."
 
 # Set AWS profile and stack names based on environment
+# Use AWS profile only if we're not in CI (GitHub Actions)
+if [ -n "$GITHUB_ACTIONS" ]; then
+    # In CI, don't use AWS profiles
+    AWS_PROFILE_FLAG=""
+else
+    # Locally, use AWS profiles
+    if [ "$ENVIRONMENT" = "dev" ]; then
+        AWS_PROFILE="dev"
+        AWS_PROFILE_FLAG="--profile $AWS_PROFILE"
+    elif [ "$ENVIRONMENT" = "prod" ]; then
+        AWS_PROFILE="prod"
+        AWS_PROFILE_FLAG="--profile $AWS_PROFILE"
+    fi
+fi
+
+# Set stack names based on environment
 if [ "$ENVIRONMENT" = "dev" ]; then
-    AWS_PROFILE="dev"
     BACKEND_STACK_NAME="Dev-InkstreamBackendStack"
     FRONTEND_STACK_NAME="Dev-InkstreamFrontendStack"
     DEPLOYMENT_STACK_NAME="Dev-InkstreamFrontendDeployment"
 elif [ "$ENVIRONMENT" = "prod" ]; then
-    AWS_PROFILE="prod"
     BACKEND_STACK_NAME="Prod-InkstreamBackendStack"
     FRONTEND_STACK_NAME="Prod-InkstreamFrontendStack"
     DEPLOYMENT_STACK_NAME="Prod-InkstreamFrontendDeployment"
@@ -46,44 +60,44 @@ echo "📊 Fetching backend stack outputs..."
 # Fetch backend stack outputs
 API_URL=$(aws cloudformation describe-stacks \
     --stack-name "$BACKEND_STACK_NAME" \
-    --profile "$AWS_PROFILE" \
+    $AWS_PROFILE_FLAG \
     --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayUrl`].OutputValue' \
     --output text 2>/dev/null || echo "")
 
 USER_POOL_ID=$(aws cloudformation describe-stacks \
     --stack-name "$BACKEND_STACK_NAME" \
-    --profile "$AWS_PROFILE" \
+    $AWS_PROFILE_FLAG \
     --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
     --output text 2>/dev/null || echo "")
 
 USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks \
     --stack-name "$BACKEND_STACK_NAME" \
-    --profile "$AWS_PROFILE" \
+    $AWS_PROFILE_FLAG \
     --query 'Stacks[0].Outputs[?OutputKey==`UserPoolWebClientId`].OutputValue' \
     --output text 2>/dev/null || echo "")
 
 IDENTITY_POOL_ID=$(aws cloudformation describe-stacks \
     --stack-name "$BACKEND_STACK_NAME" \
-    --profile "$AWS_PROFILE" \
+    $AWS_PROFILE_FLAG \
     --query 'Stacks[0].Outputs[?OutputKey==`IdentityPoolId`].OutputValue' \
     --output text 2>/dev/null || echo "")
 
 STORAGE_BUCKET_NAME=$(aws cloudformation describe-stacks \
     --stack-name "$BACKEND_STACK_NAME" \
-    --profile "$AWS_PROFILE" \
+    $AWS_PROFILE_FLAG \
     --query 'Stacks[0].Outputs[?OutputKey==`StorageBucketName`].OutputValue' \
     --output text 2>/dev/null || echo "")
 
 # Fetch frontend stack outputs for bucket info
 FRONTEND_BUCKET_NAME=$(aws cloudformation describe-stacks \
     --stack-name "$FRONTEND_STACK_NAME" \
-    --profile "$AWS_PROFILE" \
+    $AWS_PROFILE_FLAG \
     --query 'Stacks[0].Outputs[?OutputKey==`StaticWebsiteBucketName`].OutputValue' \
     --output text 2>/dev/null || echo "")
 
 CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
     --stack-name "$FRONTEND_STACK_NAME" \
-    --profile "$AWS_PROFILE" \
+    $AWS_PROFILE_FLAG \
     --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
     --output text 2>/dev/null || echo "")
 
@@ -161,10 +175,18 @@ export FRONTEND_BUCKET_NAME="$FRONTEND_BUCKET_NAME"
 export CLOUDFRONT_DISTRIBUTION_ID="$CLOUDFRONT_DISTRIBUTION_ID"
 
 # Deploy the frontend content
-npx cdk deploy "$DEPLOYMENT_STACK_NAME" \
-    --context environment="$ENVIRONMENT" \
-    --profile "$AWS_PROFILE" \
-    --require-approval never
+if [ -n "$GITHUB_ACTIONS" ]; then
+    # In CI, don't use AWS profiles
+    npx cdk deploy "$DEPLOYMENT_STACK_NAME" \
+        --context environment="$ENVIRONMENT" \
+        --require-approval never
+else
+    # Locally, use AWS profiles
+    npx cdk deploy "$DEPLOYMENT_STACK_NAME" \
+        --context environment="$ENVIRONMENT" \
+        --profile "$AWS_PROFILE" \
+        --require-approval never
+fi
 
 echo "🎉 Frontend deployment completed successfully!"
 echo "🌐 Your application should be available at:"
@@ -173,7 +195,7 @@ if [ "$ENVIRONMENT" = "prod" ]; then
 else
     CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks \
         --stack-name "$FRONTEND_STACK_NAME" \
-        --profile "$AWS_PROFILE" \
+        $AWS_PROFILE_FLAG \
         --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionDomainName`].OutputValue' \
         --output text 2>/dev/null || echo "")
     if [ -n "$CLOUDFRONT_DOMAIN" ]; then
